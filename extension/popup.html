@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font: 13px/1.4 system-ui, sans-serif; width: 300px; margin: 0; padding: 14px; background: #14161c; color: #e8e9ee; }
+  h1 { font-size: 14px; margin: 0 0 10px; }
+  .row { margin: 6px 0; color: #a7abb9; }
+  .row b { color: #e8e9ee; font-weight: 600; }
+  .err { color: #ff8a80; }
+  button { background: #f47521; color: #fff; border: 0; border-radius: 6px; padding: 7px 10px; font-weight: 600; cursor: pointer; margin-right: 6px; }
+  button.secondary { background: #2a2e3a; }
+  input { width: 100%; box-sizing: border-box; background: #1d2029; border: 1px solid #2f3442; color: #e8e9ee; border-radius: 6px; padding: 6px; }
+  label { display: block; margin-top: 12px; color: #a7abb9; }
+</style>
+</head>
+<body>
+  <h1>Anime Tracker sync</h1>
+  <div class="row">Last sync: <b id="last">never</b></div>
+  <div class="row" id="result"></div>
+  <div class="row err" id="error"></div>
+  <div style="margin-top:10px">
+    <button id="sync">Sync now</button>
+    <button id="full" class="secondary">Full resync</button>
+  </div>
+  <label>Tracker URL <input id="url"></label>
+  <label>Tracker key <input id="key" type="password" autocomplete="off" placeholder="only for the hosted tracker"></label>
+  <script src="popup.js"></script>
+</body>
+</html>

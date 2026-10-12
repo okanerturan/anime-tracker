@@ -1,0 +1,41 @@
+{
+  "name": "anime-tracker",
+  "version": "2.0.0",
+  "description": "Turns your Crunchyroll watch history into a self-updating watch list: what to watch next, new seasons, recommendations and viewing stats. Runs locally or on Cloudflare.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "enrich": "node scripts/enrich_anilist.js",
+    "prefetch-images": "node scripts/prefetch_images.js",
+    "optimize-images": "node scripts/optimize_images.js && node scripts/optimize_episode_thumbs.js",
+    "repair-split-cours": "node scripts/repair_split_cours.js",
+    "dev:cloudflare": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "migrate:cloudflare": "node scripts/migrate_to_cloudflare.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "wrangler": "^4.149.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/okturan/anime-tracker.git"
+  },
+  "keywords": [
+    "anime",
+    "crunchyroll",
+    "anilist",
+    "myanimelist",
+    "watchlist",
+    "cloudflare-workers",
+    "durable-objects",
+    "chrome-extension"
+  ]
+}

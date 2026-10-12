@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" width="1280" height="360" role="img" aria-label="Anime Tracker: your Crunchyroll history, turned into a watch list that keeps itself up to date">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14161f"/>
+      <stop offset="1" stop-color="#1d1a24"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff9a3d"/>
+      <stop offset="1" stop-color="#e8571b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.2" cy="0.5" r="0.6">
+      <stop offset="0" stop-color="#f47521" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#f47521" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="360" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="360" rx="24" fill="url(#glow)"/>
+  <g transform="translate(110 100)">
+    <rect width="160" height="160" rx="38" fill="url(#mark)"/>
+    <circle cx="80" cy="80" r="47" fill="none" stroke="#fff" stroke-opacity="0.28" stroke-width="11"/>
+    <path d="M80 33 A47 47 0 1 1 33 80" fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round"/>
+    <path d="M69 59 L101 80 L69 101 Z" fill="#fff" stroke="#fff" stroke-width="6" stroke-linejoin="round"/>
+  </g>
+  <text x="320" y="170" fill="#eef0f6" font-family="Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="68" font-weight="800" letter-spacing="-1">Anime Tracker</text>
+  <text x="322" y="222" fill="#a6abbb" font-family="Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="27">Your Crunchyroll history, turned into a watch list</text>
+  <text x="322" y="258" fill="#a6abbb" font-family="Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="27">that keeps itself up to date.</text>
+</svg>

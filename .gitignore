@@ -1,0 +1,25 @@
+# Dependencies and build output
+node_modules/
+dist/
+.wrangler/
+
+# Personal data: the database, watch history, cached images, backups, logs
+data/
+
+# Secrets
+.dev.vars
+.env*
+
+# Old export scripts with hard-coded (expired) Crunchyroll tokens
+scripts/legacy/*with-token*.js
+scripts/legacy/*prefilled*.js
+
+.DS_Store
+*.log
+
+# Local scratch: third-party export tool clone, raw Crunchyroll exports, notes, screenshots, Claude state
+/_cr_repo/
+/.claude/
+/crunchyroll-*.json
+/dump
+/*.png

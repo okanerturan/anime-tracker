@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Anime Tracker</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script>
+    // Apply the saved theme before first paint. "system" follows the OS through color-scheme: light dark.
+    try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+  </script>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <a class="brand" href="#/up-next"><img class="brand-logo" src="/favicon.svg" alt="" width="24" height="24"><span>Anime Tracker</span></a>
+      <nav class="tabs" aria-label="Sections">
+        <ul id="tabs">
+          <li><a href="#/up-next" data-view="up-next"><span>Up Next</span></a></li>
+          <li><a href="#/library" data-view="library"><span>Library</span></a></li>
+          <li><a href="#/discover" data-view="discover"><span>Discover</span></a></li>
+          <li><a href="#/insights" data-view="insights"><span>Insights</span></a></li>
+          <li><a href="#/sync" data-view="sync"><span>Sync</span><span class="tab-badge" id="sync-badge" hidden></span></a></li>
+        </ul>
+      </nav>
+      <div class="topbar-status" id="topbar-status"></div>
+      <button type="button" class="icon-btn theme-btn" id="theme-btn" aria-label="Theme: dark"></button>
+    </header>
+    <main id="view" class="content-grid" aria-live="polite"></main>
+  </div>
+  <dialog id="drawer" class="drawer" aria-labelledby="drawer-title"></dialog>
+  <div id="toast" class="toast" popover="manual" role="status"></div>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

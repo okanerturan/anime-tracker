@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "anime-tracker",
+  // Account: set CLOUDFLARE_ACCOUNT_ID in a local .env file if you have more than one Cloudflare account.
+  "main": "dist/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "no_bundle": true,
+  "build": { "command": "node worker/build.mjs", "watch_dir": ["server", "worker"] },
+
+  // Static app (public/) served behind the passphrase gate: the Worker runs first for every request.
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
+
+  // The tracker database lives in one SQLite-backed Durable Object.
+  "durable_objects": { "bindings": [{ "name": "TRACKER", "class_name": "TrackerDO" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TrackerDO"] }],
+
+  // Posters and covers (fetch-once image cache).
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "anime-tracker-images" }],
+
+  // Background refresh: AniList metadata, new episodes, titles and thumbnails.
+  "triggers": { "crons": ["17 */3 * * *"] },
+
+  // Optional: `wrangler secret put TIMEZONE` (e.g. Europe/Berlin) so viewing-time stats use your clock. Defaults to UTC.
+  "observability": { "enabled": true }
+}
