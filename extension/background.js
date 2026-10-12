@@ -14,7 +14,13 @@ const authHeaders = (key) => (key ? { Authorization: `Bearer ${key}` } : {});
 let trackerKey = '';
 
 async function trackerStatus(trackerUrl) {
-  const res = await fetch(`${trackerUrl}/api/crunchyroll/status`, { headers: authHeaders(trackerKey) });
+  let res;
+  try {
+    res = await fetch(`${trackerUrl}/api/crunchyroll/status`, { headers: authHeaders(trackerKey) });
+  } catch {
+    throw new Error(`Can't reach the tracker at ${trackerUrl}. Is it running, and is the Tracker URL right?`);
+  }
+  if (res.status === 401) throw new Error('The tracker rejected the key. Check "Tracker key" (your passphrase).');
   if (!res.ok) throw new Error(`tracker ${res.status}`);
   return res.json();
 }
