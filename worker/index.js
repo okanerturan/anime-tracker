@@ -55,8 +55,40 @@ function tracker(env) {
   return env.TRACKER.get(env.TRACKER.idFromName('main'));
 }
 
+// The sync extension calls the API from a chrome-extension:// origin. Allow that cross-origin call;
+// it still has to carry the passphrase as a bearer key.
+function corsHeaders(request) {
+  const origin = request.headers.get('origin') || '';
+  if (!origin.startsWith('chrome-extension://')) return null;
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Tracker-Client',
+    'Access-Control-Max-Age': '86400',
+    Vary: 'Origin'
+  };
+}
+
+function withCors(response, cors) {
+  if (!cors) return response;
+  const res = new Response(response.body, response);
+  for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);
+  return res;
+}
+
 module.exports = {
   async fetch(request, env) {
+    const cors = corsHeaders(request);
+    if (cors && request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+    return withCors(await handle(request, env), cors);
+  },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(tracker(env).fetch('https://tracker.internal/internal/cycle', { method: 'POST' }));
+  }
+};
+
+async function handle(request, env) {
     const url = new URL(request.url);
     const passphrase = env.APP_PASSPHRASE;
     if (!passphrase) return new Response('APP_PASSPHRASE secret is not set', { status: 500 });
@@ -97,9 +129,4 @@ module.exports = {
     }
     if (isApi) return tracker(env).fetch(request);
     return env.ASSETS.fetch(request);
-  },
-
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(tracker(env).fetch('https://tracker.internal/internal/cycle', { method: 'POST' }));
-  }
-};
+}
