@@ -127,6 +127,12 @@ CREATE TABLE IF NOT EXISTS cr_season_fetch (
   season_id TEXT PRIMARY KEY,
   fetched_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+-- Small key/value store for state that must survive restarts (last refresh, last backup).
+CREATE TABLE IF NOT EXISTS app_state (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS sync_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at TEXT DEFAULT CURRENT_TIMESTAMP,

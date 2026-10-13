@@ -11,7 +11,8 @@
     "repair-split-cours": "node scripts/repair_split_cours.js",
     "dev:cloudflare": "wrangler dev",
     "deploy": "wrangler deploy",
-    "migrate:cloudflare": "node scripts/migrate_to_cloudflare.js"
+    "migrate:cloudflare": "node scripts/migrate_to_cloudflare.js",
+    "backup": "node scripts/backup.js download"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3"

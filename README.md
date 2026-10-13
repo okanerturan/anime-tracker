@@ -131,7 +131,7 @@ What runs where:
 - **Worker**: the login gate, the web app (static assets), and the cron trigger.
 - **Durable Object with SQLite storage**: the database and the API. The server modules are the same files the local version uses, behind a thin adapter that makes Durable Object SQLite look like `better-sqlite3`.
 - **R2**: posters and covers.
-- **Cron**: every three hours it refreshes AniList metadata, adds newly aired episodes and fetches their titles and thumbnails.
+- **Cron**: every three hours it refreshes AniList metadata, adds newly aired episodes and fetches their titles and thumbnails. Once a day the same run writes a backup.
 
 To deploy:
 
@@ -156,6 +156,14 @@ npm run migrate:cloudflare
 
 It copies every table and cached image, and can be re-run: images already uploaded are skipped.
 
+**Backups.** Each night the tracker writes every table to R2 as gzipped JSON (`backups/YYYY-MM-DD.json.gz`) and keeps the last 30. Episode thumbnails are left out because the sync fetches them again, which keeps a backup around 1.5 MB. The Sync page has a download button, or from a terminal:
+
+```bash
+TRACKER_URL=https://anime-tracker.<your-subdomain>.workers.dev TRACKER_KEY_FILE=./my-passphrase.txt npm run backup
+node scripts/backup.js restore data/backups/anime-tracker-2026-10-13.json.gz --local data/restored.db   # into a local SQLite file
+node scripts/backup.js restore data/backups/anime-tracker-2026-10-13.json.gz --cloud                   # back into the deployment
+```
+
 **Trying the Cloudflare build locally.** `npm run dev:cloudflare` runs it with Wrangler's local simulation of Durable Objects and R2. Put `APP_PASSPHRASE=anything` in a `.dev.vars` file first.
 
 **Security notes.** The passphrase is stored as a Cloudflare secret, never in the code. A correct passphrase sets an HTTP-only, secure session cookie that lasts a year. Wrong guesses get a 1.5-second delay. That's enough to stop casual guessing, not a determined attacker, so pick something longer than one word.
@@ -169,13 +177,14 @@ server/
   library.js           watchlist, episodes, watched state, split-season rollover
   crunchyroll.js       history ingest and Crunchyroll season to MAL mapping
   sync.js              background refresh: metadata, new episodes, titles, thumbnails
+  state.js             small persistent key/value store (last refresh, last backup)
   insights.js          Up Next, recommendations, viewing study
   images.js            fetch-once image cache (shrinks PNGs with macOS sips when available)
   sources/anilist.js   rate-limited AniList GraphQL client
   sources/jikan.js     Jikan fallback with a circuit breaker
 public/                web app: vanilla JS modules, no build step
 extension/             Chrome extension
-worker/                Cloudflare build: auth gate, Durable Object, R2 images, build script
+worker/                Cloudflare build: auth gate, Durable Object, R2 images, nightly backups, build script
 scripts/               maintenance: AniList refresh, image prefetch, data repairs, migration
 ```
 
@@ -189,6 +198,7 @@ The frontend is plain HTML, CSS and JavaScript modules. The stylesheet leans on 
 | `npm run prefetch-images` | Download every poster and cover into the image cache |
 | `npm run optimize-images` | Recompress cached images (macOS only, uses `sips`) |
 | `npm run repair-split-cours` | Move episodes stored past a finished season's end into its sequel |
+| `npm run backup` | Download the latest Cloudflare backup into `data/backups/` (see Backups above) |
 | `node scripts/repair_impossible_watches.js` | Clear watched marks dated before a show premiered, then re-apply real history |
 
 ## Limitations

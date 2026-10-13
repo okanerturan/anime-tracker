@@ -34,7 +34,7 @@ export async function render(view) {
   const runBtn = h('button', { type: 'button', class: 'btn' }, 'Refresh metadata now');
   runBtn.addEventListener('click', async () => { await api.runSync(); toast('Background refresh started'); });
 
-  view.replaceChildren(
+  view.replaceChildren(...[
     section('Crunchyroll sync', last ? `Last sync ${ago(last.at)} via ${last.source}` : 'Never synced',
       h('div', { class: 'stat-row' },
         h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.rows.toLocaleString()), h('div', { class: 'l' }, 'history episodes stored')),
@@ -49,15 +49,24 @@ export async function render(view) {
         h('li', {}, 'Open ', h('span', { class: 'mono' }, 'chrome://extensions'), ' and turn on Developer mode (top right).'),
         h('li', {}, 'Click “Load unpacked” and choose the ', h('span', { class: 'mono' }, 'extension'), ' folder inside this project.'),
         h('li', {}, 'Open crunchyroll.com once while logged in. The extension syncs right away, then every 30 minutes while Chrome is open.'),
-        h('li', {}, 'Keep this tracker running (', h('span', { class: 'mono' }, 'npm start'), '). The extension’s popup shows the last sync and has a “Sync now” button.')),
-        h('p', { class: 'muted' }, 'The extension uses your existing Crunchyroll login inside your own browser. It never stores your password or tokens, and only talks to crunchyroll.com and this local tracker.'))),
+        h('li', {}, 'In the extension’s popup, set the Tracker URL to this page’s address (and the passphrase as Tracker key when it’s hosted). The popup shows the last sync and has a “Sync now” button.')),
+        h('p', { class: 'muted' }, 'The extension uses your existing Crunchyroll login inside your own browser. It never stores your password or tokens, and only talks to crunchyroll.com and your tracker.'))),
     section('Needs review', 'Seasons the tracker mapped by guessing', h('div', { class: 'panel' }, review)),
     section('Manual import', 'Alternative to the extension: a watch-history JSON export', h('div', { class: 'panel' }, fileInput)),
-    section('Background metadata', `AniList refresh ${bg.phase === 'idle' ? 'idle' : bg.phase} · ${bg.queueLength} queued · Jikan ${bg.jikanAvailable ? 'reachable' : 'down (skipped)'}`,
+    section('Background metadata', [
+      bg.phase !== 'idle' ? `Refreshing (${bg.phase})` : bg.lastCycle ? `Last refresh ${ago(bg.lastCycle.at)}` : 'No refresh yet',
+      `${bg.queueLength} queued`, `Jikan ${bg.jikanAvailable ? 'reachable' : 'down (skipped)'}`].join(' · '),
       h('div', { class: 'stat-row' },
         h('div', { class: 'stat' }, h('div', { class: 'v' }, stats.library), h('div', { class: 'l' }, 'shows in library')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, `${stats.episodes.w.toLocaleString()} / ${stats.episodes.n.toLocaleString()}`), h('div', { class: 'l' }, 'episodes watched')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, `${Math.round((100 * stats.episodes.i) / Math.max(stats.episodes.n, 1))}%`), h('div', { class: 'l' }, 'episode thumbnails stored')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, stats.images.cached.toLocaleString()), h('div', { class: 'l' }, `posters cached locally (${Math.round(stats.images.bytes / 1048576)} MB)`))),
-      h('div', {}, runBtn)));
+      h('div', {}, runBtn)),
+    bg.lastBackup ? section('Backups', `Nightly, last ${ago(bg.lastBackup.at)} · ${bg.lastBackup.kept} kept`,
+      h('div', { class: 'panel' },
+        h('p', {}, `Every table except episode thumbnails (the sync re-fetches those), gzipped: ${Math.round(bg.lastBackup.bytes / 1024).toLocaleString()} KB, ${bg.lastBackup.rows.toLocaleString()} rows. `,
+          'Restore with ', h('span', { class: 'mono' }, 'node scripts/backup.js restore'), '.'),
+        h('div', { class: 'hero-actions' },
+          h('a', { class: 'btn', href: '/api/backup', download: '' }, 'Download latest'),
+          h('a', { class: 'btn ghost', href: '/api/backup?fresh=1', download: '' }, 'Back up now and download')))) : null].filter(Boolean));
 }

@@ -8,6 +8,7 @@ const jikan = require('./sources/jikan');
 const library = require('./library');
 const { sleep } = require('./util');
 const images = require('./images');
+const appState = require('./state');
 
 const getMediaStmt = db.prepare('SELECT * FROM media WHERE mal_id = ?');
 const episodeRowsStmt = db.prepare('SELECT episode_number AS n, title, image_blob IS NOT NULL AS hasImage FROM episode_sync WHERE mal_id = ?');
@@ -124,11 +125,17 @@ async function runQueue() {
     await sleep(150);
   }
   state.running = false;
+  saveRun();
+}
+
+function saveRun() {
+  try { appState.set('episodeRun', { completed: state.completed, failed: state.failed, lastError: state.lastError }); } catch {}
 }
 
 /** Full refresh cycle: refresh stale AniList data, then sync episodes for titles that need it. */
 async function refreshCycle() {
   if (state.phase !== 'idle') return;
+  const summary = { metadataRefreshed: 0, episodesQueued: 0, error: null };
   try {
     state.phase = 'metadata';
     // Airing / upcoming titles go stale after 6h; finished titles after 30 days.
@@ -139,6 +146,7 @@ async function refreshCycle() {
          OR m.fetched_at < datetime('now','-30 days')
     `).all().map((r) => r.id);
     if (stale.length) await anilist.fetchFullByMalIds(stale);
+    summary.metadataRefreshed = stale.length;
 
     state.phase = 'episodes';
     const need = db.prepare(`
@@ -152,10 +160,13 @@ async function refreshCycle() {
          OR (COALESCE(e.c,0) > 0 AND (e.i < e.c OR e.p > 0) AND w.synced_at < datetime('now','-3 days'))
     `).all().map((r) => r.id);
     need.forEach(enqueue);
+    summary.episodesQueued = need.length;
   } catch (err) {
     state.lastError = String(err.message || err);
+    summary.error = state.lastError;
   } finally {
     state.phase = 'idle';
+    try { appState.set('refreshCycle', summary); } catch {}
   }
 }
 
@@ -171,9 +182,15 @@ async function whenIdle(maxMs = 10 * 60 * 1000) {
 }
 
 function status() {
+  // In-memory counters reset whenever the process (or Durable Object) restarts; fall back to the saved run.
+  const savedRun = appState.get('episodeRun');
+  const cycle = appState.get('refreshCycle');
   return {
     queueLength: state.queue.length, running: state.running ? 1 : 0, phase: state.phase,
-    completed: state.completed, failed: state.failed, lastRunAt: state.lastRunAt, lastError: state.lastError,
+    completed: state.completed, failed: state.failed,
+    lastRunAt: state.lastRunAt || savedRun?.at || null,
+    lastError: state.lastError || savedRun?.lastError || null,
+    lastCycle: cycle, lastBackup: appState.get('backup'),
     jikanAvailable: jikan.isAvailable()
   };
 }

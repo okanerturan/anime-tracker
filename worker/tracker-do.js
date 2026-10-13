@@ -6,6 +6,7 @@ const images = require('./images');
 const { applySchema } = require('../server/schema');
 const routes = require('../server/routes');
 const sync = require('../server/sync');
+const backup = require('./backup');
 
 function base64ToBytes(b64) {
   const bin = atob(b64);
@@ -29,9 +30,21 @@ const makeTrackerDO = (DurableObject) => class TrackerDO extends DurableObject {
     const url = new URL(request.url);
 
     if (url.pathname === '/internal/cycle') {
+      // Back up first so a failing refresh never blocks it.
+      try { await backup.createIfDue(this.env.IMAGES); } catch (err) { console.error('backup failed', err); }
       await sync.refreshCycle();
       await sync.whenIdle();
       return Response.json(sync.status());
+    }
+    if (url.pathname === '/api/backup' && request.method === 'GET') {
+      // Latest nightly backup; ?fresh=1 makes a new one first.
+      if (url.searchParams.get('fresh') === '1') await backup.create(this.env.IMAGES);
+      const obj = await backup.latest(this.env.IMAGES);
+      if (!obj) return Response.json({ error: 'no backup yet' }, { status: 404 });
+      return new Response(obj.body, { headers: {
+        'Content-Type': 'application/gzip', 'Cache-Control': 'no-store',
+        'Content-Disposition': `attachment; filename="anime-tracker-${obj.key.slice(8)}"`
+      } });
     }
     if (url.pathname === '/internal/import' && request.method === 'POST') {
       // Migration: { table, columns, blobColumns, rows: [[...], ...] }; blobs arrive base64-encoded.
