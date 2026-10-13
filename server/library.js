@@ -64,7 +64,7 @@ function getWatchlist(sort = 'release_desc') {
            COALESCE(SUM(e.watched = 1), 0) AS watchedCount,
            COALESCE(SUM(e.image_blob IS NOT NULL), 0) AS imageCount,
            MAX(CASE WHEN e.watched = 1 THEN e.watched_at END) AS last_watched_at,
-           w.added_at AS addedAt
+           w.added_at AS addedAt, w.list_status AS listStatus, w.rating
     FROM watchlist w
     JOIN anime a ON a.mal_id = w.mal_id
     LEFT JOIN media m ON m.mal_id = a.mal_id
@@ -96,7 +96,9 @@ function getWatchlist(sort = 'release_desc') {
       imageCount: r.imageCount,
       episodeThumbCoverage: r.episodesCount ? Math.round((1000 * r.imageCount) / r.episodesCount) / 10 : 0,
       lastWatchedAt: r.last_watched_at,
-      addedAt: r.addedAt
+      addedAt: r.addedAt,
+      listStatus: r.listStatus || null,
+      rating: r.rating || null
     };
   });
 }
@@ -239,6 +241,32 @@ function markWatchedThrough(malId, episodeNumber) {
   return { ok: true, changed: info.changes };
 }
 
+const LIST_STATUSES = [null, 'on_hold', 'dropped'];
+
+/** Put a show on hold, drop it, or make it active again (status null). */
+function setListStatus(malId, status) {
+  if (!LIST_STATUSES.includes(status)) throw Object.assign(new Error('status must be on_hold, dropped or null'), { status: 400 });
+  if (!isInLibrary(malId)) throw Object.assign(new Error('not in library'), { status: 404 });
+  db.prepare('UPDATE watchlist SET list_status = ? WHERE mal_id = ?').run(status, malId);
+  return { ok: true, malId, listStatus: status };
+}
+
+/** Your own 1-5 rating; null clears it. */
+function setRating(malId, rating) {
+  if (rating !== null && !(Number.isInteger(rating) && rating >= 1 && rating <= 5)) throw Object.assign(new Error('rating must be 1-5 or null'), { status: 400 });
+  if (!isInLibrary(malId)) throw Object.assign(new Error('not in library'), { status: 404 });
+  db.prepare('UPDATE watchlist SET rating = ? WHERE mal_id = ?').run(rating, malId);
+  return { ok: true, malId, rating };
+}
+
+/** Watching a held or dropped show again makes it active. */
+function reactivate(malIds) {
+  const stmt = db.prepare('UPDATE watchlist SET list_status = NULL WHERE mal_id = ? AND list_status IS NOT NULL');
+  let n = 0;
+  for (const id of malIds) n += stmt.run(id).changes || 0;
+  return n;
+}
+
 function getEpisodeImage(malId, episodeNumber) { return getImageStmt.get(malId, episodeNumber); }
 
 const mediaEpisodesStmt = db.prepare('SELECT episodes, status FROM media WHERE mal_id = ?');
@@ -264,5 +292,5 @@ function resolveOverflow(malId, episodeNumber) {
 module.exports = {
   resolveOverflow,
   upsertAnime, addToLibrary, removeFromLibrary, isInLibrary, airedCount,
-  getWatchlist, getAnime, getEpisodes, getDetails, markWatchedElsewhere, getAllEpisodes, setWatched, markWatchedThrough, getEpisodeImage, episodeImageUrl
+  getWatchlist, getAnime, getEpisodes, getDetails, markWatchedElsewhere, getAllEpisodes, setWatched, markWatchedThrough, setListStatus, setRating, reactivate, getEpisodeImage, episodeImageUrl
 };

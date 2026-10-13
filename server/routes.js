@@ -48,7 +48,22 @@ const routes = {
     requireClientHeader(req);
     const body = await parseBody(req);
     if (!num(body.malId) || !num(body.episodeNumber)) return sendJSON(res, 400, { error: 'malId and episodeNumber required' });
+    if (body.watched) library.reactivate([num(body.malId)]);
     return sendJSON(res, 200, library.setWatched(num(body.malId), num(body.episodeNumber), Boolean(body.watched)));
+  },
+  'POST /api/anime/list-status': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    const result = library.setListStatus(num(body.malId), body.status || null);
+    insights.invalidate();
+    return sendJSON(res, 200, result);
+  },
+  'POST /api/anime/rating': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    const result = library.setRating(num(body.malId), body.rating == null ? null : Number(body.rating));
+    insights.invalidate();
+    return sendJSON(res, 200, result);
   },
   'POST /api/anime/watched-elsewhere': async (req, res) => {
     requireClientHeader(req);
@@ -65,6 +80,7 @@ const routes = {
     requireClientHeader(req);
     const body = await parseBody(req);
     if (!num(body.malId) || !num(body.episodeNumber)) return sendJSON(res, 400, { error: 'malId and episodeNumber required' });
+    library.reactivate([num(body.malId)]);
     return sendJSON(res, 200, library.markWatchedThrough(num(body.malId), num(body.episodeNumber)));
   },
 

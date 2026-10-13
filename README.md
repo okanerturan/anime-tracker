@@ -205,7 +205,7 @@ The frontend is plain HTML, CSS and JavaScript modules. The stylesheet leans on 
 
 - Crunchyroll has no public API. The extension uses the same endpoints Crunchyroll's website uses, and those can change without notice. If syncing breaks after a Crunchyroll update, `extension/crunchyroll-api.js` is the place to look.
 - Mapping Crunchyroll seasons to MyAnimeList entries is heuristic. It's right for the vast majority of shows, but recaps, director's cuts and oddly numbered OVAs sometimes need a manual fix on the Sync page.
-- Recommendations treat "finished it" as "liked it". There's no rating yet.
+- Recommendations treat "finished it" as "liked it" unless you rate the show. Star ratings and the Drop button steer them; unrated shows count by how much of them you watched.
 - Only Crunchyroll history syncs automatically. Anything watched elsewhere goes in through the "Watched" button.
 
 ## Disclaimer

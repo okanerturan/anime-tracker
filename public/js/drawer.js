@@ -27,7 +27,7 @@ export async function openAnime(partial) {
         image: partial.image || full.imageUrl,
         synopsis: full.synopsis, genres: full.genres, status: full.status, format: full.format,
         averageScore: full.averageScore, nextAiringAt: full.nextAiringAt, nextAiringEpisode: full.nextAiringEpisode,
-        inLibrary: full.inLibrary, totalEpisodes: full.totalEpisodes
+        inLibrary: full.inLibrary, totalEpisodes: full.totalEpisodes, listStatus: full.listStatus, rating: full.rating
       };
     } catch {}
   }
@@ -116,6 +116,37 @@ export async function openAnime(partial) {
     return [add, watched];
   }
 
+  // Your rating (1-5, click the same star again to clear) and list state (active, on hold, dropped).
+  function listControls() {
+    const stars = h('div', { class: 'stars', role: 'group', 'aria-label': 'Your rating' });
+    const drawStars = () => stars.replaceChildren(...[1, 2, 3, 4, 5].map((n) => {
+      const b = h('button', { type: 'button', class: 'star', 'aria-pressed': String((item.rating || 0) >= n), 'aria-label': `${n} star${n > 1 ? 's' : ''}`, title: n === item.rating ? 'Clear rating' : `Rate ${n}/5` }, '★');
+      b.addEventListener('click', async () => {
+        const next = item.rating === n ? null : n;
+        try { await api.setRating(item.malId, next); item.rating = next; drawStars(); bus.emit('library-changed'); toast(next ? `Rated ${next}/5` : 'Rating cleared'); }
+        catch (err) { toast(err.message); }
+      });
+      return b;
+    }));
+    drawStars();
+    const statusBox = h('div', { class: 'hero-actions' });
+    const LABEL = { on_hold: 'On hold', dropped: 'Dropped' };
+    const drawStatus = () => {
+      const set = async (status) => {
+        try { await api.setListStatus(item.malId, status); item.listStatus = status; drawStatus(); bus.emit('library-changed'); toast(status ? `${LABEL[status]}: ${item.title}` : `${item.title} is active again`); }
+        catch (err) { toast(err.message); }
+      };
+      const btn = (label, status, cls = 'btn small') => { const b = h('button', { type: 'button', class: cls }, label); b.addEventListener('click', () => set(status)); return b; };
+      statusBox.replaceChildren(...[
+        item.listStatus ? h('span', { class: `pill state-${item.listStatus.replace('_', '-')}` }, LABEL[item.listStatus]) : null,
+        item.listStatus ? btn('Make active', null, 'btn small primary') : null,
+        item.listStatus !== 'on_hold' ? btn('Put on hold', 'on_hold') : null,
+        item.listStatus !== 'dropped' ? btn('Drop', 'dropped', 'btn small ghost') : null].filter(Boolean));
+    };
+    drawStatus();
+    return h('div', { class: 'list-controls' }, h('span', { class: 'watch-label' }, 'Your rating'), stars, statusBox);
+  }
+
   const closeBtn = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close' }, icon('close'));
   closeBtn.addEventListener('click', closeDrawer);
 
@@ -136,6 +167,7 @@ export async function openAnime(partial) {
           airsAt ? h('p', { class: 'muted' }, `Episode ${item.nextAiringEpisode} airs ${relTime(airsAt)}`) : null,
           synopsis, more,
           watchRow,
+          item.inLibrary === false ? null : listControls(),
           h('div', { class: 'hero-actions' }, ...(item.inLibrary === false ? notInLibraryActions() : [refreshBtn, removeBtn])),
           linksRow)),
       relatedSection,

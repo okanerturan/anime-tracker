@@ -147,6 +147,9 @@ const ADDED_COLUMNS = [
   ['watchlist', 'synced_at', 'synced_at TEXT'],
   ['episode_sync', 'image_source', 'image_source TEXT'],
   ['media', 'external_links', 'external_links TEXT'],
+  // Your own list state: NULL (active), 'on_hold' or 'dropped'; and a 1-5 rating.
+  ['watchlist', 'list_status', 'list_status TEXT'],
+  ['watchlist', 'rating', 'rating INTEGER'],
   ['media', 'description', 'description TEXT']
 ];
 

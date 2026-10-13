@@ -224,6 +224,7 @@ async function ingest(rawRows, { source = 'extension' } = {}) {
   if (newAnime.length) {
     try { await anilist.fetchFullByMalIds(newAnime); } catch {}
   }
+  summary.reactivated = library.reactivate(touched);
   for (const id of new Set([...touched, ...newAnime])) sync.enqueue(id);
   logStmt.run(source, JSON.stringify(summary));
   return summary;

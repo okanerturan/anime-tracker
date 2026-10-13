@@ -5,7 +5,7 @@ import { bus } from '../bus.js';
 
 const FILTERS = [
   ['all', 'All'], ['watching', 'Watching'], ['almost', 'Almost done'], ['airing', 'Airing'], ['completed', 'Completed'],
-  ['not-started', 'Not started'], ['upcoming', 'Upcoming']
+  ['not-started', 'Not started'], ['upcoming', 'Upcoming'], ['on-hold', 'On hold'], ['dropped', 'Dropped'], ['rated', 'Rated']
 ];
 const state = { filter: 'all', query: '', sort: 'activity_desc', items: null };
 bus.on('library-changed', () => { state.items = null; });
@@ -14,8 +14,9 @@ function matches(x) {
   const st = progressState(x).key;
   const wanted = {
     watching: ['watching', 'almost'], almost: ['almost'], completed: ['completed'],
-    'not-started': ['not-started'], upcoming: ['upcoming']
+    'not-started': ['not-started'], upcoming: ['upcoming'], 'on-hold': ['on-hold'], dropped: ['dropped']
   }[state.filter];
+  if (state.filter === 'rated' && !x.rating) return false;
   if (state.filter === 'airing' && x.status !== 'RELEASING') return false;
   if (wanted && !wanted.includes(st)) return false;
   if (state.query) {
@@ -29,6 +30,8 @@ function matches(x) {
 function progressState(x) {
   const aired = x.airedEpisodes ?? x.episodesCount;
   const left = aired ? Math.max(0, aired - x.watchedCount) : x.unwatchedCount;
+  if (x.listStatus === 'dropped') return { key: 'dropped', label: 'Dropped', left };
+  if (x.listStatus === 'on_hold') return { key: 'on-hold', label: 'On hold', left };
   if (x.status === 'NOT_YET_RELEASED') return { key: 'upcoming', label: 'Upcoming', left };
   if (!x.watchedCount) return { key: 'not-started', label: aired ? `${aired} eps` : 'Not started', left };
   if (!left) return x.status === 'RELEASING' ? { key: 'caught-up', label: 'Caught up', left } : { key: 'completed', label: '✓ Completed', left };
@@ -50,6 +53,7 @@ function card(x) {
     h('div', { class: 'card-meta' },
       statusPill(x.status),
       h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
+      x.rating ? h('span', { class: 'num rating', title: `Your rating: ${x.rating}/5` }, `★${x.rating}`) : null,
       h('span', { class: 'num push-end' }, `${x.watchedCount}/${aired ?? '?'}`)));
 }
 

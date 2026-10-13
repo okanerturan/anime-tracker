@@ -14,7 +14,7 @@ const franchiseRoot = (t) => String(t || '').toLowerCase()
 
 function libraryState() {
   return db.prepare(`
-    SELECT a.mal_id, a.title, a.title_english, COALESCE(m.cover_url, a.image_url) AS cover, m.status, m.format,
+    SELECT a.mal_id, a.title, a.title_english, COALESCE(m.cover_url, a.image_url) AS cover, w.list_status, w.rating, m.status, m.format,
            m.episodes, m.next_airing_episode, m.next_airing_at, m.average_score, m.genres, m.tags, m.duration, m.start_date,
            COUNT(e.episode_number) AS ep_rows, COALESCE(SUM(e.watched = 1), 0) AS watched,
            MAX(CASE WHEN e.watched = 1 THEN e.watched_at END) AS last_watched,
@@ -44,10 +44,13 @@ function upNext() {
   const now = Date.now();
   const rows = libraryState();
   const byId = new Map(rows.map((r) => [r.mal_id, r]));
-  const continueWatching = []; const airingSoon = []; const stalled = []; const caughtUpAiring = [];
+  const continueWatching = []; const airingSoon = []; const stalled = []; const caughtUpAiring = []; const onHold = [];
+  let dropped = 0;
 
   for (const r of rows) {
     if (!r.watched) continue;
+    // Dropped shows leave Up Next entirely; held ones get their own shelf.
+    if (r.list_status === 'dropped') { dropped += 1; continue; }
     const aired = library.airedCount({ status: r.status, next_airing_episode: r.next_airing_episode, episodes: r.episodes }) ?? r.ep_rows;
     // Progress = furthest episode watched; isolated gaps before it are usually history noise, not "unwatched".
     const furthest = r.max_watched || 0;
@@ -63,6 +66,7 @@ function upNext() {
       nextEpisodeImage: nextRow?.hasImage ? library.episodeImageUrl(r.mal_id, nextEp, nextRow.updated_at) : null,
       nextAiringEpisode: r.next_airing_episode, nextAiringAt: r.next_airing_at ? r.next_airing_at * 1000 : null
     });
+    if (r.list_status === 'on_hold') { onHold.push({ ...info, lastAgeDays: Math.round(lastAgeDays) }); continue; }
     if (r.status === 'RELEASING' && r.next_airing_at && remaining === 0 && lastAgeDays <= 120) {
       if (r.next_airing_at * 1000 - now < 8 * DAY) airingSoon.push(info);
       else caughtUpAiring.push(info);
@@ -89,6 +93,8 @@ function upNext() {
     WHERE r.relation_type = 'SEQUEL'
       AND m.status IN ('FINISHED','RELEASING')
       AND m.format IN ('TV','TV_SHORT','ONA','MOVIE','OVA','SPECIAL')
+      AND COALESCE(sw.list_status, '') <> 'dropped'
+      AND NOT EXISTS (SELECT 1 FROM watchlist dw WHERE dw.mal_id = r.related_mal_id AND dw.list_status = 'dropped')
       AND EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND e.watched = 1)
       AND NOT EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.related_mal_id AND e.watched = 1)
   `).all();
@@ -105,21 +111,27 @@ function upNext() {
   }
   newSeasonCards.sort((a, b) => (b.format === 'TV') - (a.format === 'TV') || (b.averageScore || 0) - (a.averageScore || 0));
 
-  return { continueWatching, airingSoon, newSeasons: newSeasonCards, caughtUpAiring, stalled };
+  onHold.sort((a, b) => a.lastAgeDays - b.lastAgeDays);
+  return { continueWatching, airingSoon, newSeasons: newSeasonCards, caughtUpAiring, stalled, onHold, dropped };
 }
 
-/** Engagement weight per library show: how much of it you watched, and how recently. */
+// Your rating scales a show's pull on recommendations: 5 stars counts double, 1-2 stars count against.
+const RATING_FACTOR = { 5: 2, 4: 1.4, 3: 1, 2: 0, 1: 0 };
+const isDisliked = (r) => r.list_status === 'dropped' || (r.rating && r.rating <= 2);
+
+/** Engagement weight per library show: how much of it you watched, how recently, and your rating. */
 function engagementWeights(rows) {
   const now = Date.now();
   const weights = new Map();
   for (const r of rows) {
-    if (!r.watched) continue;
+    if (!r.watched || isDisliked(r)) continue;
     const aired = library.airedCount({ status: r.status, next_airing_episode: r.next_airing_episode, episodes: r.episodes }) || r.ep_rows || r.watched;
-    const completion = Math.min(1, r.watched / Math.max(1, aired));
-    if (completion < 0.34 && r.watched < 4) continue; // sampled and dropped: not a taste signal
+    let completion = Math.min(1, r.watched / Math.max(1, aired));
+    if (r.rating) completion = Math.max(completion, 0.6); // a rating is a deliberate signal even for a show you're mid-way through
+    else if (completion < 0.34 && r.watched < 4) continue; // sampled and dropped: not a taste signal
     const ageYears = r.last_watched ? (now - new Date(r.last_watched).getTime()) / (365 * DAY) : 5;
     const recency = 1 / (1 + ageYears * 0.5);
-    weights.set(r.mal_id, completion * (0.5 + recency));
+    weights.set(r.mal_id, completion * (0.5 + recency) * (r.rating ? RATING_FACTOR[r.rating] : 1));
   }
   return weights;
 }
@@ -149,7 +161,7 @@ function similarity(profile, media) {
 let recCache = null;
 
 /** Recommendations for unseen shows, built from AniList community recommendations of shows you engaged with. */
-async function recommendations({ limit = 40, refresh = false } = {}) {
+async function recommendations({ limit = 120, refresh = false } = {}) {
   if (recCache && !refresh && Date.now() - recCache.at < 15 * 60 * 1000) return recCache.data;
   const rows = libraryState();
   const weights = engagementWeights(rows);
@@ -166,8 +178,12 @@ async function recommendations({ limit = 40, refresh = false } = {}) {
     }
   }
 
+  // Shows you dropped or rated 1-2 stars push their recommendations down instead of up.
+  const disliked = new Set(rows.filter((r) => r.watched && isDisliked(r)).map((r) => r.mal_id));
+  const penalty = new Map();
   const scores = new Map();
   for (const rec of db.prepare('SELECT mal_id, rec_mal_id, rating FROM media_rec WHERE rating > 0').all()) {
+    if (disliked.has(rec.mal_id)) { penalty.set(rec.rec_mal_id, (penalty.get(rec.rec_mal_id) || 0) + 0.6 * Math.log1p(rec.rating)); continue; }
     const w = weights.get(rec.mal_id);
     if (!w || franchise.has(rec.rec_mal_id) || dismissed.has(rec.rec_mal_id)) continue;
     const entry = scores.get(rec.rec_mal_id) || { score: 0, because: [] };
@@ -176,10 +192,11 @@ async function recommendations({ limit = 40, refresh = false } = {}) {
     scores.set(rec.rec_mal_id, entry);
   }
   const mediaStmt = db.prepare('SELECT * FROM media WHERE mal_id = ?');
-  let candidates = [...scores.entries()].map(([id, e]) => ({ id, ...e, media: mediaStmt.get(id) }))
+  for (const [id, p] of penalty) if (scores.has(id)) scores.get(id).score -= p;
+  let candidates = [...scores.entries()].filter(([, e]) => e.score > 0).map(([id, e]) => ({ id, ...e, media: mediaStmt.get(id) }))
     .filter((c) => c.media && !['MUSIC'].includes(c.media.format) && c.media.status !== 'NOT_YET_RELEASED' && c.media.status !== 'CANCELLED')
     .sort((a, b) => b.score - a.score)
-    .slice(0, 120);
+    .slice(0, 200);
 
   // Fetch tags/relations for the top candidates so we can (a) rank by taste similarity, (b) drop sequels of unseen shows.
   const needFull = candidates.filter((c) => !c.media.is_full).map((c) => c.id);
@@ -207,6 +224,7 @@ async function recommendations({ limit = 40, refresh = false } = {}) {
         malId: c.id, title: c.media.title_english || c.media.title, image: images.localUrl(c.media.cover_url),
         format: c.media.format, status: c.media.status, episodes: c.media.episodes, year: c.media.season_year,
         averageScore: c.media.average_score, genres: parseJSONField(c.media.genres, []), siteUrl: c.media.site_url,
+        duration: c.media.duration, onCrunchyroll: parseJSONField(c.media.external_links, []).some((l) => /crunchyroll/i.test(l.site || '')),
         because, sharedGenres, inLibrary: library.isInLibrary(c.id), match: Math.round(final * 100)
       };
     })
@@ -282,7 +300,7 @@ function study() {
     started += 1;
     const aired = library.airedCount({ status: r.status, next_airing_episode: r.next_airing_episode, episodes: r.episodes }) || r.ep_rows;
     const c = r.watched / Math.max(1, aired);
-    if (c >= 0.9) finished += 1; else if (c < 0.34) dropped += 1;
+    if (c >= 0.9) finished += 1; else if (c < 0.34 || r.list_status === 'dropped') dropped += 1;
     if (r.average_score) { scoreSum += r.average_score; scoreN += 1; }
     formats[r.format || 'UNKNOWN'] = (formats[r.format || 'UNKNOWN'] || 0) + 1;
   }
