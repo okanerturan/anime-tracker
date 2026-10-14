@@ -1,5 +1,6 @@
 import { api } from '../api.js';
 import { h, section, fill } from '../ui.js';
+import { openAnime } from '../drawer.js';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -11,9 +12,9 @@ function bars(values, labels, fmt = (v) => v) {
     h('div', { class: 'bar-labels' }, labels.map((l) => h('span', {}, l))));
 }
 
-function hbars(rows, { value = 'value', label = 'name', suffix = '' } = {}) {
+function hbars(rows, { value = 'value', label = 'name', suffix = '', onOpen = null } = {}) {
   const max = Math.max(...rows.map((r) => r[value]), 1);
-  return h('div', { class: 'hbars' }, rows.map((r) => h('div', { class: 'hbar' },
+  return h('div', { class: 'hbars' }, rows.map((r) => h('div', { class: `hbar ${onOpen && r.malId ? 'is-link' : ''}`, onclick: onOpen && r.malId ? () => onOpen(r) : null, role: onOpen && r.malId ? 'button' : null, tabindex: onOpen && r.malId ? '0' : null, onkeydown: onOpen && r.malId ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(r); } } : null },
     h('span', { class: 'name one-line', title: r[label] }, r[label]),
     h('span', { class: 'track' }, h('span', { style: { '--p': String(r[value] / max) } })),
     h('span', { class: 'num' }, `${r[value]}${suffix}`))));
@@ -48,8 +49,10 @@ export async function render(view) {
       h('div', { class: 'panel' }, h('h3', {}, 'Favourite genres'), hbars(s.taste.genres, { value: 'weight', suffix: '%' })),
       h('div', { class: 'panel' }, h('h3', {}, 'Recurring themes'), hbars(s.taste.tags, { value: 'weight', suffix: '%' }))),
     h('div', { class: 'panels' },
-      h('div', { class: 'panel' }, h('h3', {}, 'Most watched'), hbars(s.topShows.map((x) => ({ name: x.title, value: x.episodes })), { suffix: ' eps' })),
+      h('div', { class: 'panel' }, h('h3', {}, 'Most watched'), hbars(s.topShows.map((x) => ({ name: x.title, value: x.episodes, malId: x.malId })), { suffix: ' eps', onOpen: (r) => openAnime({ malId: r.malId, title: r.name }) })),
       h('div', { class: 'panel' }, h('h3', {}, 'Biggest binges'),
         s.binges.length ? h('table', { class: 'simple' }, h('tr', {}, h('th', {}, 'Day'), h('th', {}, 'Show'), h('th', {}, 'Eps')),
-          s.binges.map((b) => h('tr', {}, h('td', {}, new Date(b.day).toLocaleDateString()), h('td', {}, b.show), h('td', {}, b.episodes)))) : h('div', { class: 'muted' }, 'No 6+ episode days yet.'))));
+          s.binges.map((b) => h('tr', {}, h('td', {}, new Date(b.day).toLocaleDateString()),
+            h('td', {}, b.malId ? h('a', { class: 'row-link', href: `#/insights?anime=${b.malId}`, onclick: (e) => { e.preventDefault(); openAnime({ malId: b.malId, title: b.show }); } }, b.show) : b.show),
+            h('td', {}, b.episodes)))) : h('div', { class: 'muted' }, 'No 6+ episode days yet.'))));
 }

@@ -1500,3 +1500,14 @@ select {
 
 /* Folded watched episodes: the button spans the grid */
 .ep-grid > .unfold { grid-column: 1 / -1; justify-self: start; }
+
+/* Insights rows that open a show */
+.hbar.is-link { cursor: pointer; border-radius: var(--radius); }
+@media (hover: hover) and (pointer: fine) {
+  .hbar.is-link:hover .name { color: var(--accent); }
+}
+.hbar.is-link:focus-visible { outline-offset: 2px; }
+.row-link { color: inherit; text-decoration: none; }
+@media (hover: hover) and (pointer: fine) {
+  .row-link:hover { color: var(--accent); }
+}

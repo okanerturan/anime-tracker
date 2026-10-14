@@ -190,9 +190,27 @@ function rateStrip(items, onRated) {
     h('div', { class: 'quiet-list' }, items.map(row)));
 }
 
+// The home page paints from the last known state right away, then redraws with fresh data.
+const SNAPSHOT_KEY = 'upnext:snapshot';
+function readSnapshot() {
+  try { const s = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || 'null'); return s && Date.now() - s.at < 86400000 ? s : null; } catch { return null; }
+}
+function writeSnapshot(data, cr) { try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ at: Date.now(), data, cr })); } catch {} }
+
 export async function render(view) {
-  view.replaceChildren(h('div', { class: 'skeleton' }));
+  const snap = readSnapshot();
+  if (snap) draw(view, snap.data, snap.cr); else view.replaceChildren(h('div', { class: 'skeleton' }));
+  await refresh(view);
+}
+
+/** Fresh data only (after a tick, a hold or a drop), so a stale snapshot never flashes back. */
+async function refresh(view) {
   const [data, cr] = await Promise.all([api.upNext(), api.crStatus().catch(() => null)]);
+  writeSnapshot(data, cr);
+  draw(view, data, cr);
+}
+
+function draw(view, data, cr) {
   // A paused Crunchyroll episode that is a show's next episode is shown on that show's card instead.
   const paused = new Map((cr?.inProgress || []).filter((p) => p.malId).map((p) => [`${p.malId}:${p.episodeNumber}`, p]));
   const used = new Set();
@@ -220,7 +238,7 @@ export async function render(view) {
     tonight(data.continueWatching, inProgress),
     rateSection,
     carousel('Continue watching', `${plural(data.continueWatching.length, 'show')} with episodes waiting`,
-      data.continueWatching.map((x) => epCard(x, 'continue', () => render(view))), "You're all caught up."),
+      data.continueWatching.map((x) => epCard(x, 'continue', () => refresh(view))), "You're all caught up."),
     inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map(pausedCard), '') : null,
     weekStrip(airingWeek),
     caughtUpRow(caughtUp),

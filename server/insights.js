@@ -41,6 +41,9 @@ function card(r, extra = {}) {
   };
 }
 
+const nextRowStmt = db.prepare('SELECT title, url, image_blob IS NOT NULL AS hasImage, updated_at FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
+const latestAiredStmt = db.prepare(`SELECT MAX(aired) AS at FROM episode_sync WHERE mal_id = ? AND episode_number > ? AND aired IS NOT NULL AND aired <= strftime('%Y-%m-%dT%H:%M:%SZ','now')`);
+
 /** Buckets: continue watching, new episodes airing soon, new seasons available, stalled shows. */
 function upNext() {
   const now = Date.now();
@@ -59,11 +62,11 @@ function upNext() {
     const remaining = Math.max(0, (aired || 0) - furthest);
     const lastAgeDays = r.last_watched ? (now - new Date(r.last_watched).getTime()) / DAY : 9999;
     const nextEp = remaining > 0 ? furthest + 1 : null;
-    const nextRow = nextEp ? db.prepare('SELECT title, url, image_blob IS NOT NULL AS hasImage, updated_at FROM episode_sync WHERE mal_id = ? AND episode_number = ?').get(r.mal_id, nextEp) : null;
+    const nextRow = nextEp ? nextRowStmt.get(r.mal_id, nextEp) : null;
     // Where "Play" goes: the exact episode when Crunchyroll's URL is known, else the series page.
     const nextUrl = nextRow?.url && /crunchyroll\.com\/watch\//.test(nextRow.url) ? nextRow.url.replace(/^http:/, 'https:')
       : (() => { const s = crlinks.seriesFor(r.mal_id); return s ? (s.url || `https://www.crunchyroll.com/series/${s.id}`) : null; })();
-    const latestAired = remaining > 0 ? db.prepare(`SELECT MAX(aired) AS at FROM episode_sync WHERE mal_id = ? AND episode_number > ? AND aired IS NOT NULL AND aired <= strftime('%Y-%m-%dT%H:%M:%SZ','now')`).get(r.mal_id, furthest)?.at : null;
+    const latestAired = remaining > 0 ? latestAiredStmt.get(r.mal_id, furthest)?.at : null;
     const info = card(r, {
       watched: r.watched, furthest, aired, remaining, lastWatchedAt: r.last_watched, latestAiredAt: latestAired || null,
       // Episodes left in the whole season (null when the season's length isn't announced).
@@ -296,6 +299,7 @@ function study() {
   const byYear = {}; const byWeekday = Array(7).fill(0); const byHour = Array(24).fill(0); const byMonth = {};
   let minutes = 0;
   const perDayShow = new Map();
+  const showIds = new Map(); // series title -> a MAL id, so study rows can open the show
   // Plays stamped less than 8 minutes after the previous one can't be real viewing (episodes run ~24 min):
   // they're bulk "mark as watched" actions. Count them in totals, keep them out of habits and binges.
   const order = plays.map((p) => new Date(p.date_played).getTime()).sort((a, b) => a - b);
@@ -323,8 +327,9 @@ function study() {
     byHour[L.hour] += 1;
     const key = `${L.day}|${p.series_title}`;
     perDayShow.set(key, (perDayShow.get(key) || 0) + 1);
+    if (p.mal_id > 0) showIds.set(p.series_title, p.mal_id);
   }
-  const binges = [...perDayShow.entries()].filter(([, n]) => n >= 6).map(([k, n]) => ({ day: k.split('|')[0], show: k.split('|')[1], episodes: n }))
+  const binges = [...perDayShow.entries()].filter(([, n]) => n >= 6).map(([k, n]) => ({ day: k.split('|')[0], show: k.split('|')[1], malId: showIds.get(k.split('|')[1]) || null, episodes: n }))
     .sort((a, b) => b.episodes - a.episodes);
 
   const rows = libraryState();
@@ -348,7 +353,7 @@ function study() {
     perShow.set(p.series_title, s);
   }
   const topShows = [...perShow.values()].sort((a, b) => b.episodes - a.episodes).slice(0, 15)
-    .map((s) => ({ title: s.title, episodes: s.episodes, hours: Math.round(s.seconds / 360) / 10 }));
+    .map((s) => ({ title: s.title, malId: showIds.get(s.title) || null, episodes: s.episodes, hours: Math.round(s.seconds / 360) / 10 }));
   const recentYears = Object.keys(byYear).map(Number).sort();
   return {
     timezone: tz,
