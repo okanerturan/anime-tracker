@@ -144,7 +144,7 @@ npx wrangler deploy
 
 Wrangler prints your address, something like `https://anime-tracker.<your-subdomain>.workers.dev`. Then point the extension at it and put your passphrase in **Tracker key**.
 
-If you have more than one Cloudflare account, put `CLOUDFLARE_ACCOUNT_ID=...` in a `.env` file next to `wrangler.jsonc` (it's gitignored). If `CLOUDFLARE_API_TOKEN` is set in your shell, Wrangler uses it instead of your login, so unset it if deploys fail with permission errors.
+If you have more than one Cloudflare account, put `CLOUDFLARE_ACCOUNT_ID=...` in a `.env` file next to `wrangler.jsonc` (it's gitignored). If `CLOUDFLARE_API_TOKEN` is set in your shell, Wrangler uses it instead of your login. The `npm run deploy`, `npm run dev:cloudflare` and `npm run cf:login` scripts ignore it for that reason.
 
 **Moving an existing local library over.** Put your passphrase in a file and run:
 
@@ -206,6 +206,7 @@ The frontend is plain HTML, CSS and JavaScript modules. The stylesheet leans on 
 - Crunchyroll has no public API. The extension uses the same endpoints Crunchyroll's website uses, and those can change without notice. If syncing breaks after a Crunchyroll update, `extension/crunchyroll-api.js` is the place to look.
 - Mapping Crunchyroll seasons to MyAnimeList entries is heuristic. It's right for the vast majority of shows, but recaps, director's cuts and oddly numbered OVAs sometimes need a manual fix on the Sync page.
 - Recommendations treat "finished it" as "liked it" unless you rate the show. Star ratings and the Drop button steer them; unrated shows count by how much of them you watched.
+- AniList blocks some hosting networks, Cloudflare's included. When the hosted tracker gets blocked it queues its AniList requests, and your browser runs them instead: the extension after every sync, and the web app whenever it's open. Search in the web app goes straight to AniList from your browser in that case. If the extension is your only client and Chrome is closed for days, air times can lag until the next sync.
 - Only Crunchyroll history syncs automatically. Anything watched elsewhere goes in through the "Watched" button.
 
 ## Disclaimer

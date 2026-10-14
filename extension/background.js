@@ -1,5 +1,5 @@
 // Service worker: syncs every 30 minutes (and whenever you open Crunchyroll).
-importScripts('crunchyroll-api.js'); /* global crunchyrollSync */
+importScripts('crunchyroll-api.js', 'anilist-relay.js'); /* global crunchyrollSync, runAniListRelay */
 
 const DEFAULTS = { trackerUrl: 'http://localhost:8080', trackerKey: '', clientId: null, lastSync: null, lastResult: null, lastError: null };
 const get = () => chrome.storage.local.get(DEFAULTS);
@@ -57,7 +57,13 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
       const got = data || await crunchyrollSync({ clientId, since: status.latestPlayed, full, wantSeasons: status.wantSeasons });
       const result = await postTracker(cfg.trackerUrl, '/api/crunchyroll/ingest', { rows: got.rows });
       const episodes = got.seasons && got.seasons.length ? await postTracker(cfg.trackerUrl, '/api/crunchyroll/episodes', { seasons: got.seasons }) : null;
-      await set({ lastSync: new Date().toISOString(), lastResult: { ...result, episodes, reason, fetched: got.rows.length }, lastError: null });
+      // AniList relay: answer what the tracker couldn't fetch itself, then re-run mapping for plays it deferred.
+      let relay = null;
+      try {
+        relay = await runAniListRelay(cfg.trackerUrl, authHeaders(trackerKey), 'extension');
+        if (relay.ran && result.deferred) Object.assign(result, await postTracker(cfg.trackerUrl, '/api/crunchyroll/ingest', { rows: [] }));
+      } catch { /* the relay is best effort */ }
+      await set({ lastSync: new Date().toISOString(), lastResult: { ...result, episodes, relay, reason, fetched: got.rows.length }, lastError: null });
       return { ok: true, result };
     } catch (err) {
       await set({ lastError: `${new Date().toLocaleString()}: ${err.message}` });

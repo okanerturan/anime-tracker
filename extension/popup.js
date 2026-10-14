@@ -2,7 +2,7 @@ const $ = (id) => document.getElementById(id);
 function render(s) {
   $('last').textContent = s.lastSync ? new Date(s.lastSync).toLocaleString() : 'never';
   const r = s.lastResult;
-  $('result').textContent = r ? `Fetched ${r.fetched} · newly watched ${r.marked} · new shows ${r.newAnime}${r.episodes ? ` · ${r.episodes.images} thumbnails` : ''}${r.needsReview ? ` · ${r.needsReview} need review` : ''}` : '';
+  $('result').textContent = r ? `Fetched ${r.fetched} · newly watched ${r.marked} · new shows ${r.newAnime}${r.episodes ? ` · ${r.episodes.images} thumbnails` : ''}${r.needsReview ? ` · ${r.needsReview} need review` : ''}${r.relay && r.relay.ran ? ` · ${r.relay.ran} AniList lookups` : ''}` : '';
   $('error').textContent = s.lastError || (s.lastSync ? '' : 'Not synced yet. Click “Sync now”.');
   $('url').value = s.trackerUrl;
   $('key').value = s.trackerKey || '';

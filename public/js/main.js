@@ -1,4 +1,6 @@
 import { api } from './api.js';
+import { runRelay } from './anilist-relay.js';
+import { bus } from './bus.js';
 import { h } from './ui.js';
 import { closeDrawer, openAnime } from './drawer.js';
 import * as upnext from './views/upnext.js';
@@ -62,3 +64,12 @@ window.addEventListener('hashchange', route);
 route();
 updateStatus();
 setInterval(updateStatus, 60000);
+
+// AniList relay: when the hosted server is blocked by AniList, this browser fills in the queued
+// requests (new metadata, air times, season lookups) whenever the app is open.
+async function relayTick() {
+  const ran = await runRelay();
+  if (ran) bus.emit('library-changed');
+}
+setTimeout(relayTick, 3000);
+setInterval(relayTick, 10 * 60 * 1000);

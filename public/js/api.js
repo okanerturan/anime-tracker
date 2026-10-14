@@ -1,7 +1,14 @@
 // Thin API client. Mutating calls carry X-Tracker-Client so the server can reject cross-site posts.
-async function request(url, options = {}) {
+import { answerNow } from './anilist-relay.js';
+
+async function request(url, options = {}, retried = false) {
   const res = await fetch(url, options);
   const body = await res.json().catch(() => ({}));
+  // The server is blocked by AniList and needs this exact request: run it from the browser, then retry.
+  if (res.status === 503 && body.code === 'anilist_blocked' && body.relay && !retried) {
+    await answerNow(body.relay);
+    return request(url, options, true);
+  }
   if (!res.ok) throw new Error(body.error || `Request failed: ${res.status}`);
   return body;
 }

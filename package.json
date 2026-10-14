@@ -9,8 +9,9 @@
     "prefetch-images": "node scripts/prefetch_images.js",
     "optimize-images": "node scripts/optimize_images.js && node scripts/optimize_episode_thumbs.js",
     "repair-split-cours": "node scripts/repair_split_cours.js",
-    "dev:cloudflare": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev:cloudflare": "env -u CLOUDFLARE_API_TOKEN wrangler dev",
+    "deploy": "env -u CLOUDFLARE_API_TOKEN wrangler deploy",
+    "cf:login": "env -u CLOUDFLARE_API_TOKEN wrangler login",
     "migrate:cloudflare": "node scripts/migrate_to_cloudflare.js",
     "backup": "node scripts/backup.js download"
   },

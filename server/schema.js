@@ -133,6 +133,20 @@ CREATE TABLE IF NOT EXISTS app_state (
   value TEXT,
   at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+-- AniList relay: requests the server couldn't make (AniList blocks some hosting networks, e.g. Cloudflare)
+-- wait here until the browser extension or the open web app runs them and posts the answers back.
+CREATE TABLE IF NOT EXISTS anilist_relay (
+  key TEXT PRIMARY KEY,
+  query TEXT,
+  variables TEXT,
+  data TEXT,
+  requested_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  answered_at TEXT
+);
+CREATE TABLE IF NOT EXISTS anilist_pending_ids (
+  mal_id INTEGER PRIMARY KEY,
+  requested_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS sync_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at TEXT DEFAULT CURRENT_TIMESTAMP,

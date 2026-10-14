@@ -92,7 +92,17 @@ const routes = {
     return sendJSON(res, 200, results);
   },
 
-  'GET /api/sync-status': (req, res) => sendJSON(res, 200, sync.status()),
+  'GET /api/sync-status': (req, res) => sendJSON(res, 200, { ...sync.status(), anilist: anilist.relayStatus() }),
+  // AniList relay: the extension and the web app run queued AniList requests from the browser.
+  'GET /api/anilist/relay': (req, res) => sendJSON(res, 200, anilist.takeRelayJobs()),
+  'POST /api/anilist/relay': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    const stored = anilist.applyRelayAnswers(Array.isArray(body.answers) ? body.answers.slice(0, 40) : []);
+    for (const id of stored) if (library.isInLibrary(id)) sync.enqueue(id);
+    if (stored.length) insights.invalidate();
+    return sendJSON(res, 200, { stored: stored.length, ...anilist.relayStatus() });
+  },
   'POST /api/sync/run': async (req, res) => { requireClientHeader(req); sync.refreshCycle(); return sendJSON(res, 200, { ok: true }); },
   'POST /api/sync-episodes': async (req, res) => {
     requireClientHeader(req);
@@ -166,7 +176,7 @@ async function handle(req, res, url) {
   try {
     await handler(req, res, url);
   } catch (err) {
-    sendJSON(res, err.status || 500, { error: String(err.message || err) });
+    sendJSON(res, err.status || 500, { error: String(err.message || err), ...(err.code ? { code: err.code } : {}), ...(err.relay ? { relay: err.relay } : {}) });
   }
   return true;
 }

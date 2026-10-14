@@ -3,13 +3,59 @@
 // AniList allows ~30 requests/minute right now; we space requests and honour Retry-After.
 const { db } = require('../db');
 const { sleep, dateFromParts } = require('../util');
+const appState = require('../state');
+const sha1 = require('../../worker/sha1');
 
 const ENDPOINT = 'https://graphql.anilist.co';
 const MIN_INTERVAL_MS = 2100;
 let lastRequestAt = 0;
 let chain = Promise.resolve();
 
+// --- Relay for when AniList blocks this server ---------------------------------------------------
+// AniList has blocked Cloudflare's network outright ("You have been manually blocked"). While blocked,
+// requests are queued instead of sent; the browser extension and the open web app run them from the
+// user's own connection and post the answers back (see takeRelayJobs / applyRelayAnswers).
+const BLOCK_RETRY_MS = 6 * 3600 * 1000;
+const RELAY_TTL_MS = 24 * 3600 * 1000;
+
+class AniListBlockedError extends Error {
+  constructor(relayJob) {
+    super('AniList is blocking this server; your browser will fetch it instead');
+    this.code = 'anilist_blocked';
+    this.status = 503;
+    this.relay = relayJob || null;
+  }
+}
+
+function isBlocked() {
+  const b = appState.get('anilistBlocked');
+  return Boolean(b && b.until && Date.now() < b.until);
+}
+function markBlocked(message) {
+  appState.set('anilistBlocked', { until: Date.now() + BLOCK_RETRY_MS, message });
+}
+function markUnblocked() {
+  if (appState.get('anilistBlocked')?.until) appState.set('anilistBlocked', { until: 0 });
+}
+
+const relayKey = (query, variables) => sha1(`${query}\n${JSON.stringify(variables)}`);
+const relayGetStmt = db.prepare('SELECT data, answered_at FROM anilist_relay WHERE key = ?');
+const relayRequestStmt = db.prepare(`INSERT INTO anilist_relay (key, query, variables) VALUES (?, ?, ?)
+  ON CONFLICT(key) DO UPDATE SET requested_at = CURRENT_TIMESTAMP`);
+const relayAnswerStmt = db.prepare(`UPDATE anilist_relay SET data = ?, answered_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE key = ?`);
+const pendingIdStmt = db.prepare('INSERT OR IGNORE INTO anilist_pending_ids (mal_id) VALUES (?)');
+
+/** A relayed answer for this exact request, or queue it for the browser and throw. */
+function fromRelay(query, variables) {
+  const key = relayKey(query, variables);
+  const row = relayGetStmt.get(key);
+  if (row?.data && row.answered_at && Date.now() - new Date(row.answered_at).getTime() < RELAY_TTL_MS) return JSON.parse(row.data);
+  relayRequestStmt.run(key, query, JSON.stringify(variables));
+  throw new AniListBlockedError({ id: key, query, variables });
+}
+
 function gql(query, variables = {}) {
+  if (isBlocked()) return Promise.resolve().then(() => fromRelay(query, variables));
   // Serialize all requests through one chain so concurrent callers share the rate budget.
   const run = async () => {
     for (let attempt = 0; attempt < 6; attempt += 1) {
@@ -20,7 +66,7 @@ function gql(query, variables = {}) {
       try {
         res = await fetch(ENDPOINT, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': 'anime-tracker/2.0 (+https://github.com/okturan/anime-tracker)' },
           body: JSON.stringify({ query, variables }),
           signal: AbortSignal.timeout(20000)
         });
@@ -33,8 +79,14 @@ function gql(query, variables = {}) {
         continue;
       }
       if (res.status >= 500) { await sleep(3000 * (attempt + 1)); continue; }
-      const json = await res.json();
-      if (json.errors && !json.data) throw new Error(`AniList: ${json.errors.map((e) => e.message).join('; ')}`);
+      const json = await res.json().catch(() => ({}));
+      const message = (json.errors || []).map((e) => e.message).join('; ');
+      if (res.status === 403 || /blocked/i.test(message)) {
+        markBlocked(message || `HTTP ${res.status}`);
+        return fromRelay(query, variables);
+      }
+      if (json.errors && !json.data) throw new Error(`AniList: ${message}`);
+      markUnblocked();
       return json.data;
     }
     throw new Error('AniList: retries exhausted');
@@ -136,13 +188,22 @@ const storeFull = db.transaction((list) => {
 });
 
 /** Fetch full metadata (incl. relations + recommendations) for MAL ids, 25 per request. */
+const FULL_QUERY = `query($ids:[Int]){Page(perPage:25){media(idMal_in:$ids,type:ANIME){${FULL_FIELDS}}}}`;
+
 async function fetchFullByMalIds(malIds, onProgress) {
   const ids = [...new Set(malIds.map(Number).filter(Boolean))];
-  const query = `query($ids:[Int]){Page(perPage:25){media(idMal_in:$ids,type:ANIME){${FULL_FIELDS}}}}`;
+  const query = FULL_QUERY;
   const found = new Set();
   for (let i = 0; i < ids.length; i += 25) {
     const chunk = ids.slice(i, i + 25);
-    const data = await gql(query, { ids: chunk });
+    let data;
+    if (isBlocked()) {
+      // Blocked: queue every remaining id for the browser relay rather than failing.
+      db.transaction(() => { for (const id of ids.slice(i)) pendingIdStmt.run(id); })();
+      return { requested: ids.length, found: found.size, deferred: ids.length - i, missing: [] };
+    }
+    try { data = await gql(query, { ids: chunk }); }
+    catch (err) { if (err.code === 'anilist_blocked') { i -= 25; continue; } throw err; }
     const list = data?.Page?.media || [];
     storeFull(list);
     list.forEach((m) => found.add(m.idMal));
@@ -172,4 +233,50 @@ function toLibraryAnime(m) {
   };
 }
 
-module.exports = { gql, fetchFullByMalIds, search, toLibraryAnime, storeFull };
+/** Work for the browser relay: queued metadata ids (25 per request) and other queued queries. */
+function takeRelayJobs({ maxBatches = 8, maxQueries = 10 } = {}) {
+  const ids = db.prepare('SELECT mal_id FROM anilist_pending_ids ORDER BY requested_at LIMIT ?').all(maxBatches * 25).map((r) => r.mal_id);
+  const jobs = [];
+  for (let i = 0; i < ids.length; i += 25) {
+    const chunk = ids.slice(i, i + 25);
+    jobs.push({ id: `full:${chunk.join(',')}`, query: FULL_QUERY, variables: { ids: chunk } });
+  }
+  // Full-metadata requests go through anilist_pending_ids above, so skip their relay rows here.
+  const queries = db.prepare(`SELECT key, query, variables FROM anilist_relay WHERE (answered_at IS NULL OR answered_at < requested_at) AND query <> ?
+    ORDER BY requested_at DESC LIMIT ?`).all(FULL_QUERY, maxQueries);
+  for (const q of queries) jobs.push({ id: q.key, query: q.query, variables: JSON.parse(q.variables) });
+  const blocked = appState.get('anilistBlocked');
+  return { blocked: isBlocked(), blockedMessage: blocked?.message || null, jobs };
+}
+
+/** Answers posted by the relay. Returns the MAL ids whose full metadata was stored. */
+function applyRelayAnswers(answers) {
+  const stored = [];
+  for (const a of answers || []) {
+    if (!a || typeof a.id !== 'string' || !a.data || typeof a.data !== 'object') continue;
+    if (a.id.startsWith('full:')) {
+      const requested = a.id.slice(5).split(',').map(Number).filter(Boolean);
+      const list = (a.data.Page?.media || []).filter((m) => requested.includes(m.idMal));
+      storeFull(list);
+      stored.push(...list.map((m) => m.idMal));
+      // Ids AniList doesn't know are dropped too, or they would be requested forever.
+      const del = db.prepare('DELETE FROM anilist_pending_ids WHERE mal_id = ?');
+      for (const id of requested) del.run(id);
+    } else {
+      relayAnswerStmt.run(JSON.stringify(a.data), a.id);
+    }
+  }
+  db.prepare(`DELETE FROM anilist_relay WHERE requested_at < datetime('now','-3 days')`).run();
+  return stored;
+}
+
+function relayStatus() {
+  const b = appState.get('anilistBlocked');
+  return {
+    blocked: isBlocked(), until: b?.until || null, message: b?.message || null,
+    pendingIds: db.prepare('SELECT COUNT(*) n FROM anilist_pending_ids').get().n,
+    pendingQueries: db.prepare('SELECT COUNT(*) n FROM anilist_relay WHERE (answered_at IS NULL OR answered_at < requested_at) AND query <> ?').get(FULL_QUERY).n
+  };
+}
+
+module.exports = { gql, fetchFullByMalIds, search, toLibraryAnime, storeFull, takeRelayJobs, applyRelayAnswers, relayStatus, isBlocked, AniListBlockedError };

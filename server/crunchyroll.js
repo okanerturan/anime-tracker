@@ -118,6 +118,8 @@ async function ruleFromAniList(row, minEpisode) {
   let offset = 0;
   if (minEpisode > 1) {
     await anilist.fetchFullByMalIds([media.idMal]).catch(() => {});
+    // The offset comes from the prequel chain; without its metadata a guess would be saved for good.
+    if (anilist.isBlocked() && !db.prepare('SELECT is_full FROM media WHERE mal_id = ?').get(media.idMal)?.is_full) throw new anilist.AniListBlockedError();
     let sum = 0; let cur = media.idMal; const chain = [];
     for (let hops = 0; hops < 6; hops += 1) {
       const prev = db.prepare(`SELECT m.mal_id, m.episodes, m.is_full FROM media_relation r JOIN media m ON m.mal_id = r.related_mal_id
@@ -185,7 +187,13 @@ async function ingest(rawRows, { source = 'extension' } = {}) {
       let rule = ruleFromTitles(seasonRows, index);
       if (!rule) {
         const minEp = Math.min(...seasonRows.map((r) => r.episode_number).filter((n) => n != null), Infinity);
-        try { rule = await ruleFromAniList(sample, Number.isFinite(minEp) ? minEp : 1); } catch { rule = null; }
+        try { rule = await ruleFromAniList(sample, Number.isFinite(minEp) ? minEp : 1); }
+        catch (err) {
+          // AniList is blocking the server: leave these plays pending; the browser relay answers the
+          // search and the next sync maps them properly instead of saving an "unresolved" rule.
+          if (err.code === 'anilist_blocked') { summary.deferred = (summary.deferred || 0) + seasonRows.length; continue; }
+          rule = null;
+        }
       }
       if (!rule) rule = { mal: 0, offset: 0, source: 'unresolved', needsReview: true };
       insertRuleStmt.run(seasonKey, 0, 100000, rule.mal, rule.offset, rule.source, sample.series_title, sample.season_title, rule.needsReview ? 1 : 0);
