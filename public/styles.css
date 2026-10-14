@@ -1588,3 +1588,7 @@ select {
 .help-list dt { white-space: nowrap; }
 .help-list dd { color: var(--muted); }
 kbd { font: inherit; font-size: 0.85em; padding: 0.1em 0.45em; border: 1px solid var(--line); border-block-end-width: 2px; border-radius: 0.35em; background: var(--surface-2); }
+
+/* Playhead under the Tonight still */
+.tonight-media > .tonight-progress { grid-area: 1 / 1; place-self: end stretch; block-size: 4px; background: oklch(1 0 none / 0.25); z-index: 1; }
+.tonight-media > .tonight-progress::after { content: ""; display: block; block-size: 100%; inline-size: calc(var(--p, 0) * 100%); background: var(--accent); }
