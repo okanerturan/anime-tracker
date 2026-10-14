@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { h, section } from '../ui.js';
+import { h, section, fill } from '../ui.js';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -29,7 +29,7 @@ export async function render(view) {
   const peakDay = s.byWeekday.indexOf(Math.max(...s.byWeekday));
   const finishRate = t.showsStarted ? Math.round((100 * t.showsFinished) / t.showsStarted) : 0;
   const bestYear = [...s.byYear].sort((a, b) => b.hours - a.hours)[0];
-  view.replaceChildren(
+  fill(view,
     section('Your viewing study', `From ${t.episodes.toLocaleString()} Crunchyroll episodes since ${t.firstPlay ? new Date(t.firstPlay).getFullYear() : '—'}`,
       h('div', { class: 'stat-row' },
         stat(t.hours.toLocaleString(), `hours watched (${t.days} days)`),

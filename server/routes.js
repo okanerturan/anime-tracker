@@ -20,7 +20,9 @@ function requireClientHeader(req) {
 
 const routes = {
   'GET /api/watchlist': (req, res, url) => sendJSON(res, 200, library.getWatchlist(url.searchParams.get('sort') || 'release_desc')),
-  'GET /api/anime': (req, res, url) => {
+  'GET /api/anime': async (req, res, url) => {
+    // ?refresh=1 fetches full AniList metadata first (queued for the browser relay when AniList blocks us).
+    if (url.searchParams.get('refresh') === '1') await anilist.fetchFullByMalIds([num(url.searchParams.get('malId'))]).catch(() => {});
     const a = library.getAnime(num(url.searchParams.get('malId')));
     return a ? sendJSON(res, 200, a) : sendJSON(res, 404, { error: 'not in library' });
   },

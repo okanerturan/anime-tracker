@@ -1,6 +1,7 @@
 // Anime detail drawer: a modal <dialog> with a fixed top bar and a scrolling body.
 import { api } from './api.js';
-import { h, icon, media, toast, statusPill, relTime, FORMAT_LABEL } from './ui.js';
+import { h, fill, icon, media, toast, statusPill, relTime, FORMAT_LABEL } from './ui.js';
+import { runRelay } from './anilist-relay.js';
 import { bus } from './bus.js';
 
 const dialog = () => document.getElementById('drawer');
@@ -67,20 +68,27 @@ export async function openAnime(partial) {
   const relatedSection = h('section', { class: 'section', hidden: true });
   const watchRow = h('div', { class: 'hero-actions watch-row' });
   api.details(item.malId).then((d) => {
+    // Shows known only as someone's sequel or recommendation lack full metadata; fetch it (through the
+    // browser relay when AniList blocks the server) and reopen once it has arrived.
+    if (d.partial && !partial._refetched) {
+      api.anime(item.malId, true).catch(() => {})
+        .then(() => runRelay())
+        .then(() => { if (dialog().open && document.getElementById('drawer-title')?.textContent === item.title) openAnime({ ...partial, _refetched: true }); });
+    }
     const ext = (label, href, extra = {}) => h('a', { class: 'btn', href, target: '_blank', rel: 'noopener', ...extra }, label);
     const services = d.watchOn.filter((l) => !/crunchyroll/i.test(l.site));
     const hasCrunchyroll = !d.links.crunchyrollIsSearch || d.watchOn.some((l) => /crunchyroll/i.test(l.site));
     const crUrl = !d.links.crunchyrollIsSearch ? d.links.crunchyroll : (d.watchOn.find((l) => /crunchyroll/i.test(l.site))?.url || d.links.crunchyroll);
-    watchRow.replaceChildren(
+    fill(watchRow,
       h('span', { class: 'watch-label' }, 'Where to watch'),
       ext(hasCrunchyroll ? 'Crunchyroll' : 'Search Crunchyroll', crUrl, { class: `btn small ${hasCrunchyroll ? 'primary' : ''}` }),
       ...services.map((l) => ext(l.site, l.url, { class: 'btn small' })));
-    linksRow.replaceChildren(
+    fill(linksRow,
       ext('MyAnimeList', d.links.myAnimeList, { class: 'btn small ghost' }),
       d.links.aniList ? ext('AniList', d.links.aniList, { class: 'btn small ghost' }) : null);
     if (!d.relations.length) return;
     relatedSection.hidden = false;
-    relatedSection.replaceChildren(
+    fill(relatedSection,
       h('div', { class: 'section-head' }, h('h2', {}, 'Seasons and related'), h('span', { class: 'sub' }, `${d.relations.length} in this franchise`)),
       h('div', { class: 'related' }, d.relations.map(relatedCard)));
   }).catch(() => {});

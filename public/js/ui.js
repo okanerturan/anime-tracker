@@ -28,6 +28,12 @@ const ICONS = {
   chev: 'M9 6l6 6-6 6',
   play: 'M8 5.5v13l10.5-6.5z'
 };
+/** replaceChildren that skips null/false (the DOM would print them as text) and flattens arrays. */
+export function fill(el, ...children) {
+  el.replaceChildren(...children.flat(Infinity).filter((c) => c != null && c !== false));
+  return el;
+}
+
 export function icon(name) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');

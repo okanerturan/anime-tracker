@@ -187,7 +187,7 @@ const RELATION_ORDER = ['PREQUEL', 'PARENT', 'SEQUEL', 'SIDE_STORY', 'SPIN_OFF',
 
 /** Franchise neighbours + external links for the detail drawer. */
 function getDetails(malId) {
-  const media = db.prepare('SELECT title, title_english, site_url, external_links FROM media WHERE mal_id = ?').get(malId) || {};
+  const media = db.prepare('SELECT title, title_english, site_url, external_links, is_full FROM media WHERE mal_id = ?').get(malId) || {};
   const anime = db.prepare('SELECT title, title_english FROM anime WHERE mal_id = ?').get(malId) || {};
   const relations = db.prepare(`
     SELECT r.related_mal_id AS malId, r.relation_type AS relationType, COALESCE(m.title_english, m.title) AS title,
@@ -203,6 +203,7 @@ function getDetails(malId) {
     UNION ALL SELECT h.series_id FROM cr_season_map r JOIN cr_history h ON h.season_id = r.season_id WHERE r.mal_id = ? AND h.series_id IS NOT NULL LIMIT 1`).get(malId, malId);
   const name = anime.title_english || media.title_english || anime.title || media.title || '';
   return {
+    partial: !media.is_full,
     relations,
     // Official streaming services from AniList (Crunchyroll, Netflix, HIDIVE, Prime Video, ...), one per site.
     watchOn: [...new Map(parseJSONField(media.external_links, []).map((l) => [l.site, l])).values()],

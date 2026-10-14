@@ -18,7 +18,7 @@ export const api = {
   upNext: () => request('/api/up-next'),
   watchlist: (sort) => request(`/api/watchlist?sort=${encodeURIComponent(sort || 'release_desc')}`),
   details: (malId) => request(`/api/anime/details?malId=${malId}`),
-  anime: (malId) => request(`/api/anime?malId=${malId}`),
+  anime: (malId, refresh) => request(`/api/anime?malId=${malId}${refresh ? '&refresh=1' : ''}`),
   episodes: (malId) => request(`/api/thumbnails?malId=${malId}`),
   toggleWatched: (malId, episodeNumber, watched) => post('/api/episode/toggle-watched', { malId, episodeNumber, watched }),
   watchedElsewhere: (malId) => post('/api/anime/watched-elsewhere', { malId }),
