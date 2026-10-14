@@ -1595,3 +1595,4 @@ kbd { font: inherit; font-size: 0.85em; padding: 0.1em 0.45em; border: 1px solid
 a.topbar-status { text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { a.topbar-status:hover { color: var(--text); } }
 .week-item-sub.is-out { color: var(--good); font-weight: 700; }
+a.week-item { text-decoration: none; color: inherit; }

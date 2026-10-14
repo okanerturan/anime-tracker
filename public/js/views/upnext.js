@@ -204,13 +204,19 @@ function weekStrip(airing) {
       h('div', { class: 'week-head' },
         h('span', { class: 'week-name' }, i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString(undefined, { weekday: 'short' })),
         h('span', { class: 'week-date num' }, date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))),
-      items.length ? items.map((x) => h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
+      items.length ? items.map((x) => {
+        const out = x.nextAiringAt <= Date.now();
+        // Out now: the row opens the show on Crunchyroll (the exact episode isn't known until the next refresh).
+        return h(out && x.nextEpisodeUrl ? 'a' : 'button', out && x.nextEpisodeUrl
+          ? { class: 'week-item is-out', href: x.nextEpisodeUrl, target: '_blank', rel: 'noopener', title: `Open ${x.title} on ${x.nextEpisodeSite || 'Crunchyroll'}` }
+          : { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
         h('img', { src: x.image, alt: '', loading: 'lazy' }),
         h('span', { class: 'week-item-text' },
           h('span', { class: 'week-item-title one-line' }, x.title),
-          x.nextAiringAt <= Date.now()
-            ? h('span', { class: 'week-item-sub num is-out' }, `E${x.nextAiringEpisode} · out now`)
-            : h('span', { class: 'week-item-sub num' }, `E${x.nextAiringEpisode} · ${new Date(x.nextAiringAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`))))
+          out
+            ? h('span', { class: 'week-item-sub num is-out' }, `▶ E${x.nextAiringEpisode} · out now`)
+            : h('span', { class: 'week-item-sub num' }, `E${x.nextAiringEpisode} · ${new Date(x.nextAiringAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`)));
+      })
         : h('span', { class: 'week-empty' }, '—')))));
 }
 
