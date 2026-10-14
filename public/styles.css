@@ -1568,3 +1568,6 @@ select {
 @media (hover: hover) and (pointer: fine) { .review-pick:hover { border-color: var(--accent); } }
 .review-pick:active { transform: scale(0.98); }
 .inline-form > .search { flex: 1 1 14rem; min-inline-size: 12rem; }
+
+/* Episode tiles: the Play pill sits bottom-left on the still, the number top-left */
+.ep-tile .play-overlay.ep-play { font-size: var(--step--2); padding-block: 0.4em; }

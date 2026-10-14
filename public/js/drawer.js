@@ -277,11 +277,13 @@ export async function openAnime(partial) {
       'aria-label': `Episode ${ep.episodeNumber} watched`,
       title: 'Toggle watched. Shift-click marks every episode up to this one.'
     }, icon('check'));
-    const el = h('article', { class: 'card ep-tile', 'data-watched': String(ep.watched), 'data-episode': String(ep.episodeNumber) },
-      media({ src: ep.image, alt: '', badges: [h('span', { class: 'pill dark badge-bottom num' }, `E${ep.episodeNumber}`)] }),
+    const playPill = ep.crunchyrollUrl
+      ? h('a', { class: 'play-overlay ep-play', href: ep.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Watch episode ${ep.episodeNumber} on Crunchyroll` }, icon('play'), h('span', {}, 'Play'))
+      : null;
+    const el = h('article', { class: `card ep-tile ${playPill ? 'has-play' : ''}`, 'data-watched': String(ep.watched), 'data-episode': String(ep.episodeNumber) },
+      media({ src: ep.image, alt: '', badges: [h('span', { class: 'pill dark badge-start num' }, `E${ep.episodeNumber}`), playPill] }),
       h('div', { class: 'ep-row' },
         h('span', { class: 'name clamp-2', title: name }, name),
-        ep.crunchyrollUrl ? h('a', { class: 'icon-btn play', href: ep.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Watch episode ${ep.episodeNumber} on Crunchyroll`, title: 'Watch on Crunchyroll' }, icon('play')) : null,
         check));
     check.addEventListener('click', async (e) => {
       try {
