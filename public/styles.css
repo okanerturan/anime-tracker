@@ -1177,3 +1177,235 @@ code, .mono {
 /* Discover filters */
 .filter-bar { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-l); margin-block-end: var(--space-s); }
 .filter-group { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-xs); }
+
+/* ==========================================================================
+   Round 3: filters as a rail, play-through to Crunchyroll, tonight, this week
+   ========================================================================== */
+
+/* ---------- Segmented filter rail: one track, chips inside, counts muted ---------- */
+.chips.segmented {
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--surface) 70%, var(--bg));
+  inline-size: fit-content;
+  max-inline-size: 100%;
+}
+
+.chips.segmented > .chip-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45em;
+  border-color: transparent;
+  background: transparent;
+  text-box: trim-both cap alphabetic;
+}
+
+.chips.segmented > .chip-toggle:disabled { opacity: 0.4; cursor: default; }
+
+.chip-count {
+  font-size: 0.82em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+}
+
+.chip-toggle[aria-pressed="true"] > .chip-count { color: color-mix(in oklch, var(--on-accent) 80%, transparent); }
+
+@media (hover: hover) and (pointer: fine) {
+  .chips.segmented > .chip-toggle:hover:not([aria-pressed="true"]):not(:disabled) { background: var(--surface-2); border-color: transparent; }
+}
+
+/* ---------- Taste: a chip whose background is its weight ---------- */
+.taste { display: flex; flex-direction: column; gap: var(--space-xs); }
+.taste-group { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-xs); }
+.taste-group > .watch-label { flex: none; min-inline-size: 4.5rem; }
+
+.taste-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5em;
+  color: var(--text);
+  /* The fill stops at --w; the rest shows the chip surface. Same hue family as the accent, kept subtle. */
+  background: linear-gradient(to right, var(--accent-subtle) var(--w, 0%), var(--surface-2) 0);
+}
+
+.chip.ghost { background: transparent; }
+
+/* ---------- Play through to Crunchyroll from any thumbnail ---------- */
+.play-overlay {
+  place-self: end start;
+  margin: var(--space-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding-block: 0.45em;
+  padding-inline: 0.6em 0.8em;
+  border-radius: 999px;
+  background: var(--badge-bg);
+  color: oklch(1 0 none);
+  font-size: var(--step--1);
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  position: relative;
+  z-index: 2; /* above the card's stretched link */
+  backdrop-filter: blur(6px);
+  transition: background-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+
+.play-overlay svg { inline-size: 1cap; block-size: 1cap; }
+.play-overlay svg path { fill: currentColor; }
+.play-overlay.is-large { font-size: var(--step-0); padding-block: 0.6em; padding-inline: 0.8em 1em; margin: var(--space-s); }
+
+/* Larger hit area than the visual pill */
+.play-overlay::after { content: ""; position: absolute; inset: min(0px, (100% - 44px) / 2); }
+
+@media (hover: hover) and (pointer: fine) {
+  .card.has-play .play-overlay { opacity: 0.92; }
+  .card.has-play:hover .play-overlay, .play-overlay:hover { background: var(--accent); opacity: 1; }
+}
+
+.play-overlay:active { transform: scale(0.97); }
+.play-overlay:focus-visible { outline-color: oklch(1 0 none); outline-offset: 2px; }
+
+/* ---------- Tonight: one big pick ---------- */
+.tonight {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: var(--space-m);
+  align-items: center;
+  padding: var(--space-s);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-outer);
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in oklch, var(--accent) 14%, transparent), transparent 60%),
+    var(--surface);
+}
+
+.tonight-media {
+  position: relative;
+  display: grid;
+  border-radius: var(--radius);
+  overflow: clip;
+  text-decoration: none;
+}
+
+.tonight-media > .media { grid-area: 1 / 1; --ratio: 16 / 9; border-radius: inherit; }
+.tonight-media > .play-overlay { grid-area: 1 / 1; place-self: end start; }
+
+.tonight-info { display: flex; flex-direction: column; gap: var(--space-2xs); min-inline-size: 0; }
+.eyebrow { color: var(--accent); font-size: var(--step--1); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.tonight-title { font-size: var(--step-3); line-height: 1.15; }
+.tonight-title > .card-link { color: inherit; text-decoration: none; }
+.tonight-sub { color: var(--muted); }
+.tonight-info > .hero-actions { margin-block-start: var(--space-xs); }
+.tonight-info .btn { display: inline-flex; align-items: center; gap: 0.4em; }
+.tonight-info .btn svg { inline-size: 1cap; block-size: 1cap; }
+.tonight-info .btn svg path { fill: currentColor; }
+
+@container (max-width: 52rem) {
+  .tonight { grid-template-columns: 1fr; }
+}
+@media (max-width: 52rem) {
+  .tonight { grid-template-columns: 1fr; }
+  .tonight-title { font-size: var(--step-2); }
+}
+
+/* ---------- This week: seven columns, scrolls when narrow ---------- */
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(9.5rem, 1fr));
+  gap: var(--space-2xs);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding-block-end: var(--space-2xs);
+  scrollbar-width: thin;
+}
+
+.week-day {
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-inline-size: 0;
+  padding: var(--space-xs);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.week-day:not(.has-items) { opacity: 0.6; }
+.week-day.is-today { border-color: color-mix(in oklch, var(--line), var(--accent) 50%); }
+
+.week-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2xs); }
+.week-name { font-weight: 700; font-size: var(--step--1); }
+.is-today .week-name { color: var(--accent); }
+.week-date { color: var(--faint); font-size: var(--step--2); }
+.week-empty { color: var(--faint); text-align: center; padding-block: var(--space-xs); }
+
+.week-item {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: var(--space-2xs);
+  align-items: center;
+  padding: 0.3rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 0.3rem);
+  background: var(--surface-2);
+  text-align: start;
+  cursor: pointer;
+}
+
+.week-item > img { inline-size: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 0.3rem; }
+.week-item-text { display: flex; flex-direction: column; gap: 0.15em; min-inline-size: 0; }
+.week-item-title { font-size: var(--step--1); font-weight: 600; }
+.week-item-sub { font-size: var(--step--2); color: var(--muted); }
+
+@media (hover: hover) and (pointer: fine) {
+  .week-item:hover { background: color-mix(in oklch, var(--surface-2), var(--accent) 12%); }
+}
+.week-item:active { transform: scale(0.98); }
+
+/* ---------- Form controls: quieter focus, a real chevron on selects ---------- */
+:is(input, select, textarea):focus-visible {
+  outline-offset: 0;
+  border-color: var(--accent);
+}
+
+select {
+  appearance: none;
+  padding-inline-end: 2.2em;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M4 6l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.7em center;
+  background-size: 1em;
+  cursor: pointer;
+}
+
+/* ---------- Empty states that explain themselves ---------- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  padding: var(--space-m) var(--space-s);
+  text-align: center;
+  align-items: center;
+}
+
+.empty > b { color: var(--text); }
+.cards > .empty { grid-column: 1 / -1; }
+
+/* ---------- Topbar: sync freshness at a glance ---------- */
+.topbar-status { display: inline-flex; align-items: center; gap: 0.5em; }
+.sync-dot { inline-size: 0.5em; block-size: 0.5em; border-radius: 50%; background: var(--faint); }
+.sync-dot.is-fresh { background: var(--good); box-shadow: 0 0 0.5em var(--good); }
+.sync-dot.is-stale { background: var(--almost); }
+
+/* ---------- Drawer: Play next is the first action ---------- */
+.play-row:empty { display: none; }
+.play-row .btn { display: inline-flex; align-items: center; gap: 0.4em; }
+.play-row .btn svg { inline-size: 1cap; block-size: 1cap; }
+.play-row .btn svg path { fill: currentColor; }

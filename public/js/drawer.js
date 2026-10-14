@@ -81,6 +81,8 @@ export async function openAnime(partial) {
     h('a', { class: 'btn', href: `https://myanimelist.net/anime/${item.malId}`, target: '_blank', rel: 'noopener' }, 'MyAnimeList'));
   const relatedSection = h('section', { class: 'section', hidden: true });
   const watchRow = h('div', { class: 'hero-actions watch-row' });
+  // "Play next" sits above everything once the episode list tells us which episode and where.
+  const playRow = h('div', { class: 'hero-actions play-row' });
   api.details(item.malId).then((d) => {
     // Shows known only as someone's sequel or recommendation lack full metadata; fetch it (through the
     // browser relay when AniList blocks the server) and reopen once it has arrived.
@@ -191,6 +193,7 @@ export async function openAnime(partial) {
             ...(item.genres || []).slice(0, 6).map((g) => h('span', { class: 'chip' }, g))),
           airsAt ? h('p', { class: 'muted' }, `Episode ${item.nextAiringEpisode} airs ${relTime(airsAt)}`) : null,
           synopsis, more,
+          playRow,
           watchRow,
           item.inLibrary === false ? null : listControls(),
           h('div', { class: 'hero-actions' }, ...(item.inLibrary === false ? notInLibraryActions() : [refreshBtn, removeBtn])),
@@ -217,6 +220,12 @@ export async function openAnime(partial) {
     epContainer.replaceChildren(...(eps.length ? eps.map(tile)
       : [h('div', { class: 'empty' }, unreleased ? `${premiereText()}. Episodes appear here once they air.` : 'No episodes yet. Try “Refresh episodes”.')]));
     updateSummary();
+    const furthest = eps.reduce((m, e) => (e.watched && e.episodeNumber > m ? e.episodeNumber : m), 0);
+    const next = eps.find((e) => e.episodeNumber === furthest + 1) || eps.find((e) => !e.watched);
+    const nextName = next && !/^Episode \d+$/.test(next.title || '') ? cleanEpisodeTitle(next.title) : '';
+    fill(playRow, next && next.crunchyrollUrl
+      ? h('a', { class: 'btn primary', href: next.crunchyrollUrl, target: '_blank', rel: 'noopener' }, icon('play'), ' ', `Play E${next.episodeNumber}${nextName ? ` · ${nextName}` : ''}`)
+      : null);
   }
 
   function tile(ep) {

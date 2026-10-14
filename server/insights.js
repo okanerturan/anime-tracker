@@ -58,12 +58,15 @@ function upNext() {
     const remaining = Math.max(0, (aired || 0) - furthest);
     const lastAgeDays = r.last_watched ? (now - new Date(r.last_watched).getTime()) / DAY : 9999;
     const nextEp = remaining > 0 ? furthest + 1 : null;
-    const nextRow = nextEp ? db.prepare('SELECT title, image_blob IS NOT NULL AS hasImage, updated_at FROM episode_sync WHERE mal_id = ? AND episode_number = ?').get(r.mal_id, nextEp) : null;
+    const nextRow = nextEp ? db.prepare('SELECT title, url, image_blob IS NOT NULL AS hasImage, updated_at FROM episode_sync WHERE mal_id = ? AND episode_number = ?').get(r.mal_id, nextEp) : null;
+    // Where "Play" goes: the exact episode when Crunchyroll's URL is known, else the series page.
+    const nextUrl = nextRow?.url && /crunchyroll\.com\/watch\//.test(nextRow.url) ? nextRow.url.replace(/^http:/, 'https:')
+      : (() => { const s = crlinks.seriesFor(r.mal_id); return s ? (s.url || `https://www.crunchyroll.com/series/${s.id}`) : null; })();
     const info = card(r, {
       watched: r.watched, furthest, aired, remaining, lastWatchedAt: r.last_watched,
       // Episodes left in the whole season (null when the season's length isn't announced).
       totalEpisodes: r.episodes ?? null, leftInSeason: r.episodes ? Math.max(0, r.episodes - furthest) : null,
-      nextEpisode: nextEp, nextEpisodeTitle: nextRow?.title || null,
+      nextEpisode: nextEp, nextEpisodeTitle: nextRow?.title || null, nextEpisodeUrl: nextUrl, nextEpisodeUrlIsExact: Boolean(nextRow?.url && /watch\//.test(nextRow.url)),
       nextEpisodeImage: nextRow?.hasImage ? library.episodeImageUrl(r.mal_id, nextEp, nextRow.updated_at) : null,
       nextAiringEpisode: r.next_airing_episode, nextAiringAt: r.next_airing_at ? r.next_airing_at * 1000 : null
     });

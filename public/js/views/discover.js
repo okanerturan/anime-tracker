@@ -122,8 +122,16 @@ export async function render(view) {
   refresh.addEventListener('click', async () => { refresh.disabled = true; items = (await api.recommendations(true)).items; draw(); refresh.disabled = false; });
   view.replaceChildren(
     section('Your taste', 'Weighted by how much of each show you watched, how recently, and your star ratings',
-      h('div', { class: 'chips' }, data.profile.genres.slice(0, 8).map(([g, w]) => h('span', { class: 'chip num' }, `${g} ${Math.round(w * 100)}%`))),
-      h('div', { class: 'chips' }, data.profile.tags.slice(0, 14).map(([t]) => h('span', { class: 'chip' }, t)))),
+      h('div', { class: 'taste' },
+        h('div', { class: 'taste-group' },
+          h('span', { class: 'watch-label' }, 'Genres'),
+          h('div', { class: 'chips' }, data.profile.genres.slice(0, 8).map(([g, w]) => {
+            const pct = Math.round(w * 100);
+            return h('span', { class: 'chip taste-chip num', style: { '--w': `${pct}%` }, title: `${g}: ${pct}% of what you watch` }, h('span', {}, g), h('span', { class: 'chip-count' }, `${pct}%`));
+          }))),
+        h('div', { class: 'taste-group' },
+          h('span', { class: 'watch-label' }, 'Themes'),
+          h('div', { class: 'chips' }, data.profile.tags.slice(0, 14).map(([t]) => h('span', { class: 'chip ghost' }, t)))))),
     h('section', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', {}, 'Recommended for you'), count, refresh),
       h('p', { class: 'muted' }, 'Shows you haven’t watched, from AniList community recommendations of shows you liked. Rate shows (open one from your Library) to steer this; dropped and 1–2 star shows count against their recommendations.'),

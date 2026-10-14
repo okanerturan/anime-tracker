@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { runRelay } from './anilist-relay.js';
 import { bus } from './bus.js';
-import { h } from './ui.js';
+import { h, fill, relTime } from './ui.js';
 import { closeDrawer, openAnime } from './drawer.js';
 import * as upnext from './views/upnext.js';
 import * as library from './views/library.js';
@@ -34,7 +34,10 @@ async function updateStatus() {
     const cr = await api.crStatus();
     const el = document.getElementById('topbar-status');
     const at = cr.lastSync ? new Date(cr.lastSync.at) : null;
-    el.textContent = at ? `Crunchyroll synced ${at.toLocaleString()}` : 'Crunchyroll not synced yet';
+    const fresh = at && Date.now() - at.getTime() < 2 * 3600000;
+    el.title = at ? `Last Crunchyroll sync: ${at.toLocaleString()}` : '';
+    fill(el, h('span', { class: `sync-dot ${fresh ? 'is-fresh' : at ? 'is-stale' : ''}`, 'aria-hidden': 'true' }),
+      at ? `Synced ${relTime(at.getTime())}` : 'Not synced yet');
     const badge = document.getElementById('sync-badge');
     badge.hidden = !cr.needsReview.length;
     badge.textContent = cr.needsReview.length;
