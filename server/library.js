@@ -52,7 +52,8 @@ const ORDER = {
   activity_desc: '(last_watched_at IS NULL) ASC, last_watched_at DESC'
 };
 
-function getWatchlist(sort = 'release_desc') {
+/** The library list. Synopses are left out unless asked for: the grid never shows them and they are half the payload. */
+function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
   const rows = db.prepare(`
     SELECT a.mal_id AS malId, a.title, COALESCE(a.title_english, '') AS titleEnglish,
            COALESCE(a.release_date, m.start_date) AS releaseDate,
@@ -84,7 +85,7 @@ function getWatchlist(sort = 'release_desc') {
       titleEnglish: r.titleEnglish,
       releaseDate: r.releaseDate,
       imageUrl: images.localUrl(r.remoteImage),
-      synopsis: r.synopsis,
+      synopsis: withSynopsis ? r.synopsis : undefined,
       totalEpisodes: r.totalEpisodes,
       format: r.format,
       status: r.status,
@@ -127,7 +128,7 @@ function markWatchedElsewhere(malId) {
 }
 
 function getAnime(malId) {
-  const inLib = getWatchlist('title_asc').find((x) => x.malId === malId);
+  const inLib = getWatchlist('title_asc', { withSynopsis: true }).find((x) => x.malId === malId);
   if (inLib) return { ...inLib, inLibrary: true };
   // Not in the library (a recommendation or sequel): build the same shape from AniList metadata.
   const m = db.prepare('SELECT * FROM media WHERE mal_id = ?').get(malId);
