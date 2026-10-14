@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { h, fill, icon, media, progress, carousel, cardLink, relTime, ago, toast } from '../ui.js';
 import { openAnime } from '../drawer.js';
+import { bus } from '../bus.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -88,9 +89,23 @@ function epCard(item, mode, onChange) {
 
 const watchUrl = (p) => `https://www.crunchyroll.com/watch/${encodeURIComponent(p.episodeId)}`;
 
-function pausedCard(p) {
+function pausedCard(p, onTracked) {
   const name = realTitle(p.episodeTitle) || p.episodeTitle || '';
   const minsLeft = Math.round((p.durationS - p.playhead) / 60);
+  // A sampled show isn't in the library yet (nothing counted as watched). Offer to track it.
+  let track = null;
+  if (!p.malId && p.seasonId) {
+    track = h('button', { type: 'button', class: 'btn small track-btn' }, 'Track this show');
+    track.addEventListener('click', async () => {
+      track.disabled = true; track.textContent = 'Finding it…';
+      try {
+        const r = await api.crTrack(p.seasonId);
+        toast(r.needsReview ? `Added ${r.title}. Check the match on the Sync page.` : `Added ${r.title} to your library`);
+        bus.emit('library-changed');
+        onTracked?.();
+      } catch (err) { track.disabled = false; track.textContent = 'Track this show'; toast(err.message); }
+    });
+  }
   return h('article', { class: 'card has-play' },
     media({ src: p.thumb, alt: '', badges: [
       h('a', { class: 'play-overlay', href: watchUrl(p), target: '_blank', rel: 'noopener', 'aria-label': `Resume ${p.seriesTitle} on Crunchyroll` }, icon('play'), h('span', {}, `Resume · ${minsLeft} min`))] }),
@@ -98,7 +113,8 @@ function pausedCard(p) {
     // Clicking a paused episode resumes it on Crunchyroll.
     cardLink(p.seriesTitle, () => window.open(watchUrl(p), '_blank', 'noopener'), { lines: 1, href: watchUrl(p) }),
     h('p', { class: 'card-sub one-line', title: name }, `E${p.episodeNumber ?? ''} · ${name}`),
-    h('p', { class: 'card-meta' }, `${Math.round((p.durationS - p.playhead) / 60)} min left · ${ago(p.datePlayed)}`));
+    h('p', { class: 'card-meta' }, `${Math.round((p.durationS - p.playhead) / 60)} min left · ${ago(p.datePlayed)}`),
+    track ? h('div', { class: 'card-actions' }, track) : null);
 }
 
 /** The one episode to put on tonight: a paused episode first, else the most recently active show with episodes waiting. */
@@ -253,7 +269,7 @@ function draw(view, data, cr) {
     rateSection,
     carousel('Continue watching', `${plural(data.continueWatching.length, 'show')} with episodes waiting`,
       data.continueWatching.map((x) => epCard(x, 'continue', () => refresh(view))), "You're all caught up."),
-    inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map(pausedCard), '') : null,
+    inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map((p) => pausedCard(p, () => refresh(view))), '') : null,
     weekStrip(airingWeek),
     caughtUpRow(caughtUp),
     data.airingSoon.length ? carousel('New episodes soon', 'Airing shows you keep up with',

@@ -319,7 +319,7 @@ function status() {
     FROM cr_season_map r LEFT JOIN media m ON m.mal_id = r.mal_id LEFT JOIN anime a ON a.mal_id = r.mal_id
     WHERE r.needs_review = 1 ORDER BY r.series_title`).all();
   const inProgress = db.prepare(`SELECT h.episode_id AS episodeId, h.series_title AS seriesTitle, h.season_title AS seasonTitle, h.episode_number AS episodeNumber,
-      h.episode_title AS episodeTitle, h.playhead, h.duration_s AS durationS, h.date_played AS datePlayed, h.mal_id AS malId, h.thumb_url AS thumb
+      h.episode_title AS episodeTitle, h.playhead, h.duration_s AS durationS, h.date_played AS datePlayed, h.mal_id AS malId, h.thumb_url AS thumb, h.season_id AS seasonId
     FROM cr_history h WHERE h.fully_watched = 0 AND h.duration_s > 0 AND h.playhead > 30 AND 1.0 * h.playhead / h.duration_s < 0.8
       AND h.date_played > datetime('now','-30 days')
     ORDER BY h.date_played DESC LIMIT 12`).all();
@@ -343,9 +343,38 @@ async function remapSeason(seasonId, malId, offset = 0) {
   return ingest([], { source: 'manual' });
 }
 
+/**
+ * "Track this": a show the user only sampled (no play counted as watched) never gets resolved by
+ * ingest. Resolve its season now, add it to the library, and apply whatever plays exist.
+ */
+async function trackSeason(seasonId) {
+  const rows = db.prepare('SELECT * FROM cr_history WHERE season_id = ? ORDER BY episode_number').all(seasonId);
+  if (!rows.length) throw Object.assign(new Error('unknown season'), { status: 404 });
+  const existing = anyRuleStmt.get(seasonId);
+  if (existing?.mal_id) {
+    if (!library.isInLibrary(existing.mal_id)) ensureInLibrary(existing.mal_id);
+    return { malId: existing.mal_id, title: db.prepare('SELECT COALESCE(title_english, title) AS t FROM media WHERE mal_id = ?').get(existing.mal_id)?.t || rows[0].series_title };
+  }
+  let rule = ruleFromTitles(rows, titleIndex());
+  if (!rule) {
+    const minEp = Math.min(...rows.map((r) => r.episode_number).filter((n) => n != null), Infinity);
+    rule = await ruleFromAniList(rows[0], Number.isFinite(minEp) ? minEp : 1);
+  }
+  if (!rule || !rule.mal) throw Object.assign(new Error(`Couldn't find “${rows[0].series_title}” on AniList`), { status: 404 });
+  db.prepare('DELETE FROM cr_season_map WHERE season_id = ?').run(seasonId);
+  insertRuleStmt.run(seasonId, 0, 100000, rule.mal, rule.offset, rule.source, rows[0].series_title, rows[0].season_title, rule.needsReview ? 1 : 0);
+  if (!library.isInLibrary(rule.mal)) ensureInLibrary(rule.mal);
+  await anilist.fetchFullByMalIds([rule.mal]).catch(() => {});
+  db.prepare('UPDATE cr_history SET applied = 0 WHERE season_id = ?').run(seasonId);
+  await ingest([], { source: 'manual' });
+  sync.enqueue(rule.mal);
+  const title = db.prepare('SELECT COALESCE(title_english, title) AS t FROM media WHERE mal_id = ?').get(rule.mal)?.t || rows[0].series_title;
+  return { malId: rule.mal, title, needsReview: Boolean(rule.needsReview) };
+}
+
 function confirmSeason(seasonId) {
   db.prepare('UPDATE cr_season_map SET needs_review = 0 WHERE season_id = ?').run(seasonId);
   return { ok: true };
 }
 
-module.exports = { ingest, status, remapSeason, confirmSeason, normalizeRow, applySeasonEpisodes, wantedSeasons };
+module.exports = { ingest, status, remapSeason, confirmSeason, trackSeason, normalizeRow, applySeasonEpisodes, wantedSeasons };

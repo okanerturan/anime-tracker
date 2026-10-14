@@ -147,6 +147,14 @@ const routes = {
     if (result.found) insights.invalidate();
     return sendJSON(res, 200, result);
   },
+  'POST /api/crunchyroll/track': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    if (!body.seasonId) return sendJSON(res, 400, { error: 'seasonId required' });
+    const result = await crunchyroll.trackSeason(String(body.seasonId));
+    insights.invalidate();
+    return sendJSON(res, 200, result);
+  },
   'POST /api/crunchyroll/remap': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);
