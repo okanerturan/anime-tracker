@@ -20,9 +20,11 @@ function watchedButton(malId, title, onDone) {
     btn.disabled = true;
     try {
       const r = await api.watchedElsewhere(malId);
-      toast(`Marked ${title} as watched (${r.aired} episodes)`);
       bus.emit('library-changed');
       onDone?.();
+      toast(`Marked ${title} as watched (${r.aired} episodes)`, { label: 'Undo', onClick: async () => {
+        try { await api.remove(malId); bus.emit('library-changed'); bus.emit('recommendations-changed'); toast(`Removed ${title} again`); } catch (err) { toast(err.message); }
+      } });
     } catch (err) { btn.disabled = false; toast(err.message); }
   });
   return btn;
