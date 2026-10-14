@@ -106,15 +106,26 @@ function pausedCard(p, onTracked) {
       } catch (err) { track.disabled = false; track.textContent = 'Track this show'; toast(err.message); }
     });
   }
-  return h('article', { class: 'card has-play' },
+  // Dismiss a paused episode you won't come back to; Undo in the toast brings it back.
+  const dismiss = h('button', { type: 'button', class: 'icon-btn card-tick card-dismiss', 'aria-label': `Hide ${p.seriesTitle} from this shelf`, title: 'Hide from this shelf' }, icon('close'));
+  const el = h('article', { class: 'card has-play' },
     media({ src: p.thumb, alt: '', badges: [
-      h('a', { class: 'play-overlay', href: watchUrl(p), target: '_blank', rel: 'noopener', 'aria-label': `Resume ${p.seriesTitle} on Crunchyroll` }, icon('play'), h('span', {}, `Resume · ${minsLeft} min`))] }),
+      h('a', { class: 'play-overlay', href: watchUrl(p), target: '_blank', rel: 'noopener', 'aria-label': `Resume ${p.seriesTitle} on Crunchyroll` }, icon('play'), h('span', {}, `Resume · ${minsLeft} min`)),
+      dismiss] }),
     progress(p.durationS ? p.playhead / p.durationS : 0),
     // Clicking a paused episode resumes it on Crunchyroll.
     cardLink(p.seriesTitle, () => window.open(watchUrl(p), '_blank', 'noopener'), { lines: 1, href: watchUrl(p) }),
     h('p', { class: 'card-sub one-line', title: name }, `E${p.episodeNumber ?? ''} · ${name}`),
     h('p', { class: 'card-meta' }, `${Math.round((p.durationS - p.playhead) / 60)} min left · ${ago(p.datePlayed)}`),
     track ? h('div', { class: 'card-actions' }, track) : null);
+  dismiss.addEventListener('click', async () => {
+    try {
+      await api.crDismissPlay(p.episodeId);
+      el.remove();
+      toast(`Hidden ${p.seriesTitle}`, { label: 'Undo', onClick: async () => { await api.crDismissPlay(p.episodeId, true); onTracked?.(); } });
+    } catch (err) { toast(err.message); }
+  });
+  return el;
 }
 
 /** The one episode to put on tonight: a paused episode first, else the most recently active show with episodes waiting. */

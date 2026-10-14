@@ -147,6 +147,12 @@ const routes = {
     if (result.found) insights.invalidate();
     return sendJSON(res, 200, result);
   },
+  'POST /api/crunchyroll/dismiss-play': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    if (!body.episodeId) return sendJSON(res, 400, { error: 'episodeId required' });
+    return sendJSON(res, 200, crunchyroll.dismissPlay(String(body.episodeId), Boolean(body.undo)));
+  },
   'POST /api/crunchyroll/track': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);

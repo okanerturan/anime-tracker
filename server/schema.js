@@ -166,6 +166,8 @@ const ADDED_COLUMNS = [
   ['watchlist', 'rating', 'rating INTEGER'],
   // Crunchyroll series id found by the extension's search ('' = searched, not on Crunchyroll).
   ['media', 'cr_series_id', 'cr_series_id TEXT'],
+  // A paused play the user dismissed from the Started-on-Crunchyroll shelf.
+  ['cr_history', 'dismissed', 'dismissed INTEGER DEFAULT 0'],
   ['media', 'cr_checked_at', 'cr_checked_at TEXT'],
   ['media', 'description', 'description TEXT']
 ];

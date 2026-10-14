@@ -1533,3 +1533,9 @@ select {
   background: color-mix(in oklch, var(--surface) 60%, var(--bg));
   border-block-end: 1px solid var(--line);
 }
+
+/* Dismiss (x) on paused cards shares the tick's look; its icon is a stroke, not a fill */
+.card-dismiss svg path { fill: none; stroke: currentColor; }
+@media (hover: hover) and (pointer: fine) {
+  .card-dismiss:hover { background: var(--badge-bg); color: oklch(1 0 none); }
+}

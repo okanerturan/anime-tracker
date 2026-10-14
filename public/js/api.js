@@ -33,6 +33,7 @@ export const api = {
   dismiss: (malId, undo = false) => post('/api/recommendations/dismiss', { malId, undo }),
   study: () => request('/api/study'),
   crStatus: () => request('/api/crunchyroll/status'),
+  crDismissPlay: (episodeId, undo = false) => post('/api/crunchyroll/dismiss-play', { episodeId, undo }),
   crTrack: (seasonId) => post('/api/crunchyroll/track', { seasonId }),
   crRemap: (seasonId, malId, offset) => post('/api/crunchyroll/remap', { seasonId, malId, offset }),
   crConfirm: (seasonId) => post('/api/crunchyroll/confirm', { seasonId }),

@@ -320,7 +320,7 @@ function status() {
     WHERE r.needs_review = 1 ORDER BY r.series_title`).all();
   const inProgress = db.prepare(`SELECT h.episode_id AS episodeId, h.series_title AS seriesTitle, h.season_title AS seasonTitle, h.episode_number AS episodeNumber,
       h.episode_title AS episodeTitle, h.playhead, h.duration_s AS durationS, h.date_played AS datePlayed, h.mal_id AS malId, h.thumb_url AS thumb, h.season_id AS seasonId
-    FROM cr_history h WHERE h.fully_watched = 0 AND h.duration_s > 0 AND h.playhead > 30 AND 1.0 * h.playhead / h.duration_s < 0.8
+    FROM cr_history h WHERE h.fully_watched = 0 AND h.duration_s > 0 AND h.playhead > 30 AND 1.0 * h.playhead / h.duration_s < 0.8 AND COALESCE(h.dismissed, 0) = 0
       AND h.date_played > datetime('now','-30 days')
     ORDER BY h.date_played DESC LIMIT 12`).all();
   const images = require('./images');
@@ -383,9 +383,16 @@ async function trackSeason(seasonId) {
   return { malId: rule.mal, title, needsReview: Boolean(rule.needsReview) };
 }
 
+/** Hide (or bring back) a paused episode on the Started-on-Crunchyroll shelf. */
+function dismissPlay(episodeId, undo = false) {
+  const info = db.prepare('UPDATE cr_history SET dismissed = ? WHERE episode_id = ?').run(undo ? 0 : 1, episodeId);
+  if (!info.changes) throw Object.assign(new Error('unknown play'), { status: 404 });
+  return { ok: true, dismissed: !undo };
+}
+
 function confirmSeason(seasonId) {
   db.prepare('UPDATE cr_season_map SET needs_review = 0 WHERE season_id = ?').run(seasonId);
   return { ok: true };
 }
 
-module.exports = { ingest, status, remapSeason, confirmSeason, trackSeason, normalizeRow, applySeasonEpisodes, wantedSeasons };
+module.exports = { ingest, status, remapSeason, confirmSeason, trackSeason, dismissPlay, normalizeRow, applySeasonEpisodes, wantedSeasons };
