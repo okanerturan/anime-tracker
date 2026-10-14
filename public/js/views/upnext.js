@@ -66,8 +66,10 @@ function epCard(item, mode, onChange) {
     const through = e.shiftKey && item.aired ? item.aired : item.nextEpisode;
     try {
       await api.watchedThrough(item.malId, through);
-      toast(through === item.nextEpisode ? `E${item.nextEpisode} of ${item.title} marked watched` : `${item.title}: marked watched through E${through}`);
       onChange?.(tick.closest('.card'));
+      if (through === item.nextEpisode) {
+        toast(`E${item.nextEpisode} of ${item.title} marked watched`, { label: 'Undo', onClick: async () => { try { await api.toggleWatched(item.malId, item.nextEpisode, false); bus.emit('library-changed'); refresh(document.getElementById('view')); } catch (err) { toast(err.message); } } });
+      } else toast(`${item.title}: marked watched through E${through}`);
     } catch (err) { tick.disabled = false; toast(err.message); }
   });
   // Stalled and held shows get quick actions so the shelf can be cleaned up without opening each one.

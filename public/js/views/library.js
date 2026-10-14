@@ -88,7 +88,10 @@ function card(x) {
     : null;
   if (tick) tick.addEventListener('click', async () => {
     tick.disabled = true;
-    try { await api.watchedThrough(x.malId, x.nextEpisode); toast(`E${x.nextEpisode} of ${title} marked watched`); bus.emit('library-changed'); render(document.getElementById('view')); }
+    try {
+      await api.watchedThrough(x.malId, x.nextEpisode); bus.emit('library-changed'); render(document.getElementById('view'));
+      toast(`E${x.nextEpisode} of ${title} marked watched`, { label: 'Undo', onClick: async () => { try { await api.toggleWatched(x.malId, x.nextEpisode, false); bus.emit('library-changed'); render(document.getElementById('view')); } catch (err) { toast(err.message); } } });
+    }
     catch (err) { tick.disabled = false; toast(err.message); }
   });
   return h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''}` },
