@@ -249,7 +249,8 @@ function wantedSeasons(limit = 30) {
       AND (f.fetched_at IS NULL OR f.fetched_at < datetime('now', CASE WHEN m.status = 'RELEASING' THEN '-20 hours' ELSE '-14 days' END))
       AND (
       m.status = 'RELEASING'
-      OR EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND (e.image_blob IS NULL OR e.title IS NULL OR e.title GLOB 'Episode [0-9]*')))
+      OR EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND (e.image_blob IS NULL OR e.title IS NULL OR e.title GLOB 'Episode [0-9]*'
+        OR COALESCE(e.url, '') NOT LIKE '%crunchyroll.com/watch/%')))
     GROUP BY r.season_id ORDER BY last DESC LIMIT ?`).all(limit).map((r) => r.id);
 }
 
