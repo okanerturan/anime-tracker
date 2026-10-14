@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { h, fill, icon, media, progress, cardLink, statusPill, ago, FORMAT_LABEL } from '../ui.js';
+import { h, fill, icon, media, progress, cardLink, statusPill, ago, toast, FORMAT_LABEL } from '../ui.js';
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 
@@ -74,8 +74,17 @@ function card(x) {
   const play = x.nextEpisodeUrl && ['watching', 'almost', 'unfinished'].includes(st.key)
     ? h('a', { class: 'play-overlay', href: x.nextEpisodeUrl, target: '_blank', rel: 'noopener', 'aria-label': `Play episode ${x.nextEpisode} of ${title} on Crunchyroll` }, icon('play'), h('span', {}, `E${x.nextEpisode}`))
     : null;
+  // Same tick as Up Next: mark the next episode watched from the card.
+  const tick = x.nextEpisode && ['watching', 'almost', 'unfinished', 'caught-up'].includes(st.key) && st.left > 0
+    ? h('button', { type: 'button', class: 'icon-btn card-tick card-tick--bottom', 'aria-label': `Mark episode ${x.nextEpisode} of ${title} watched`, title: `Mark E${x.nextEpisode} watched` }, icon('check'))
+    : null;
+  if (tick) tick.addEventListener('click', async () => {
+    tick.disabled = true;
+    try { await api.watchedThrough(x.malId, x.nextEpisode); toast(`E${x.nextEpisode} of ${title} marked watched`); bus.emit('library-changed'); render(document.getElementById('view')); }
+    catch (err) { tick.disabled = false; toast(err.message); }
+  });
   return h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''}` },
-    media({ src: x.imageUrl, alt: '', kind: 'poster', badges: [h('div', { class: 'badge-end' }, badge), play] }),
+    media({ src: x.imageUrl, alt: '', kind: 'poster', badges: [h('div', { class: 'badge-end' }, badge), play, tick] }),
     progress(aired ? Math.min(x.watchedCount, aired) / aired : 0),
     cardLink(title, () => openAnime({ ...x, title, image: x.imageUrl }), { href: `https://myanimelist.net/anime/${x.malId}` }),
     h('div', { class: 'card-meta' },

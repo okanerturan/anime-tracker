@@ -1545,3 +1545,6 @@ select {
 @media (hover: hover) and (pointer: fine) {
   .because-link:hover { color: var(--text); text-decoration-color: var(--accent); }
 }
+
+/* Library posters carry the status pill at the top right, so their tick sits bottom right */
+.card-tick--bottom { place-self: end end; }
