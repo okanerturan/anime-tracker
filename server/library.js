@@ -208,9 +208,23 @@ function getDetails(malId) {
   const crlinks = require('./crlinks');
   const series = crlinks.seriesFor(malId);
   const name = anime.title_english || media.title_english || anime.title || media.title || '';
+  // "Continue with": the next TV season, following SEQUEL links through OVAs and specials
+  // (AniList chains Slime S1 -> an OVA -> S2, so one hop is not enough).
+  const seqStmt = db.prepare(`SELECT r.related_mal_id AS malId, m.format, m.status, COALESCE(m.title_english, m.title) AS title, m.cover_url AS cover, m.episodes,
+      (SELECT 1 FROM watchlist w WHERE w.mal_id = r.related_mal_id) AS inLibrary,
+      (SELECT COUNT(*) FROM episode_sync e WHERE e.mal_id = r.related_mal_id AND e.watched = 1) AS watched
+    FROM media_relation r JOIN media m ON m.mal_id = r.related_mal_id WHERE r.mal_id = ? AND r.relation_type = 'SEQUEL' ORDER BY m.start_date LIMIT 1`);
+  let continueWith = null;
+  for (let cur = malId, hops = 0; hops < 4; hops += 1) {
+    const s = seqStmt.get(cur);
+    if (!s) break;
+    if (['TV', 'TV_SHORT', 'ONA'].includes(s.format) && s.status !== 'NOT_YET_RELEASED') { continueWith = { ...s, inLibrary: Boolean(s.inLibrary), image: images.localUrl(s.cover), cover: undefined }; break; }
+    cur = s.malId;
+  }
   return {
     partial: !media.is_full,
     relations,
+    continueWith,
     // Official streaming services from AniList (Crunchyroll, Netflix, HIDIVE, Prime Video, ...), one per site.
     watchOn: [...new Map(parseJSONField(media.external_links, []).map((l) => [l.site, l])).values()],
     links: {

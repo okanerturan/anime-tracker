@@ -1497,3 +1497,6 @@ select {
 
 /* The selected filter keeps its fill inside the rail (the rail's transparent-chip rule outranked it) */
 .chips.segmented > .chip-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* Folded watched episodes: the button spans the grid */
+.ep-grid > .unfold { grid-column: 1 / -1; justify-self: start; }

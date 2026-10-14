@@ -83,7 +83,10 @@ export async function openAnime(partial) {
   const watchRow = h('div', { class: 'hero-actions watch-row' });
   // "Play next" sits above everything once the episode list tells us which episode and where.
   const playRow = h('div', { class: 'hero-actions play-row' });
+  let details = null;
   api.details(item.malId).then((d) => {
+    details = d;
+    offerSequel();
     // Shows known only as someone's sequel or recommendation lack full metadata; fetch it (through the
     // browser relay when AniList blocks the server) and reopen once it has arrived.
     if (d.partial && !partial._refetched) {
@@ -214,18 +217,44 @@ export async function openAnime(partial) {
     summary.textContent = `${watched} of ${all} watched`;
   }
 
+  let allWatched = false;
+  let episodesLoaded = false;
+
+  /** Finished the season: the next thing to do is start the sequel, so say so where Play was. */
+  function offerSequel() {
+    if (!episodesLoaded || !allWatched || !details) return;
+    const sequel = details.continueWith;
+    if (!sequel || playRow.querySelector('.sequel-btn')) return;
+    const started = sequel.watched > 0;
+    const btn = h('button', { type: 'button', class: 'btn primary sequel-btn' }, started ? `Continue ${sequel.title}` : `Start ${sequel.title}`);
+    btn.addEventListener('click', () => openAnime({ malId: sequel.malId, title: sequel.title, image: sequel.image }));
+    playRow.append(btn);
+  }
+
   async function load() {
     const data = await api.episodes(item.malId);
     const eps = data.seasons.flatMap((s) => s.episodes);
-    epContainer.replaceChildren(...(eps.length ? eps.map(tile)
-      : [h('div', { class: 'empty' }, unreleased ? `${premiereText()}. Episodes appear here once they air.` : 'No episodes yet. Try “Refresh episodes”.')]));
-    updateSummary();
     const furthest = eps.reduce((m, e) => (e.watched && e.episodeNumber > m ? e.episodeNumber : m), 0);
     const next = eps.find((e) => e.episodeNumber === furthest + 1) || eps.find((e) => !e.watched);
+    allWatched = eps.length > 0 && eps.every((e) => e.watched);
+    episodesLoaded = true;
+
+    // Long shows: watched episodes before the next one fold away behind a count, so the panel opens on what's next.
+    // A finished show keeps only its last eight tiles out.
+    const cut = next ? next.episodeNumber : (eps.length > 24 ? eps[eps.length - 8].episodeNumber : 0);
+    const foldCount = eps.filter((e) => e.watched && e.episodeNumber < cut).length;
+    const folded = foldCount > 8;
+    const tiles = eps.map((e) => { const t = tile(e); if (folded && e.watched && e.episodeNumber < cut) t.hidden = true; return t; });
+    const unfold = folded ? h('button', { type: 'button', class: 'btn ghost unfold' }, next ? `Show ${foldCount} watched episodes` : `Show all ${eps.length} episodes`) : null;
+    if (unfold) unfold.addEventListener('click', () => { tiles.forEach((t) => { t.hidden = false; }); unfold.remove(); });
+    fill(epContainer, unfold, ...(eps.length ? tiles
+      : [h('div', { class: 'empty' }, unreleased ? `${premiereText()}. Episodes appear here once they air.` : 'No episodes yet. Try “Refresh episodes”.')]));
+    updateSummary();
     const nextName = next && !/^Episode \d+$/.test(next.title || '') ? cleanEpisodeTitle(next.title) : '';
     fill(playRow, next && next.crunchyrollUrl
       ? h('a', { class: 'btn primary', href: next.crunchyrollUrl, target: '_blank', rel: 'noopener' }, icon('play'), ' ', `Play E${next.episodeNumber}${nextName ? ` · ${nextName}` : ''}`)
       : null);
+    offerSequel();
   }
 
   function tile(ep) {
