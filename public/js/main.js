@@ -50,8 +50,13 @@ document.addEventListener('keydown', (e) => {
   if (/^(input|textarea|select)$/i.test(document.activeElement?.tagName || '')) return;
   if (e.key === '?') { e.preventDefault(); const help = document.getElementById('help'); if (!help.open) help.showModal(); return; }
   if (e.key !== '/' || document.querySelector('dialog[open]')) return;
+  e.preventDefault();
   const box = document.querySelector('#view input[type="search"]');
-  if (box) { e.preventDefault(); box.focus(); box.select(); }
+  if (box) { box.focus(); box.select(); return; }
+  // No search box on this page: go to the Library and focus its filter once it has rendered.
+  location.hash = '#/library';
+  const tryFocus = (n) => { const b = document.querySelector('#view input[type="search"]'); if (b) { b.focus(); } else if (n) setTimeout(() => tryFocus(n - 1), 120); };
+  setTimeout(() => tryFocus(20), 120);
 });
 document.getElementById('help').addEventListener('click', (e) => { if (e.target.id === 'help') e.target.close(); });
 
