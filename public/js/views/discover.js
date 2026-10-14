@@ -131,7 +131,12 @@ export async function render(view) {
   };
   draw();
   const refresh = h('button', { type: 'button', class: 'btn push-end' }, 'Recompute');
-  refresh.addEventListener('click', async () => { refresh.disabled = true; items = (await api.recommendations(true)).items; draw(); refresh.disabled = false; });
+  refresh.addEventListener('click', async () => {
+    refresh.disabled = true; refresh.textContent = 'Recomputing…';
+    try { items = (await api.recommendations(true)).items; draw(); toast(`Recomputed: ${items.length} recommendations`); }
+    catch (err) { toast(err.message); }
+    refresh.disabled = false; refresh.textContent = 'Recompute';
+  });
   view.replaceChildren(
     section('Your taste', 'Weighted by how much of each show you watched, how recently, and your star ratings',
       h('div', { class: 'taste' },
