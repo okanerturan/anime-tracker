@@ -201,8 +201,8 @@ function getDetails(malId) {
   `).all(malId, ...RELATION_ORDER)
     .sort((a, b) => RELATION_ORDER.indexOf(a.relationType) - RELATION_ORDER.indexOf(b.relationType) || String(a.startDate).localeCompare(String(b.startDate)))
     .map((r) => ({ ...r, inLibrary: Boolean(r.inLibrary), image: images.localUrl(r.cover), cover: undefined }));
-  const series = db.prepare(`SELECT series_id AS id FROM cr_history WHERE mal_id = ? AND series_id IS NOT NULL
-    UNION ALL SELECT h.series_id FROM cr_season_map r JOIN cr_history h ON h.season_id = r.season_id WHERE r.mal_id = ? AND h.series_id IS NOT NULL LIMIT 1`).get(malId, malId);
+  const crlinks = require('./crlinks');
+  const series = crlinks.seriesFor(malId);
   const name = anime.title_english || media.title_english || anime.title || media.title || '';
   return {
     partial: !media.is_full,
@@ -212,8 +212,10 @@ function getDetails(malId) {
     links: {
       myAnimeList: `https://myanimelist.net/anime/${malId}`,
       aniList: media.site_url || null,
-      crunchyroll: series ? `https://www.crunchyroll.com/series/${series.id}` : `https://www.crunchyroll.com/search?q=${encodeURIComponent(name)}`,
-      crunchyrollIsSearch: !series
+      crunchyroll: series ? (series.url || `https://www.crunchyroll.com/series/${series.id}`) : `https://www.crunchyroll.com/search?q=${encodeURIComponent(crlinks.searchQuery(name))}`,
+      crunchyrollIsSearch: !series,
+      crunchyrollSource: series?.source || null,
+      notOnCrunchyroll: !series && crlinks.notOnCrunchyroll(malId)
     }
   };
 }

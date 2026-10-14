@@ -138,6 +138,14 @@ const routes = {
     const body = await parseBody(req);
     return sendJSON(res, 200, await crunchyroll.applySeasonEpisodes(body.seasons));
   },
+  // Crunchyroll series search results from the extension: [{ malId, candidates: [{ id, title }] }].
+  'POST /api/crunchyroll/series': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    const result = require('./crlinks').applyResults(Array.isArray(body.results) ? body.results.slice(0, 50) : []);
+    if (result.found) insights.invalidate();
+    return sendJSON(res, 200, result);
+  },
   'POST /api/crunchyroll/remap': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);

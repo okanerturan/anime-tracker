@@ -11,7 +11,7 @@
   window.addEventListener('message', async (e) => {
     if (e.source !== window || !e.data || e.data.source !== 'anime-tracker-bridge' || e.data.type !== 'fetch-history') return;
     try {
-      const data = await crunchyrollSync({ base: location.origin, clientId: clientId(), since: e.data.since, wantSeasons: e.data.wantSeasons || [] });
+      const data = await crunchyrollSync({ base: location.origin, clientId: clientId(), since: e.data.since, wantSeasons: e.data.wantSeasons || [], wantSeries: e.data.wantSeries || [] });
       window.postMessage({ source: 'anime-tracker-main', type: 'history-data', data }, location.origin);
     } catch (err) {
       window.postMessage({ source: 'anime-tracker-main', type: 'history-error', error: String(err.message || err) }, location.origin);

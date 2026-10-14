@@ -65,10 +65,27 @@ async function fetchSeasons(base, token, seasonIds) {
   return seasons;
 }
 
-/** One sync pass: history since `since`, plus episode lists for the seasons the tracker asked for. */
-async function crunchyrollSync({ base = 'https://www.crunchyroll.com', clientId, since = null, full = false, wantSeasons = [] }) {
+/** Crunchyroll's own search for shows the tracker has no series link for: [{ malId, candidates }]. */
+async function searchSeries(base, token, wants) {
+  const headers = { Authorization: `Bearer ${token.access_token}` };
+  const results = [];
+  for (const w of (wants || []).slice(0, 25)) {
+    try {
+      const res = await fetch(`${base}/content/v2/discover/search?q=${encodeURIComponent(w.query)}&n=6&type=series&locale=en-US`, { headers });
+      if (!res.ok) continue;
+      const items = ((await res.json()).data || [])[0]?.items || [];
+      results.push({ malId: w.malId, candidates: items.map((i) => ({ id: i.id, title: i.title, slug: i.slug_title })) });
+    } catch (err) { /* skip this one */ }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return results;
+}
+
+/** One sync pass: history since `since`, episode lists and series lookups the tracker asked for. */
+async function crunchyrollSync({ base = 'https://www.crunchyroll.com', clientId, since = null, full = false, wantSeasons = [], wantSeries = [] }) {
   const token = await crunchyrollToken(base, clientId);
   const rows = await fetchHistory(base, token, { since: full ? null : since, maxPages: full ? 100 : 20 });
   const seasons = await fetchSeasons(base, token, wantSeasons);
-  return { rows, seasons };
+  const series = await searchSeries(base, token, wantSeries);
+  return { rows, seasons, series };
 }

@@ -325,7 +325,7 @@ function status() {
     ORDER BY h.date_played DESC LIMIT 12`).all();
   const images = require('./images');
   for (const p of inProgress) p.thumb = images.localUrl(p.thumb);
-  return { wantSeasons: wantedSeasons(), lastSync: last ? { at: last.at.replace(' ', 'T') + 'Z', source: last.source, summary: JSON.parse(last.summary) } : null, ...counts, needsReview: review, inProgress };
+  return { wantSeasons: wantedSeasons(), wantSeries: require('./crlinks').wanted(), lastSync: last ? { at: last.at.replace(' ', 'T') + 'Z', source: last.source, summary: JSON.parse(last.summary) } : null, ...counts, needsReview: review, inProgress };
 }
 
 /** Manually fix a season mapping and re-apply its rows. */

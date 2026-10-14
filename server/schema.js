@@ -164,6 +164,9 @@ const ADDED_COLUMNS = [
   // Your own list state: NULL (active), 'on_hold' or 'dropped'; and a 1-5 rating.
   ['watchlist', 'list_status', 'list_status TEXT'],
   ['watchlist', 'rating', 'rating INTEGER'],
+  // Crunchyroll series id found by the extension's search ('' = searched, not on Crunchyroll).
+  ['media', 'cr_series_id', 'cr_series_id TEXT'],
+  ['media', 'cr_checked_at', 'cr_checked_at TEXT'],
   ['media', 'description', 'description TEXT']
 ];
 

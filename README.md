@@ -207,6 +207,7 @@ The frontend is plain HTML, CSS and JavaScript modules. The stylesheet leans on 
 - Mapping Crunchyroll seasons to MyAnimeList entries is heuristic. It's right for the vast majority of shows, but recaps, director's cuts and oddly numbered OVAs sometimes need a manual fix on the Sync page.
 - Recommendations treat "finished it" as "liked it" unless you rate the show. Star ratings and the Drop button steer them; unrated shows count by how much of them you watched.
 - AniList blocks some hosting networks, Cloudflare's included. When the hosted tracker gets blocked it queues its AniList requests, and your browser runs them instead: the extension after every sync, and the web app whenever it's open. Search in the web app goes straight to AniList from your browser in that case. If the extension is your only client and Chrome is closed for days, air times can lag until the next sync.
+- Crunchyroll links come from your watch history, AniList, Crunchyroll's own search (the extension looks up a batch of shows each sync) or a related season's series page. Crunchyroll's region catalog differs, so a show can be "not found" where you are and available elsewhere.
 - Only Crunchyroll history syncs automatically. Anything watched elsewhere goes in through the "Watched" button.
 
 ## Disclaimer

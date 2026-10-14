@@ -54,16 +54,17 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
     try {
       const status = await trackerStatus(cfg.trackerUrl);
       const clientId = data ? cfg.clientId : await ensureClientId(cfg);
-      const got = data || await crunchyrollSync({ clientId, since: status.latestPlayed, full, wantSeasons: status.wantSeasons });
+      const got = data || await crunchyrollSync({ clientId, since: status.latestPlayed, full, wantSeasons: status.wantSeasons, wantSeries: status.wantSeries || [] });
       const result = await postTracker(cfg.trackerUrl, '/api/crunchyroll/ingest', { rows: got.rows });
       const episodes = got.seasons && got.seasons.length ? await postTracker(cfg.trackerUrl, '/api/crunchyroll/episodes', { seasons: got.seasons }) : null;
+      const links = got.series && got.series.length ? await postTracker(cfg.trackerUrl, '/api/crunchyroll/series', { results: got.series }).catch(() => null) : null;
       // AniList relay: answer what the tracker couldn't fetch itself, then re-run mapping for plays it deferred.
       let relay = null;
       try {
         relay = await runAniListRelay(cfg.trackerUrl, authHeaders(trackerKey), 'extension');
         if (relay.ran && result.deferred) Object.assign(result, await postTracker(cfg.trackerUrl, '/api/crunchyroll/ingest', { rows: [] }));
       } catch { /* the relay is best effort */ }
-      await set({ lastSync: new Date().toISOString(), lastResult: { ...result, episodes, relay, reason, fetched: got.rows.length }, lastError: null });
+      await set({ lastSync: new Date().toISOString(), lastResult: { ...result, episodes, links, relay, reason, fetched: got.rows.length }, lastError: null });
       return { ok: true, result };
     } catch (err) {
       await set({ lastError: `${new Date().toLocaleString()}: ${err.message}` });
@@ -82,9 +83,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       const { lastSync } = await get();
       // Opening Crunchyroll triggers a sync if the last one is older than 10 minutes.
       const stale = !lastSync || Date.now() - new Date(lastSync).getTime() > 10 * 60 * 1000;
-      let since = null; let wantSeasons = [];
-      try { const c = await get(); trackerKey = c.trackerKey || ''; const st = await trackerStatus(c.trackerUrl); since = st.latestPlayed; wantSeasons = st.wantSeasons || []; } catch {}
-      reply({ shouldSync: stale, since, wantSeasons });
+      let since = null; let wantSeasons = []; let wantSeries = [];
+      try { const c = await get(); trackerKey = c.trackerKey || ''; const st = await trackerStatus(c.trackerUrl); since = st.latestPlayed; wantSeasons = st.wantSeasons || []; wantSeries = st.wantSeries || []; } catch {}
+      reply({ shouldSync: stale, since, wantSeasons, wantSeries });
     } else if (msg.type === 'page-data') {
       reply(await syncNow({ data: msg.data, reason: 'page' }));
     } else if (msg.type === 'sync-now') {

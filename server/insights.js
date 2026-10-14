@@ -5,6 +5,7 @@ const images = require('./images');
 const anilist = require('./sources/anilist');
 const library = require('./library');
 const { parseJSONField } = require('./util');
+const crlinks = require('./crlinks');
 
 const DAY = 86400000;
 const displayTitle = (r) => r.title_english || r.titleEnglish || r.title || '';
@@ -224,7 +225,7 @@ async function recommendations({ limit = 120, refresh = false } = {}) {
         malId: c.id, title: c.media.title_english || c.media.title, image: images.localUrl(c.media.cover_url),
         format: c.media.format, status: c.media.status, episodes: c.media.episodes, year: c.media.season_year,
         averageScore: c.media.average_score, genres: parseJSONField(c.media.genres, []), siteUrl: c.media.site_url,
-        duration: c.media.duration, onCrunchyroll: parseJSONField(c.media.external_links, []).some((l) => /crunchyroll/i.test(l.site || '')),
+        duration: c.media.duration, onCrunchyroll: Boolean(crlinks.seriesFor(c.id)),
         because, sharedGenres, inLibrary: library.isInLibrary(c.id), match: Math.round(final * 100)
       };
     })
