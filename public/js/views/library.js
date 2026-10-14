@@ -96,7 +96,7 @@ function card(x) {
 
 export async function render(view) {
   if (!state.items) {
-    const serverSort = state.sort === 'left_asc' ? 'activity_desc' : state.sort;
+    const serverSort = ['left_asc', 'rating_desc'].includes(state.sort) ? 'activity_desc' : state.sort;
     const snap = readSnap(serverSort);
     if (snap) {
       // Paint the snapshot now; swap in the fresh list when it arrives.
@@ -114,6 +114,10 @@ export async function render(view) {
   const countFor = (key) => { const was = state.filter; const q = state.query; state.filter = key; state.query = ''; const n = state.items.filter(matches).length; state.filter = was; state.query = q; return n; };
   const draw = () => {
     let list = state.items.filter(matches);
+    if (state.sort === 'rating_desc') {
+      // Your stars first, highest up; unrated shows after, by recent activity.
+      list = [...list].sort((a, b) => ((b.rating || 0) - (a.rating || 0)) || String(b.lastWatchedAt || '').localeCompare(String(a.lastWatchedAt || '')));
+    }
     if (state.sort === 'left_asc') {
       // Closest to the finish line first; ties broken by most recent activity. Finished shows go last.
       list = list.map((x) => ({ x, st: progressState(x) }))
@@ -137,12 +141,12 @@ export async function render(view) {
     });
     return b;
   }));
-  const sort = h('select', { 'aria-label': 'Sort' }, [['activity_desc', 'Recently watched'], ['left_asc', 'Fewest episodes left'], ['release_desc', 'Newest release'], ['release_asc', 'Oldest release'], ['added_desc', 'Recently added'], ['title_asc', 'Title A–Z']]
+  const sort = h('select', { 'aria-label': 'Sort' }, [['activity_desc', 'Recently watched'], ['left_asc', 'Fewest episodes left'], ['rating_desc', 'Your rating'], ['release_desc', 'Newest release'], ['release_asc', 'Oldest release'], ['added_desc', 'Recently added'], ['title_asc', 'Title A–Z']]
     .map(([v, l]) => h('option', { value: v, selected: state.sort === v }, l)));
   sort.addEventListener('change', async () => {
     state.sort = sort.value;
     // "Fewest left" is ordered here from the activity list; every other sort comes from the server.
-    const serverSort = state.sort === 'left_asc' ? 'activity_desc' : state.sort;
+    const serverSort = ['left_asc', 'rating_desc'].includes(state.sort) ? 'activity_desc' : state.sort;
     state.items = await api.watchlist(serverSort);
     draw();
   });
