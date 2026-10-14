@@ -87,15 +87,16 @@ function card(x) {
 
 export async function render(view) {
   if (!state.items) {
-    const snap = readSnap(state.sort);
+    const serverSort = state.sort === 'left_asc' ? 'activity_desc' : state.sort;
+    const snap = readSnap(serverSort);
     if (snap) {
       // Paint the snapshot now; swap in the fresh list when it arrives.
       state.items = snap;
-      api.watchlist(state.sort).then((fresh) => { writeSnap(state.sort, fresh); state.items = fresh; if (location.hash.startsWith('#/library')) render(view); }).catch(() => {});
+      api.watchlist(serverSort).then((fresh) => { writeSnap(serverSort, fresh); state.items = fresh; if (location.hash.startsWith('#/library')) render(view); }).catch(() => {});
     } else {
       view.replaceChildren(h('div', { class: 'skeleton' }));
-      state.items = await api.watchlist(state.sort);
-      writeSnap(state.sort, state.items);
+      state.items = await api.watchlist(serverSort);
+      writeSnap(serverSort, state.items);
     }
   }
   const grid = h('div', { class: 'cards', style: { '--rows': '4' } });
@@ -103,7 +104,13 @@ export async function render(view) {
   // How many shows each filter would show, so a filter never looks broken when it's simply empty.
   const countFor = (key) => { const was = state.filter; const q = state.query; state.filter = key; state.query = ''; const n = state.items.filter(matches).length; state.filter = was; state.query = q; return n; };
   const draw = () => {
-    const list = state.items.filter(matches);
+    let list = state.items.filter(matches);
+    if (state.sort === 'left_asc') {
+      // Closest to the finish line first; ties broken by most recent activity. Finished shows go last.
+      list = list.map((x) => ({ x, st: progressState(x) }))
+        .sort((a, b) => ((a.st.left || Infinity) - (b.st.left || Infinity)) || String(b.x.lastWatchedAt || '').localeCompare(String(a.x.lastWatchedAt || '')))
+        .map((e) => e.x);
+    }
     count.textContent = `${list.length} of ${state.items.length}`;
     fill(grid, list.length ? list.map(card)
       : h('div', { class: 'empty' }, h('b', {}, 'Nothing here'), h('span', {}, state.query ? `No show matches “${state.query}”.` : EMPTY[state.filter] || 'Nothing matches.')));
@@ -121,9 +128,15 @@ export async function render(view) {
     });
     return b;
   }));
-  const sort = h('select', { 'aria-label': 'Sort' }, [['activity_desc', 'Recently watched'], ['release_desc', 'Newest release'], ['release_asc', 'Oldest release'], ['added_desc', 'Recently added'], ['title_asc', 'Title A–Z']]
+  const sort = h('select', { 'aria-label': 'Sort' }, [['activity_desc', 'Recently watched'], ['left_asc', 'Fewest episodes left'], ['release_desc', 'Newest release'], ['release_asc', 'Oldest release'], ['added_desc', 'Recently added'], ['title_asc', 'Title A–Z']]
     .map(([v, l]) => h('option', { value: v, selected: state.sort === v }, l)));
-  sort.addEventListener('change', async () => { state.sort = sort.value; state.items = await api.watchlist(state.sort); draw(); });
+  sort.addEventListener('change', async () => {
+    state.sort = sort.value;
+    // "Fewest left" is ordered here from the activity list; every other sort comes from the server.
+    const serverSort = state.sort === 'left_asc' ? 'activity_desc' : state.sort;
+    state.items = await api.watchlist(serverSort);
+    draw();
+  });
   view.replaceChildren(h('section', { class: 'section' },
     h('div', { class: 'section-head' }, h('h2', {}, 'Library'), count, h('div', { class: 'push-end' }, sort)),
     h('div', { class: 'toolbar' }, search, chips),
