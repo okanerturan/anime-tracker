@@ -21,13 +21,13 @@ It's built around a real account: 3,884 Crunchyroll history entries going back t
 
 ## What it does
 
-**Up Next.** Every show with episodes waiting, sorted by when you last watched it, with the next episode's thumbnail and title. Episodes you paused on Crunchyroll show up with the time left and link straight back to the player. Below that: airing shows you keep up with (and when the next episode lands), sequels to shows you finished, and a collapsed list of shows you stopped partway.
+**Up Next.** One pick for tonight at the top (a paused episode if you have one, otherwise the show you were most recently into), then every show with episodes waiting, each with a Play button that opens that exact episode on Crunchyroll. A check on each card marks the episode watched without opening anything. Shows that aired something since your last visit get a NEW badge. Below that: shows you just finished, with stars so a rating is one tap away; this week's airing schedule by day; sequels to shows you finished; and a collapsed list of shows you stopped partway, with Hold and Drop buttons to clear it. Episodes you paused on Crunchyroll show up with the minutes left and a Resume button. The page paints from its last state instantly and refreshes behind that.
 
-**Library.** Everything you've watched or added, with a badge for where you are: completed, almost done, caught up on an airing show, watching, not started, upcoming. "Almost done" goes by the season's announced length, so a show with two of twelve episodes out doesn't claim its finale is next.
+**Library.** Everything you've watched or added, with a badge for where you are: completed, almost done, unfinished, caught up on an airing show, watching, not started, upcoming, on hold, dropped. Every filter shows its count, and "Fewest episodes left" sorts the shows you're two episodes from finishing to the front. "Almost done" goes by the season's announced length, so a show with two of twelve episodes out doesn't claim its finale is next. In-progress cards carry the same Play button as Up Next.
 
-**Show details.** Synopsis, genres, score, every episode with its thumbnail, a play link per episode, and the rest of the franchise (previous and next seasons, side stories, recaps) with your progress on each. A "Where to watch" row lists the official services AniList knows about: Crunchyroll, Netflix, HIDIVE, Prime Video and so on.
+**Show details.** Play next at the top, then synopsis, genres, score, your star rating, hold and drop, every episode with its thumbnail (watched ones fold away behind a count, so a 148-episode show opens on what's next), and the rest of the franchise with your progress on each. When a season is finished the panel offers the next one, following AniList's sequel links through OVAs to the real next TV season. "Where to watch" lists the official services AniList knows about, plus a direct Crunchyroll series link found through your history, AniList, or Crunchyroll's own search.
 
-**Discover.** Recommendations for shows you haven't watched, built from AniList's community recommendations of the shows you engaged with most. A show you finished counts for more than one you sampled for two episodes, and recent watching counts for more than something from 2019. Sequels of things you've seen are left out on purpose. If you watched something elsewhere, "Watched" marks the whole show as seen and it feeds back into your taste.
+**Discover.** Recommendations for shows you haven't watched, built from AniList's community recommendations of the shows you engaged with most. A show you finished counts for more than one you sampled for two episodes, recent watching counts for more than something from 2019, and your star ratings scale it further: five stars counts double, one or two stars count against. Filters for length, "on Crunchyroll" and release year; a Crunchyroll link on the poster when it's there; Hide with Undo. Sequels of things you've seen are left out on purpose. The list is precomputed in the background, so the page opens instantly.
 
 **Insights.** Hours watched, completion rate, when you watch (by hour and weekday, in your timezone), your biggest binge days, top shows, and the genres and themes you keep coming back to. Crunchyroll's bulk "mark as watched" button stamps hundreds of episodes within seconds of each other; those are counted in the totals but kept out of the habit charts, otherwise everyone's peak hour would be whenever they last tidied their history.
 
@@ -41,6 +41,8 @@ It's built around a real account: 3,884 Crunchyroll history entries going back t
     <td><img src="docs/screenshots/insights.jpg" alt="Insights: viewing stats and charts"></td>
   </tr>
 </table>
+
+**On your phone.** The site installs to the home screen (Add to Home Screen on iOS, Install on Android) and opens offline with whatever it showed last time. Syncing stays on the computer; the phone is for checking what's next and ticking things off.
 
 ## How it fits together
 
@@ -116,7 +118,7 @@ The popup shows the last sync and what it found, plus three settings:
 | **Tracker key** | Leave empty locally. For the Cloudflare version, your passphrase |
 | **Sync now / Full resync** | Sync pulls recent history. Full resync pulls everything (use it once at the start) |
 
-After that it runs on its own: whenever you open Crunchyroll, every 30 minutes while Chrome is open, and a couple of minutes after you leave an episode's page, so a finished episode shows up on the dashboard while you're still picking the next one.
+After that it runs on its own: whenever you open Crunchyroll, every 30 minutes while Chrome is open, and a couple of minutes after you leave an episode's page, so a finished episode shows up on the dashboard while you're still picking the next one. The popup shows your top three "up next" shows with Play buttons, so the extension icon is the fastest way to start watching from any tab. The tracker's Sync page tells you when a newer extension has shipped.
 
 **What it can see and send.** The extension has access to `crunchyroll.com`, `localhost`, `127.0.0.1` and `*.workers.dev`, nothing else. It reads your watch history and season episode lists through Crunchyroll's own web API, using the session you're already logged into, and posts them to the tracker URL you set. The short-lived access token it gets from Crunchyroll stays in memory and is never written anywhere or sent to the tracker.
 
