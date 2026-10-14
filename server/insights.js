@@ -366,10 +366,29 @@ function study() {
   }
   const topShows = [...perShow.values()].sort((a, b) => b.episodes - a.episodes).slice(0, 15)
     .map((s) => ({ title: s.title, malId: showIds.get(s.title) || null, episodes: s.episodes, hours: Math.round(s.seconds / 360) / 10 }));
+  // Streaks: consecutive local days with at least one real play (bulk marks excluded like the habit charts).
+  const days = [...new Set(plays.filter((p) => !bulkTimes.has(new Date(p.date_played).getTime())).map((p) => local(new Date(p.date_played)).day))].sort();
+  let longest = 0; let longestEnd = null; let run = 0; let prev = null;
+  for (const d of days) {
+    run = prev && (new Date(d).getTime() - new Date(prev).getTime()) === DAY ? run + 1 : 1;
+    if (run > longest) { longest = run; longestEnd = d; }
+    prev = d;
+  }
+  const todayKey = local(new Date()).day;
+  const yesterdayKey = local(new Date(Date.now() - DAY)).day;
+  let current = 0;
+  if (days.length && (days[days.length - 1] === todayKey || days[days.length - 1] === yesterdayKey)) {
+    current = 1;
+    for (let i = days.length - 1; i > 0; i -= 1) {
+      if (new Date(days[i]).getTime() - new Date(days[i - 1]).getTime() === DAY) current += 1; else break;
+    }
+  }
+  const streaks = { current, longest, longestEnd, activeDays: days.length };
   const recentYears = Object.keys(byYear).map(Number).sort();
   return {
     timezone: tz,
     bulkMarked: bulk,
+    streaks,
     totals: { episodes: plays.length, hours: Math.round(minutes / 60), days: Math.round(minutes / 60 / 24 * 10) / 10, showsStarted: started, showsFinished: finished, showsDropped: dropped, firstPlay: plays.reduce((a, p) => (!a || p.date_played < a ? p.date_played : a), null) },
     byYear: recentYears.map((y) => ({ year: y, episodes: byYear[y].episodes, hours: Math.round(byYear[y].hours), shows: byYear[y].shows.size })),
     byMonth: Object.entries(byMonth).sort().slice(-24).map(([month, hours]) => ({ month, hours: Math.round(hours * 10) / 10 })),
