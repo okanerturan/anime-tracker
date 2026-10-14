@@ -37,6 +37,17 @@
     <main id="view" class="content-grid" aria-live="polite"></main>
   </div>
   <dialog id="drawer" class="drawer" aria-labelledby="drawer-title"></dialog>
+  <dialog id="help" class="help" aria-labelledby="help-title">
+    <h2 id="help-title">Shortcuts</h2>
+    <dl class="help-list">
+      <dt><kbd>/</kbd></dt><dd>Jump to the search or filter box</dd>
+      <dt><kbd>?</kbd></dt><dd>This sheet</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Close a panel</dd>
+      <dt><kbd>Shift</kbd> + click a check</dt><dd>On a card: mark every aired episode. In the episode list: mark everything up to that one</dd>
+      <dt><kbd>⌘</kbd> / <kbd>Ctrl</kbd> + click a title</dt><dd>Open it on MyAnimeList in a new tab</dd>
+    </dl>
+    <form method="dialog"><button type="submit" class="btn">Close</button></form>
+  </dialog>
   <div id="toast" class="toast" popover="manual" role="status"></div>
   <script type="module" src="/js/main.js"></script>
 </body>

@@ -44,13 +44,16 @@ async function updateStatus() {
   } catch {}
 }
 
-// "/" jumps to the page's search or filter box, like on GitHub.
+// "/" jumps to the page's search or filter box, like on GitHub; "?" opens the shortcut sheet.
 document.addEventListener('keydown', (e) => {
-  if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
-  if (/^(input|textarea|select)$/i.test(document.activeElement?.tagName || '') || document.querySelector('dialog[open]')) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (/^(input|textarea|select)$/i.test(document.activeElement?.tagName || '')) return;
+  if (e.key === '?') { e.preventDefault(); const help = document.getElementById('help'); if (!help.open) help.showModal(); return; }
+  if (e.key !== '/' || document.querySelector('dialog[open]')) return;
   const box = document.querySelector('#view input[type="search"]');
   if (box) { e.preventDefault(); box.focus(); box.select(); }
 });
+document.getElementById('help').addEventListener('click', (e) => { if (e.target.id === 'help') e.target.close(); });
 
 // Theme: dark (default) -> light -> system
 const THEMES = ['dark', 'light', 'system'];

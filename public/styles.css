@@ -1572,3 +1572,19 @@ select {
 /* Episode tiles: the Play pill sits bottom-left on the still, the number top-left */
 .ep-tile .play-overlay.ep-play { font-size: var(--step--2); padding-block: 0.4em; }
 .related-add { position: relative; z-index: 1; margin-block-start: var(--space-2xs); }
+
+/* Shortcut sheet */
+.help {
+  inline-size: min(92vw, 30rem);
+  padding: var(--space-m);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-outer);
+  background: var(--surface);
+  color: var(--text);
+}
+.help::backdrop { background: var(--scrim); }
+.help h2 { font-size: var(--step-1); margin-block-end: var(--space-s); }
+.help-list { display: grid; grid-template-columns: auto 1fr; gap: var(--space-xs) var(--space-s); margin-block-end: var(--space-m); }
+.help-list dt { white-space: nowrap; }
+.help-list dd { color: var(--muted); }
+kbd { font: inherit; font-size: 0.85em; padding: 0.1em 0.45em; border: 1px solid var(--line); border-block-end-width: 2px; border-radius: 0.35em; background: var(--surface-2); }
