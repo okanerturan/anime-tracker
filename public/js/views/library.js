@@ -25,6 +25,11 @@ const DAY = 86400000;
 const state = { filter: 'all', query: '', sort: 'activity_desc', items: null };
 bus.on('library-changed', () => { state.items = null; });
 
+// Last known list per sort, so the page paints before the network answers.
+const snapKey = (sort) => `library:snapshot:${sort}`;
+function readSnap(sort) { try { const s = JSON.parse(localStorage.getItem(snapKey(sort)) || 'null'); return s && Date.now() - s.at < 86400000 ? s.items : null; } catch { return null; } }
+function writeSnap(sort, items) { try { localStorage.setItem(snapKey(sort), JSON.stringify({ at: Date.now(), items })); } catch {} }
+
 function matches(x) {
   const st = progressState(x).key;
   const wanted = {
@@ -82,8 +87,16 @@ function card(x) {
 
 export async function render(view) {
   if (!state.items) {
-    view.replaceChildren(h('div', { class: 'skeleton' }));
-    state.items = await api.watchlist(state.sort);
+    const snap = readSnap(state.sort);
+    if (snap) {
+      // Paint the snapshot now; swap in the fresh list when it arrives.
+      state.items = snap;
+      api.watchlist(state.sort).then((fresh) => { writeSnap(state.sort, fresh); state.items = fresh; if (location.hash.startsWith('#/library')) render(view); }).catch(() => {});
+    } else {
+      view.replaceChildren(h('div', { class: 'skeleton' }));
+      state.items = await api.watchlist(state.sort);
+      writeSnap(state.sort, state.items);
+    }
   }
   const grid = h('div', { class: 'cards', style: { '--rows': '4' } });
   const count = h('span', { class: 'sub num' });

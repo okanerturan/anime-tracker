@@ -84,3 +84,13 @@ async function relayTick() {
 }
 setTimeout(relayTick, 3000);
 setInterval(relayTick, 10 * 60 * 1000);
+
+// Offline shell (see sw.js). Registered after load so it never competes with the first paint.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+}
+// Offline banner: the pages paint from snapshots; say why nothing refreshes.
+function paintOnline() { document.documentElement.classList.toggle('is-offline', !navigator.onLine); }
+window.addEventListener('online', paintOnline);
+window.addEventListener('offline', paintOnline);
+paintOnline();
