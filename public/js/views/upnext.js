@@ -301,9 +301,9 @@ function draw(view, data, cr) {
   const rateSection = rateStrip(data.recentlyFinished || [], () => { if (!rateSection.querySelector('.rate-item')) rateSection.remove(); });
   fill(view,
     tonight(data.continueWatching, inProgress),
-    rateSection,
     carousel('Continue watching', `${plural(data.continueWatching.length, 'show')} with episodes waiting`,
       data.continueWatching.map((x) => epCard(x, 'continue', () => refresh(view))), "You're all caught up."),
+    rateSection,
     inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map((p) => pausedCard(p, () => refresh(view))), '') : null,
     weekStrip(airingWeek),
     caughtUpRow(caughtUp),
