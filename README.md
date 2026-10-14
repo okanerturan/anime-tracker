@@ -116,7 +116,7 @@ The popup shows the last sync and what it found, plus three settings:
 | **Tracker key** | Leave empty locally. For the Cloudflare version, your passphrase |
 | **Sync now / Full resync** | Sync pulls recent history. Full resync pulls everything (use it once at the start) |
 
-After that it runs on its own: whenever you open Crunchyroll, and every 30 minutes while Chrome is open.
+After that it runs on its own: whenever you open Crunchyroll, every 30 minutes while Chrome is open, and a couple of minutes after you leave an episode's page, so a finished episode shows up on the dashboard while you're still picking the next one.
 
 **What it can see and send.** The extension has access to `crunchyroll.com`, `localhost`, `127.0.0.1` and `*.workers.dev`, nothing else. It reads your watch history and season episode lists through Crunchyroll's own web API, using the session you're already logged into, and posts them to the tracker URL you set. The short-lived access token it gets from Crunchyroll stays in memory and is never written anywhere or sent to the tracker.
 

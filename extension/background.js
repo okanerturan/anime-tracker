@@ -7,7 +7,26 @@ const set = (v) => chrome.storage.local.set(v);
 
 chrome.runtime.onInstalled.addListener(() => chrome.alarms.create('sync', { periodInMinutes: 30, delayInMinutes: 1 }));
 chrome.runtime.onStartup.addListener(() => chrome.alarms.create('sync', { periodInMinutes: 30, delayInMinutes: 1 }));
-chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'sync') syncNow({ reason: 'alarm' }).catch(() => {}); });
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === 'sync') syncNow({ reason: 'alarm' }).catch(() => {});
+  if (a.name === 'after-watch') syncNow({ reason: 'watch' }).catch(() => {});
+});
+
+// Leaving a Crunchyroll watch page (next episode, back to the series, tab closed) means an episode
+// probably just finished. Sync two minutes later so the dashboard rolls over while it still matters;
+// repeated navigations push the alarm out, so a binge syncs once at the end of each episode gap.
+const WATCH_RE = /^https:\/\/www\.crunchyroll\.com\/(?:[a-z-]+\/)?watch\//;
+const watchTabs = new Map(); // tabId -> last watch URL
+function leftWatchPage() { chrome.alarms.create('after-watch', { delayInMinutes: 2 }); }
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  const was = watchTabs.get(tabId);
+  // Navigating to a site we have no permission for reports no URL at all; a watch tab that starts
+  // loading something unknown has left the episode.
+  if (!info.url) { if (was && info.status === 'loading') { watchTabs.delete(tabId); leftWatchPage(); } return; }
+  if (WATCH_RE.test(info.url)) { if (was && was !== info.url) leftWatchPage(); watchTabs.set(tabId, info.url); }
+  else if (was) { watchTabs.delete(tabId); leftWatchPage(); }
+});
+chrome.tabs.onRemoved.addListener((tabId) => { if (watchTabs.has(tabId)) { watchTabs.delete(tabId); leftWatchPage(); } });
 
 // The hosted tracker (Cloudflare) needs the passphrase as a bearer key; the local one ignores it.
 const authHeaders = (key) => (key ? { Authorization: `Bearer ${key}` } : {});
