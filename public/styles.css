@@ -1548,3 +1548,23 @@ select {
 
 /* Library posters carry the status pill at the top right, so their tick sits bottom right */
 .card-tick--bottom { place-self: end end; }
+
+/* Needs-review search results */
+.review-results { display: flex; flex-direction: column; gap: var(--space-2xs); margin-block-start: var(--space-2xs); }
+.review-pick {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: var(--space-xs);
+  align-items: center;
+  padding: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  text-align: start;
+  cursor: pointer;
+}
+.review-pick > img { inline-size: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 0.3rem; }
+.review-pick > span { min-inline-size: 0; overflow: clip; text-overflow: ellipsis; white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) { .review-pick:hover { border-color: var(--accent); } }
+.review-pick:active { transform: scale(0.98); }
+.inline-form > .search { flex: 1 1 14rem; min-inline-size: 12rem; }

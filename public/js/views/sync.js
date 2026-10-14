@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { h, section, ago, toast } from '../ui.js';
+import { h, section, ago, toast, FORMAT_LABEL } from '../ui.js';
 
 export async function render(view) {
   view.replaceChildren(h('div', { class: 'skeleton' }));
@@ -10,16 +10,38 @@ export async function render(view) {
   const review = cr.needsReview.length ? h('table', { class: 'simple' },
     h('tr', {}, h('th', {}, 'Crunchyroll season'), h('th', {}, 'Mapped to'), h('th', {}, 'Fix')),
     cr.needsReview.map((r) => {
-      const malInput = h('input', { type: 'number', placeholder: 'MAL id', value: r.malId || '', required: true, min: '1', 'aria-label': 'MAL id' });
-      const offInput = h('input', { type: 'number', placeholder: 'offset', value: r.offset || 0, 'aria-label': 'Episode offset', title: 'Crunchyroll episode number minus MAL episode number' });
-      const save = h('button', { type: 'button', class: 'btn small primary' }, 'Save');
-      save.addEventListener('click', async () => { if (!malInput.reportValidity()) return; save.disabled = true; const res = await api.crRemap(r.seasonId, Number(malInput.value), Number(offInput.value)); toast(`Re-mapped · ${res.marked} episodes marked`); render(view); });
+      // Fix by searching for the right show, not by typing an id.
+      const search = h('input', { type: 'search', class: 'search', placeholder: 'Search the right show…', 'aria-label': `Search the right show for ${r.seriesTitle}` });
+      const results = h('div', { class: 'review-results' });
+      const offInput = h('input', { type: 'number', value: r.offset || 0, 'aria-label': 'Episode offset', title: 'Crunchyroll episode number minus the show’s episode number (0 unless Crunchyroll numbers seasons continuously)', style: { 'inline-size': '5rem' } });
+      let timer = null;
+      search.addEventListener('input', () => {
+        clearTimeout(timer);
+        const q = search.value.trim();
+        if (q.length < 2) { results.replaceChildren(); return; }
+        timer = setTimeout(async () => {
+          try {
+            const list = await api.search(q);
+            results.replaceChildren(...list.slice(0, 5).map((a) => {
+              const b = h('button', { type: 'button', class: 'review-pick' },
+                h('img', { src: a.image, alt: '' }),
+                h('span', {}, h('b', {}, a.titleEnglish || a.title), h('span', { class: 'muted' }, ` · ${[a.releaseDate?.slice(0, 4), FORMAT_LABEL[a.format] || a.format, a.totalEpisodes ? `${a.totalEpisodes} eps` : null].filter(Boolean).join(' · ')}`)));
+              b.addEventListener('click', async () => {
+                b.disabled = true;
+                try { const res = await api.crRemap(r.seasonId, a.malId, Number(offInput.value) || 0); toast(`Mapped to ${a.titleEnglish || a.title} · ${res.marked} episodes marked`); render(view); }
+                catch (err) { b.disabled = false; toast(err.message); }
+              });
+              return b;
+            }));
+          } catch (err) { results.replaceChildren(h('span', { class: 'muted' }, err.message)); }
+        }, 350);
+      });
       const ok = h('button', { type: 'button', class: 'btn small' }, 'Looks right');
       ok.addEventListener('click', async () => { await api.crConfirm(r.seasonId); render(view); });
       return h('tr', {},
         h('td', {}, `${r.seriesTitle} · ${r.seasonTitle || ''}`),
         h('td', {}, r.malId ? h('a', { href: `https://myanimelist.net/anime/${r.malId}`, target: '_blank', rel: 'noopener' }, r.mappedTitle || `MAL ${r.malId}`) : h('span', { class: 'muted' }, 'not found')),
-        h('td', {}, h('div', { class: 'inline-form' }, malInput, offInput, save, r.malId ? ok : null)));
+        h('td', {}, h('div', { class: 'inline-form' }, search, offInput, r.malId ? ok : null), results));
     })) : h('div', { class: 'muted' }, 'All Crunchyroll seasons are mapped.');
 
   const fileInput = h('input', { type: 'file', accept: 'application/json', 'aria-label': 'Watch history JSON file' });
