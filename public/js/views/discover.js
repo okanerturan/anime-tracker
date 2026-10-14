@@ -35,6 +35,7 @@ const FILTERS = {
   era: { label: 'Released', options: [['any', 'Any year'], ['2020', '2020+'], ['2010', '2010s'], ['old', 'Before 2010']] }
 };
 const filters = { length: 'any', where: 'any', era: 'any' };
+try { Object.assign(filters, JSON.parse(localStorage.getItem('discover:filters') || '{}')); } catch {}
 
 function passes(r) {
   const eps = r.episodes || 0;
@@ -56,6 +57,7 @@ function filterBar(onChange) {
       const b = h('button', { type: 'button', class: 'chip-toggle', 'aria-pressed': String(filters[key] === value) }, label);
       b.addEventListener('click', () => {
         filters[key] = value;
+        try { localStorage.setItem('discover:filters', JSON.stringify(filters)); } catch {}
         group.querySelectorAll('.chip-toggle').forEach((c) => c.setAttribute('aria-pressed', String(c === b)));
         onChange();
       });

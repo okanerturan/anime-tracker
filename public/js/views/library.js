@@ -23,6 +23,9 @@ const EMPTY = {
 };
 const DAY = 86400000;
 const state = { filter: 'all', query: '', sort: 'activity_desc', items: null };
+// Remember the last filter and sort per browser.
+try { const saved = JSON.parse(localStorage.getItem('library:view') || 'null'); if (saved) { state.filter = saved.filter || state.filter; state.sort = saved.sort || state.sort; } } catch {}
+const remember = () => { try { localStorage.setItem('library:view', JSON.stringify({ filter: state.filter, sort: state.sort })); } catch {} };
 bus.on('library-changed', () => { state.items = null; });
 
 // Last known list per sort, so the page paints before the network answers.
@@ -145,6 +148,7 @@ export async function render(view) {
       h('span', {}, label), key === 'all' ? null : h('span', { class: 'chip-count num' }, String(n)));
     b.addEventListener('click', () => {
       state.filter = key;
+      remember();
       chips.querySelectorAll('.chip-toggle').forEach((c) => c.setAttribute('aria-pressed', String(c === b)));
       draw();
     });
@@ -154,6 +158,7 @@ export async function render(view) {
     .map(([v, l]) => h('option', { value: v, selected: state.sort === v }, l)));
   sort.addEventListener('change', async () => {
     state.sort = sort.value;
+    remember();
     // "Fewest left" is ordered here from the activity list; every other sort comes from the server.
     const serverSort = ['left_asc', 'rating_desc'].includes(state.sort) ? 'activity_desc' : state.sort;
     state.items = await api.watchlist(serverSort);
