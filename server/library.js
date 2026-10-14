@@ -54,13 +54,14 @@ const ORDER = {
 
 /** The library list. Synopses are left out unless asked for: the grid never shows them and they are half the payload. */
 function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
+  const crlinks = require('./crlinks');
   const rows = db.prepare(`
     SELECT a.mal_id AS malId, a.title, COALESCE(a.title_english, '') AS titleEnglish,
            COALESCE(a.release_date, m.start_date) AS releaseDate,
            COALESCE(m.cover_url, a.image_url, '') AS remoteImage, COALESCE(a.synopsis, '') AS synopsis,
            COALESCE(a.total_episodes, m.episodes) AS totalEpisodes,
            m.format, m.status, m.genres, m.average_score AS averageScore, m.color,
-           m.next_airing_episode AS nextAiringEpisode, m.next_airing_at AS nextAiringAt, m.episodes AS mediaEpisodes,
+           m.next_airing_episode AS nextAiringEpisode, m.next_airing_at AS nextAiringAt, m.episodes AS mediaEpisodes, m.external_links,
            COUNT(e.episode_number) AS episodesCount,
            COALESCE(SUM(e.watched = 1), 0) AS watchedCount,
            COALESCE(SUM(e.image_blob IS NOT NULL), 0) AS imageCount,
@@ -77,10 +78,21 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
   return rows.map((r) => {
     const aired = airedCount({ status: r.status, next_airing_episode: r.nextAiringEpisode, episodes: r.mediaEpisodes });
     const next = r.watchedCount && r.watchedCount < (aired ?? r.episodesCount) ? nextStmt.get(r.malId, r.malId) : null;
+    // Play target: the exact episode, else the show's Crunchyroll page, else the first service AniList lists.
+    let nextUrl = next?.url && /crunchyroll\.com\/watch\//.test(next.url) ? next.url.replace(/^http:/, 'https:') : null;
+    let nextSite = 'Crunchyroll';
+    let nextExact = Boolean(nextUrl);
+    if (next && !nextUrl) {
+      const s = crlinks.seriesFor(r.malId);
+      if (s) nextUrl = s.url || `https://www.crunchyroll.com/series/${s.id}`;
+      else { const other = parseJSONField(r.external_links, []).find((l) => l.url); if (other) { nextUrl = other.url; nextSite = other.site; } }
+    }
     return {
       malId: r.malId,
       nextEpisode: next?.n ?? null,
-      nextEpisodeUrl: next?.url && /crunchyroll\.com\/watch\//.test(next.url) ? next.url.replace(/^http:/, 'https:') : null,
+      nextEpisodeUrl: nextUrl,
+      nextEpisodeSite: nextSite,
+      nextEpisodeUrlIsExact: nextExact,
       title: r.title,
       titleEnglish: r.titleEnglish,
       releaseDate: r.releaseDate,
