@@ -218,7 +218,13 @@ function caughtUpRow(items) {
 }
 
 /** "You just finished X": five stars right there, because ratings are what make Discover good. */
-function rateStrip(items, onRated) {
+const SKIP_KEY = 'upnext:rateSkipped';
+const readSkipped = () => { try { return new Set(JSON.parse(localStorage.getItem(SKIP_KEY) || '[]')); } catch { return new Set(); } };
+const skipRating = (malId) => { try { const s = readSkipped(); s.add(malId); localStorage.setItem(SKIP_KEY, JSON.stringify([...s].slice(-200))); } catch {} };
+
+function rateStrip(allItems, onRated) {
+  const skipped = readSkipped();
+  const items = allItems.filter((x) => !skipped.has(x.malId));
   if (!items.length) return null;
   const row = (x) => {
     const el = h('div', { class: 'rate-item' });
@@ -232,7 +238,7 @@ function rateStrip(items, onRated) {
       return b;
     }));
     const skip = h('button', { type: 'button', class: 'icon-btn', 'aria-label': `Skip rating ${x.title}`, title: 'Skip' }, icon('close'));
-    skip.addEventListener('click', () => { el.remove(); onRated?.(); });
+    skip.addEventListener('click', () => { skipRating(x.malId); el.remove(); onRated?.(); });
     fill(el,
       h('img', { src: x.image, alt: '', loading: 'lazy' }),
       h('div', { class: 'rate-text' },
