@@ -3,6 +3,16 @@ import { h, fill, icon, media, progress, carousel, cardLink, relTime, ago, toast
 import { openAnime } from '../drawer.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+// "New since your last visit": a per-browser timestamp, nothing the server needs to know.
+const LAST_VISIT_KEY = 'upnext:lastVisit';
+let lastVisit = 0;
+try { lastVisit = Number(localStorage.getItem(LAST_VISIT_KEY)) || 0; } catch {}
+function stampVisit() { try { localStorage.setItem(LAST_VISIT_KEY, String(Date.now())); } catch {} }
+const isNewSinceVisit = (iso) => Boolean(iso && lastVisit && new Date(iso).getTime() > lastVisit);
+
+/** After jumping to Crunchyroll, say what happens next so the user doesn't come back to tick boxes. */
+function playToast(ep) { toast(ep ? `Opening episode ${ep} on Crunchyroll. It's marked watched after your next sync.` : 'Opening Crunchyroll'); }
 const realTitle = (t) => t && !/^Episode \d+$/.test(t) ? t.replace(/^Episode\s+\d+\s*[:\-–]\s*/i, '') : null;
 
 /** One card shape for every shelf: thumbnail, progress, title, detail line, meta line (5 subgrid rows). */
@@ -16,7 +26,8 @@ function epCard(item, mode, onChange) {
   if (mode === 'continue' || mode === 'stalled' || mode === 'hold') {
     // "Almost done" counts against the season's total, not just what has aired so far.
     const left = item.leftInSeason;
-    if (left != null && left >= 1 && left <= 3) badge = h('span', { class: 'pill state-almost badge-start num' }, left === 1 ? 'FINALE NEXT' : `ALMOST DONE · ${left} LEFT`);
+    if (isNewSinceVisit(item.latestAiredAt)) badge = h('span', { class: 'pill accent badge-start' }, 'NEW EPISODE');
+    else if (left != null && left >= 1 && left <= 3) badge = h('span', { class: 'pill state-almost badge-start num' }, left === 1 ? 'FINALE NEXT' : `ALMOST DONE · ${left} LEFT`);
     else if (item.status === 'RELEASING') badge = h('span', { class: 'pill airing badge-start' }, 'AIRING');
     const name = realTitle(item.nextEpisodeTitle);
     line = `Episode ${item.nextEpisode}${name ? ` · ${name}` : ''}`;
@@ -40,9 +51,19 @@ function epCard(item, mode, onChange) {
   const playUrl = item.resume ? watchUrl(item.resume) : item.nextEpisodeUrl;
   const playExact = Boolean(item.resume) || item.nextEpisodeUrlIsExact;
   const play = playUrl && (mode === 'continue' || mode === 'airing' || mode === 'hold' || mode === 'stalled')
-    ? h('a', { class: 'play-overlay', href: playUrl, target: '_blank', rel: 'noopener', 'aria-label': playExact ? `Play episode ${item.nextEpisode} on Crunchyroll` : `Open ${item.title} on Crunchyroll` },
+    ? h('a', { class: 'play-overlay', href: playUrl, target: '_blank', rel: 'noopener', 'aria-label': playExact ? `Play episode ${item.nextEpisode} on Crunchyroll` : `Open ${item.title} on Crunchyroll`, onclick: () => playToast(playExact ? item.nextEpisode : null) },
         icon('play'), h('span', {}, playExact ? `Play E${item.nextEpisode}` : 'Open on Crunchyroll'))
     : null;
+  // Watched it elsewhere, or the sync hasn't caught up: tick the next episode without opening the show.
+  const tick = (mode === 'continue' && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched` }, icon('check')) : null;
+  if (tick) tick.addEventListener('click', async () => {
+    tick.disabled = true;
+    try {
+      await api.watchedThrough(item.malId, item.nextEpisode);
+      toast(`E${item.nextEpisode} of ${item.title} marked watched`);
+      onChange?.(tick.closest('.card'));
+    } catch (err) { tick.disabled = false; toast(err.message); }
+  });
   // Stalled and held shows get quick actions so the shelf can be cleaned up without opening each one.
   const action = (label, status, cls = 'btn small') => {
     const b = h('button', { type: 'button', class: cls }, label);
@@ -57,7 +78,7 @@ function epCard(item, mode, onChange) {
     : mode === 'hold' ? h('div', { class: 'card-actions card-actions--pair' }, action('Resume', null, 'btn small primary'), action('Drop', 'dropped', 'btn small ghost'))
       : null;
   return h('article', { class: `card ${play ? 'has-play' : ''}` },
-    media({ src: still, fallback: item.image, alt: '', badges: [badge, play] }),
+    media({ src: still, fallback: item.image, alt: '', badges: [badge, play, tick] }),
     progress(frac, { hideWhenEmpty: mode === 'season' }),
     cardLink(item.title, open, { lines: 1, href: `https://myanimelist.net/anime/${item.malId}` }),
     h('p', { class: 'card-sub one-line', title: line }, line),
@@ -90,7 +111,7 @@ function tonight(items, inProgress) {
   const still = pick.nextEpisodeImage || pick.resume?.thumb || pick.image;
   const open = () => openAnime(pick);
   return h('section', { class: 'tonight' },
-    h('a', { class: 'tonight-media', href: url || '#', target: url ? '_blank' : null, rel: 'noopener', 'aria-label': `Play ${pick.title} episode ${pick.nextEpisode}` },
+    h('a', { class: 'tonight-media', href: url || '#', target: url ? '_blank' : null, rel: 'noopener', 'aria-label': `Play ${pick.title} episode ${pick.nextEpisode}`, onclick: () => { if (url) playToast(pick.nextEpisode); } },
       media({ src: still, fallback: pick.image, alt: '' }),
       url ? h('span', { class: 'play-overlay is-large' }, icon('play'), h('span', {}, minsLeft ? `Resume · ${minsLeft} min left` : `Play E${pick.nextEpisode}`)) : null),
     h('div', { class: 'tonight-info' },
@@ -99,7 +120,7 @@ function tonight(items, inProgress) {
       h('p', { class: 'tonight-sub' }, `Episode ${pick.nextEpisode}${name ? ` · ${name}` : ''}`),
       h('p', { class: 'card-meta' }, [`${plural(pick.remaining, 'episode')} to go`, pick.leftInSeason === 1 ? 'season finale next' : null, pick.lastWatchedAt ? `last watched ${ago(pick.lastWatchedAt)}` : null].filter(Boolean).join(' · ')),
       h('div', { class: 'hero-actions' },
-        url ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener' }, icon('play'), ' ', pick.resume ? 'Resume on Crunchyroll' : 'Play on Crunchyroll') : null,
+        url ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener', onclick: () => playToast(pick.nextEpisode) }, icon('play'), ' ', pick.resume ? 'Resume on Crunchyroll' : 'Play on Crunchyroll') : null,
         h('button', { type: 'button', class: 'btn', onclick: open }, 'Details'))));
 }
 
@@ -142,6 +163,8 @@ export async function render(view) {
 
   // Remove the card in place so an open shelf stays open while you triage it; other shelves catch up on the next visit.
   const rerender = (cardEl) => cardEl?.remove();
+  // After the shelves are drawn, remember this visit so the next one can flag what aired in between.
+  setTimeout(stampVisit, 1500);
   const collapsible = (title, sub, items, mode) => h('details', { class: 'collapse section' },
     h('summary', {}, h('div', { class: 'section-head' },
       h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), title),
@@ -153,7 +176,7 @@ export async function render(view) {
   fill(view,
     tonight(data.continueWatching, inProgress),
     carousel('Continue watching', `${plural(data.continueWatching.length, 'show')} with episodes waiting`,
-      data.continueWatching.map((x) => epCard(x, 'continue')), "You're all caught up."),
+      data.continueWatching.map((x) => epCard(x, 'continue', () => render(view))), "You're all caught up."),
     inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map(pausedCard), '') : null,
     weekStrip(airingWeek),
     data.airingSoon.length ? carousel('New episodes soon', 'Airing shows you keep up with',

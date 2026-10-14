@@ -44,6 +44,14 @@ async function updateStatus() {
   } catch {}
 }
 
+// "/" jumps to the page's search or filter box, like on GitHub.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (/^(input|textarea|select)$/i.test(document.activeElement?.tagName || '') || document.querySelector('dialog[open]')) return;
+  const box = document.querySelector('#view input[type="search"]');
+  if (box) { e.preventDefault(); box.focus(); box.select(); }
+});
+
 // Theme: dark (default) -> light -> system
 const THEMES = ['dark', 'light', 'system'];
 const THEME_GLYPH = { dark: '☾', light: '☀', system: '◐' };

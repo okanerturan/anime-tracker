@@ -1409,3 +1409,55 @@ select {
 .play-row .btn { display: inline-flex; align-items: center; gap: 0.4em; }
 .play-row .btn svg { inline-size: 1cap; block-size: 1cap; }
 .play-row .btn svg path { fill: currentColor; }
+
+/* ---------- Round 4: tick from the card, install on phones ---------- */
+.card-tick {
+  place-self: start end;
+  margin: var(--space-xs);
+  position: relative;
+  z-index: 2;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: 50%;
+  border-color: transparent;
+  background: var(--badge-bg);
+  color: oklch(1 0 none);
+  backdrop-filter: blur(6px);
+}
+.card-tick svg path { fill: none; stroke: currentColor; }
+@media (hover: hover) and (pointer: fine) {
+  .card-tick { opacity: 0; transition: opacity 140ms var(--ease-out), background-color 140ms var(--ease-out); }
+  .card:hover .card-tick, .card:focus-within .card-tick { opacity: 1; }
+  .card-tick:hover { background: var(--good); color: oklch(0.2 0.05 160); }
+}
+.card-tick:focus-visible { outline-color: oklch(1 0 none); outline-offset: 2px; opacity: 1; }
+
+/* The badge row holds a status pill at the start; keep the tick clear of it */
+.media > .pill.badge-start { max-inline-size: calc(100% - 3.25rem); }
+
+/* Phone: the tonight block stacks, the filter rail scrolls instead of wrapping into four lines */
+@media (max-width: 40rem) {
+  .chips.segmented { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; inline-size: 100%; max-inline-size: 100%; }
+  .chips.segmented::-webkit-scrollbar { display: none; }
+  .toolbar > .chips { min-inline-size: 100%; }
+  .tonight { padding: var(--space-xs); }
+  .tonight-info > .hero-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .week { grid-template-columns: repeat(7, minmax(11rem, 1fr)); }
+}
+
+/* Standalone (installed) mode: respect the notch */
+@media (display-mode: standalone) {
+  .topbar { padding-block-start: env(safe-area-inset-top, 0px); min-block-size: calc(var(--header-h) + env(safe-area-inset-top, 0px)); }
+}
+
+/* Phone fixes from the 390px check: chips never squash, posters go two-up, the tick is always there */
+.chips.segmented > .chip-toggle { flex: none; }
+.card-tick { opacity: 0.8; }
+@media (hover: hover) and (pointer: fine) {
+  .card-tick { opacity: 0.55; }
+}
+@media (max-width: 40rem) {
+  .cards:not(.cards--wide) { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-xs); }
+  .cards--wide { grid-template-columns: 1fr; }
+  .section-head > .push-end { margin-inline-start: 0; inline-size: 100%; }
+}

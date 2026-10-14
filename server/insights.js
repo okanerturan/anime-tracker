@@ -62,8 +62,9 @@ function upNext() {
     // Where "Play" goes: the exact episode when Crunchyroll's URL is known, else the series page.
     const nextUrl = nextRow?.url && /crunchyroll\.com\/watch\//.test(nextRow.url) ? nextRow.url.replace(/^http:/, 'https:')
       : (() => { const s = crlinks.seriesFor(r.mal_id); return s ? (s.url || `https://www.crunchyroll.com/series/${s.id}`) : null; })();
+    const latestAired = remaining > 0 ? db.prepare(`SELECT MAX(aired) AS at FROM episode_sync WHERE mal_id = ? AND episode_number > ? AND aired IS NOT NULL AND aired <= strftime('%Y-%m-%dT%H:%M:%SZ','now')`).get(r.mal_id, furthest)?.at : null;
     const info = card(r, {
-      watched: r.watched, furthest, aired, remaining, lastWatchedAt: r.last_watched,
+      watched: r.watched, furthest, aired, remaining, lastWatchedAt: r.last_watched, latestAiredAt: latestAired || null,
       // Episodes left in the whole season (null when the season's length isn't announced).
       totalEpisodes: r.episodes ?? null, leftInSeason: r.episodes ? Math.max(0, r.episodes - furthest) : null,
       nextEpisode: nextEp, nextEpisodeTitle: nextRow?.title || null, nextEpisodeUrl: nextUrl, nextEpisodeUrlIsExact: Boolean(nextRow?.url && /watch\//.test(nextRow.url)),

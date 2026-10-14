@@ -1,0 +1,14 @@
+{
+  "name": "Anime Tracker",
+  "short_name": "Anime",
+  "description": "Your Crunchyroll history as a watch list: what to watch next, new seasons, recommendations.",
+  "start_url": "/#/up-next",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#121318",
+  "theme_color": "#121318",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
