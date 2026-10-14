@@ -110,6 +110,8 @@ function getWatchlist(sort = 'release_desc') {
 function markWatchedElsewhere(malId) {
   const m = db.prepare('SELECT * FROM media WHERE mal_id = ?').get(malId);
   if (!m) throw Object.assign(new Error('unknown show'), { status: 404 });
+  // An unreleased show has nothing to mark; adding it with zero episodes only leaves an empty entry.
+  if (m.status === 'NOT_YET_RELEASED' || airedCount(m) === 0) throw Object.assign(new Error(`${m.title_english || m.title} hasn't aired yet`), { status: 400 });
   if (!isInLibrary(malId)) {
     addToLibrary({ malId, title: m.title, titleEnglish: m.title_english || '', imageUrl: m.cover_url || '', releaseDate: m.start_date, totalEpisodes: m.episodes });
   }

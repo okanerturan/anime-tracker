@@ -28,7 +28,8 @@ export async function openAnime(partial) {
         image: partial.image || full.imageUrl,
         synopsis: full.synopsis, genres: full.genres, status: full.status, format: full.format,
         averageScore: full.averageScore, nextAiringAt: full.nextAiringAt, nextAiringEpisode: full.nextAiringEpisode,
-        inLibrary: full.inLibrary, totalEpisodes: full.totalEpisodes, listStatus: full.listStatus, rating: full.rating
+        inLibrary: full.inLibrary, totalEpisodes: full.totalEpisodes, listStatus: full.listStatus, rating: full.rating,
+        releaseDate: full.releaseDate
       };
     } catch {}
   }
@@ -45,12 +46,25 @@ export async function openAnime(partial) {
       more.textContent = open ? 'Show less' : 'Show more';
     });
   }
+  // Not out yet: no "I watched this", and the episode list explains why it's empty.
+  const unreleased = item.status === 'NOT_YET_RELEASED';
+  const premiereText = () => {
+    const d = item.releaseDate && new Date(item.releaseDate);
+    return d && !Number.isNaN(d.getTime()) && d > new Date()
+      ? `Hasn’t aired yet: premieres ${d.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}`
+      : 'Hasn’t aired yet: no premiere date announced';
+  };
   const airsAt = item.nextAiringAt ? item.nextAiringAt * (item.nextAiringAt < 1e12 ? 1000 : 1) : null;
 
   const refreshBtn = h('button', { type: 'button', class: 'btn' }, 'Refresh episodes');
   refreshBtn.addEventListener('click', async () => {
     refreshBtn.disabled = true;
-    try { await api.syncAnime(item.malId); await load(); toast('Episodes refreshed'); } catch (err) { toast(err.message); }
+    try {
+      const before = epContainer.querySelectorAll('.ep-tile').length;
+      await api.syncAnime(item.malId); await load();
+      const after = epContainer.querySelectorAll('.ep-tile').length;
+      toast(unreleased ? 'Nothing to fetch: it hasn’t aired yet' : after > before ? `Found ${after - before} new episode${after - before === 1 ? '' : 's'}` : `Up to date: ${after} episode${after === 1 ? '' : 's'}`);
+    } catch (err) { toast(err.message); }
     refreshBtn.disabled = false;
   });
   const removeBtn = h('button', { type: 'button', class: 'btn ghost' }, 'Remove');
@@ -115,6 +129,7 @@ export async function openAnime(partial) {
       try { await api.add({ malId: item.malId, title: item.title, totalEpisodes: item.totalEpisodes }); bus.emit('library-changed'); toast(`Added ${item.title}`); openAnime({ malId: item.malId, title: item.title, image: item.image }); }
       catch (err) { add.disabled = false; toast(err.message); }
     });
+    if (unreleased) return [add, h('span', { class: 'muted' }, premiereText())];
     const watched = h('button', { type: 'button', class: 'btn', title: 'Watched it on another service' }, 'I watched this');
     watched.addEventListener('click', async () => {
       watched.disabled = true;
@@ -197,7 +212,8 @@ export async function openAnime(partial) {
   async function load() {
     const data = await api.episodes(item.malId);
     const eps = data.seasons.flatMap((s) => s.episodes);
-    epContainer.replaceChildren(...(eps.length ? eps.map(tile) : [h('div', { class: 'empty' }, 'No episodes yet. Try “Refresh episodes”.')]));
+    epContainer.replaceChildren(...(eps.length ? eps.map(tile)
+      : [h('div', { class: 'empty' }, unreleased ? `${premiereText()}. Episodes appear here once they air.` : 'No episodes yet. Try “Refresh episodes”.')]));
     updateSummary();
   }
 

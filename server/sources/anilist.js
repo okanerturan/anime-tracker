@@ -229,7 +229,8 @@ function toLibraryAnime(m) {
     synopsis: m.description ? m.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim() : 'No synopsis available.',
     totalEpisodes: m.episodes ?? null,
     format: m.format || null,
-    averageScore: m.averageScore ?? null
+    averageScore: m.averageScore ?? null,
+    status: m.status || null
   };
 }
 

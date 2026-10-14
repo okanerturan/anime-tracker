@@ -96,7 +96,7 @@ function searchPanel() {
             media({ src: a.image, alt: '', kind: 'poster' }),
             a.inLibrary ? cardLink(title, () => openAnime({ ...a, title, image: a.image }), { href: `https://myanimelist.net/anime/${a.malId}` }) : h('h3', { class: 'card-title clamp-2' }, title),
             h('p', { class: 'card-meta' }, [a.releaseDate?.slice(0, 4), FORMAT_LABEL[a.format] || a.format, a.totalEpisodes ? `${a.totalEpisodes} eps` : null].filter(Boolean).join(' · ')),
-            h('div', { class: 'card-actions' }, addButton(a, a.inLibrary), watchedButton(a.malId, title)));
+            h('div', { class: 'card-actions' }, addButton(a, a.inLibrary), a.status === 'NOT_YET_RELEASED' ? null : watchedButton(a.malId, title)));
         }));
       } catch (err) { results.replaceChildren(h('div', { class: 'empty' }, err.message)); }
     }, 350);
