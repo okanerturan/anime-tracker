@@ -3,28 +3,62 @@
 <head>
 <meta charset="utf-8">
 <style>
-  body { font: 13px/1.4 system-ui, sans-serif; width: 300px; margin: 0; padding: 14px; background: #14161c; color: #e8e9ee; }
-  h1 { font-size: 14px; margin: 0 0 10px; }
-  .row { margin: 6px 0; color: #a7abb9; }
-  .row b { color: #e8e9ee; font-weight: 600; }
+  :root { color-scheme: dark; --bg: #14161c; --surface: #1d2029; --line: #2f3442; --text: #e8e9ee; --muted: #a7abb9; --faint: #737887; --accent: #f47521; --good: #5fd39a; }
+  * { box-sizing: border-box; }
+  body { font: 13px/1.4 system-ui, sans-serif; width: 340px; margin: 0; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 8px; padding: 12px 14px 8px; }
+  header img { width: 20px; height: 20px; border-radius: 5px; }
+  header h1 { font-size: 14px; margin: 0; flex: 1; }
+  .status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .dot.fresh { background: var(--good); box-shadow: 0 0 6px var(--good); }
+  .dot.bad { background: #ff8a80; }
+  section { padding: 6px 14px 10px; }
+  h2 { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); margin: 6px 0; }
+  .list { display: flex; flex-direction: column; gap: 6px; }
+  .item { display: grid; grid-template-columns: 56px 1fr auto; gap: 10px; align-items: center; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: inherit; }
+  .item img { width: 56px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; background: #0e1014; }
+  .item .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .s { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .play { background: var(--accent); color: #fff; border-radius: 999px; padding: 5px 9px; font-weight: 700; font-size: 12px; white-space: nowrap; }
+  .item:hover .play { filter: brightness(1.1); }
+  .empty { color: var(--muted); padding: 8px; border: 1px dashed var(--line); border-radius: 10px; text-align: center; }
+  .row { margin: 4px 0; color: var(--muted); font-size: 12px; }
   .err { color: #ff8a80; }
-  button { background: #f47521; color: #fff; border: 0; border-radius: 6px; padding: 7px 10px; font-weight: 600; cursor: pointer; margin-right: 6px; }
-  button.secondary { background: #2a2e3a; }
-  input { width: 100%; box-sizing: border-box; background: #1d2029; border: 1px solid #2f3442; color: #e8e9ee; border-radius: 6px; padding: 6px; }
-  label { display: block; margin-top: 12px; color: #a7abb9; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  button, a.btn { background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 7px 10px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+  button.secondary, a.btn.secondary { background: #2a2e3a; }
+  details { border-top: 1px solid var(--line); margin-top: 4px; }
+  summary { cursor: pointer; color: var(--muted); padding: 8px 14px; font-size: 12px; }
+  details > section { padding-top: 0; }
+  input { width: 100%; background: var(--surface); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 6px; font: inherit; }
+  label { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
-  <h1>Anime Tracker sync</h1>
-  <div class="row">Last sync: <b id="last">never</b></div>
-  <div class="row" id="result"></div>
-  <div class="row err" id="error"></div>
-  <div style="margin-top:10px">
-    <button id="sync">Sync now</button>
-    <button id="full" class="secondary">Full resync</button>
-  </div>
-  <label>Tracker URL <input id="url"></label>
-  <label>Tracker key <input id="key" type="password" autocomplete="off" placeholder="only for the hosted tracker"></label>
+  <header>
+    <img src="icons/icon-32.png" alt="">
+    <h1>Anime Tracker</h1>
+    <span class="status"><span class="dot" id="dot"></span><span id="last">never synced</span></span>
+  </header>
+  <section>
+    <h2>Up next</h2>
+    <div class="list" id="upnext"><div class="empty">Loading…</div></div>
+    <div class="actions">
+      <a class="btn" id="open" href="#" target="_blank">Open dashboard</a>
+      <button id="sync" class="secondary">Sync now</button>
+    </div>
+    <div class="row" id="result"></div>
+    <div class="row err" id="error"></div>
+  </section>
+  <details>
+    <summary>Settings</summary>
+    <section>
+      <label>Tracker URL <input id="url"></label>
+      <label>Tracker key <input id="key" type="password" autocomplete="off" placeholder="only for the hosted tracker"></label>
+      <div class="actions"><button id="full" class="secondary">Full resync</button></div>
+    </section>
+  </details>
   <script src="popup.js"></script>
 </body>
 </html>
