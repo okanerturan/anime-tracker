@@ -199,7 +199,9 @@ function weekStrip(airing) {
         h('img', { src: x.image, alt: '', loading: 'lazy' }),
         h('span', { class: 'week-item-text' },
           h('span', { class: 'week-item-title one-line' }, x.title),
-          h('span', { class: 'week-item-sub num' }, `E${x.nextAiringEpisode} · ${new Date(x.nextAiringAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`))))
+          x.nextAiringAt <= Date.now()
+            ? h('span', { class: 'week-item-sub num is-out' }, `E${x.nextAiringEpisode} · out now`)
+            : h('span', { class: 'week-item-sub num' }, `E${x.nextAiringEpisode} · ${new Date(x.nextAiringAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`))))
         : h('span', { class: 'week-empty' }, '—')))));
 }
 

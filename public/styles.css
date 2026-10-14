@@ -1594,3 +1594,4 @@ kbd { font: inherit; font-size: 0.85em; padding: 0.1em 0.45em; border: 1px solid
 .tonight-media > .tonight-progress::after { content: ""; display: block; block-size: 100%; inline-size: calc(var(--p, 0) * 100%); background: var(--accent); }
 a.topbar-status { text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { a.topbar-status:hover { color: var(--text); } }
+.week-item-sub.is-out { color: var(--good); font-weight: 700; }
