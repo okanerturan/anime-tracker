@@ -203,7 +203,7 @@ export async function openAnime(partial) {
           linksRow)),
       relatedSection,
       item.inLibrary === false ? null : h('section', { class: 'section' },
-        h('div', { class: 'section-head' }, h('h2', {}, 'Episodes'), summary),
+        h('div', { class: 'section-head' }, h('h2', {}, 'Episodes'), summary, h('span', { class: 'sub push-end' }, 'Shift-click a check to mark everything up to it')),
         epContainer)));
 
   if (!dialog().open) dialog().showModal();

@@ -67,7 +67,11 @@ function filterBar(onChange) {
 
 function recCard(r, onDismiss) {
   const dismiss = h('button', { type: 'button', class: 'btn small ghost', 'aria-label': `Not interested in ${r.title}`, title: 'Not interested' }, 'Hide');
-  dismiss.addEventListener('click', async () => { await api.dismiss(r.malId); onDismiss(); });
+  dismiss.addEventListener('click', async () => {
+    await api.dismiss(r.malId);
+    onDismiss();
+    toast(`Hidden ${r.title}`, { label: 'Undo', onClick: async () => { await api.dismiss(r.malId, true); bus.emit('recommendations-changed'); } });
+  });
   const open = () => openAnime({ malId: r.malId, title: r.title, image: r.image });
   return h('article', { class: 'card' },
     media({ src: r.image, alt: '', kind: 'poster', badges: [
@@ -103,6 +107,8 @@ function searchPanel() {
   });
   return [h('div', { class: 'toolbar' }, input), results];
 }
+
+bus.on('recommendations-changed', () => { const view = document.getElementById('view'); if (location.hash.startsWith('#/discover')) render(view); });
 
 export async function render(view) {
   view.replaceChildren(h('div', { class: 'skeleton' }));

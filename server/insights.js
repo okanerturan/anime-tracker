@@ -265,10 +265,11 @@ async function recommendations({ limit = 120, refresh = false } = {}) {
 
 function invalidate() { recCache = null; try { appState.set('recommendations', { data: null }); } catch {} }
 
-function dismiss(malId) {
-  db.prepare('INSERT OR REPLACE INTO rec_dismissed (mal_id) VALUES (?)').run(malId);
+function dismiss(malId, { undo = false } = {}) {
+  if (undo) db.prepare('DELETE FROM rec_dismissed WHERE mal_id = ?').run(malId);
+  else db.prepare('INSERT OR REPLACE INTO rec_dismissed (mal_id) VALUES (?)').run(malId);
   invalidate();
-  return { ok: true };
+  return { ok: true, dismissed: !undo };
 }
 
 /** The viewing-habits study, built from Crunchyroll timestamps + library state. */

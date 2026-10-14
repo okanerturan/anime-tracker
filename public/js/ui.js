@@ -77,8 +77,18 @@ export function progress(fraction, { hideWhenEmpty = false } = {}) {
 }
 
 let toastTimer = null;
-export function toast(text) {
+/** A short message; with `action` ({ label, onClick }) it carries one button, e.g. Undo. */
+export function toast(text, action = null) {
   const el = document.getElementById('toast');
+  if (action) {
+    const btn = h('button', { type: 'button', class: 'toast-action' }, action.label);
+    btn.addEventListener('click', () => { action.onClick(); el.hidePopover?.(); });
+    el.replaceChildren(h('span', {}, text), btn);
+    try { el.showPopover(); } catch {}
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { try { el.hidePopover(); } catch {} }, 6000);
+    return;
+  }
   el.textContent = text;
   try { if (!el.matches(':popover-open')) el.showPopover(); } catch { el.hidden = false; }
   clearTimeout(toastTimer);

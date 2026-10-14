@@ -121,7 +121,7 @@ const routes = {
   'POST /api/recommendations/dismiss': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);
-    return sendJSON(res, 200, insights.dismiss(num(body.malId)));
+    return sendJSON(res, 200, insights.dismiss(num(body.malId), { undo: Boolean(body.undo) }));
   },
   'GET /api/study': (req, res) => sendJSON(res, 200, insights.study()),
 

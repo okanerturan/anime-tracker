@@ -233,6 +233,20 @@ function draw(view, data, cr) {
 
   const airingWeek = [...data.airingSoon, ...(data.caughtUpAiring || [])].filter((x) => x.nextAiringAt && x.nextAiringAt - Date.now() < 7 * 86400000);
   const caughtUp = (data.caughtUpAiring || []).filter((x) => !x.nextAiringAt || x.nextAiringAt - Date.now() >= 7 * 86400000);
+  const nothingYet = !data.continueWatching.length && !inProgress.length && !data.airingSoon.length && !data.newSeasons.length && !data.stalled.length && !(data.onHold || []).length && !(data.recentlyFinished || []).length;
+  if (nothingYet) {
+    fill(view, h('section', { class: 'tonight get-started' },
+      h('div', { class: 'tonight-info' },
+        h('p', { class: 'eyebrow' }, cr?.lastSync ? 'Nothing to watch yet' : 'Welcome'),
+        h('h2', { class: 'tonight-title' }, cr?.lastSync ? 'Your history is in. Start something.' : 'Your Crunchyroll history, turned into a watch list.'),
+        h('p', { class: 'tonight-sub' }, cr?.lastSync
+          ? 'Everything you watched is marked. Pick a recommendation on Discover, or add any show, and it shows up here with a Play button.'
+          : 'Install the browser extension and open crunchyroll.com once. Everything you have ever watched there arrives in about a minute, and this page fills itself in.'),
+        h('div', { class: 'hero-actions' },
+          cr?.lastSync ? h('a', { class: 'btn primary', href: '#/discover' }, 'Open Discover') : h('a', { class: 'btn primary', href: '#/sync' }, 'Set up sync'),
+          h('a', { class: 'btn', href: '#/library' }, 'Library')))));
+    return;
+  }
   const rateSection = rateStrip(data.recentlyFinished || [], () => { if (!rateSection.querySelector('.rate-item')) rateSection.remove(); });
   fill(view,
     tonight(data.continueWatching, inProgress),

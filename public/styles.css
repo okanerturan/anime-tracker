@@ -1511,3 +1511,12 @@ select {
 @media (hover: hover) and (pointer: fine) {
   .row-link:hover { color: var(--accent); }
 }
+
+/* Toast with an action (Undo) */
+.toast:has(.toast-action) { display: inline-flex; align-items: center; gap: var(--space-s); }
+.toast-action { font: inherit; font-weight: 700; color: var(--accent); background: none; border: 0; padding: 0.2em 0.4em; cursor: pointer; border-radius: 4px; }
+.toast-action:active { transform: scale(0.97); }
+
+/* Year-so-far and first-run blocks reuse the tonight panel without the media column */
+.year-so-far, .get-started { grid-template-columns: 1fr; }
+.year-so-far .tonight-title { font-size: var(--step-2); }

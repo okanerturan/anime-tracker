@@ -30,7 +30,15 @@ export async function render(view) {
   const peakDay = s.byWeekday.indexOf(Math.max(...s.byWeekday));
   const finishRate = t.showsStarted ? Math.round((100 * t.showsFinished) / t.showsStarted) : 0;
   const bestYear = [...s.byYear].sort((a, b) => b.hours - a.hours)[0];
+  const thisYear = s.byYear.find((y) => y.year === new Date().getFullYear());
   fill(view,
+    thisYear ? h('section', { class: 'tonight year-so-far' },
+      h('div', { class: 'tonight-info' },
+        h('p', { class: 'eyebrow' }, `${thisYear.year} so far`),
+        h('h2', { class: 'tonight-title' }, `${thisYear.episodes.toLocaleString()} episodes, ${thisYear.hours.toLocaleString()} hours, ${thisYear.shows} shows`),
+        h('p', { class: 'tonight-sub' }, bestYear && bestYear.year !== thisYear.year
+          ? `${bestYear.year} is still your biggest year at ${bestYear.hours.toLocaleString()} hours. ${Math.max(0, bestYear.hours - thisYear.hours).toLocaleString()} to go.`
+          : 'Your biggest year yet.'))) : null,
     section('Your viewing study', `From ${t.episodes.toLocaleString()} Crunchyroll episodes since ${t.firstPlay ? new Date(t.firstPlay).getFullYear() : '—'}`,
       h('div', { class: 'stat-row' },
         stat(t.hours.toLocaleString(), `hours watched (${t.days} days)`),
