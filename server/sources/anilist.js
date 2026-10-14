@@ -214,7 +214,7 @@ async function fetchFullByMalIds(malIds, onProgress) {
 
 /** Search AniList; returns light-weight results with MAL ids. */
 async function search(text, perPage = 8) {
-  const query = `query($s:String,$n:Int){Page(perPage:$n){media(search:$s,type:ANIME){${NODE_FIELDS} description(asHtml:false)}}}`;
+  const query = `query($s:String,$n:Int){Page(perPage:$n){media(search:$s,type:ANIME){${NODE_FIELDS} description(asHtml:false) externalLinks{site url type}}}}`;
   const data = await gql(query, { s: String(text).slice(0, 100), n: perPage });
   return (data?.Page?.media || []).filter((m) => m.idMal);
 }
@@ -230,7 +230,9 @@ function toLibraryAnime(m) {
     totalEpisodes: m.episodes ?? null,
     format: m.format || null,
     averageScore: m.averageScore ?? null,
-    status: m.status || null
+    status: m.status || null,
+    crunchyrollUrl: (m.externalLinks || []).find((l) => l.type === 'STREAMING' && /crunchyroll/i.test(l.site || ''))?.url?.replace(/^http:/, 'https:') || null,
+    watchOn: (m.externalLinks || []).filter((l) => l.type === 'STREAMING').map((l) => l.site)
   };
 }
 

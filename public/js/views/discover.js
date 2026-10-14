@@ -98,8 +98,10 @@ function searchPanel() {
         const list = await api.search(q);
         results.replaceChildren(...list.map((a) => {
           const title = a.titleEnglish || a.title;
-          return h('article', { class: 'card' },
-            media({ src: a.image, alt: '', kind: 'poster' }),
+          return h('article', { class: `card ${a.crunchyrollUrl ? 'has-play' : ''}` },
+            media({ src: a.image, alt: '', kind: 'poster', badges: [a.crunchyrollUrl
+              ? h('a', { class: 'play-overlay', href: a.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${title} on Crunchyroll` }, icon('play'), h('span', {}, 'Crunchyroll'))
+              : (a.watchOn?.length ? h('span', { class: 'pill dark badge-bottom', title: `Streaming on ${a.watchOn.join(', ')}` }, a.watchOn[0]) : null)] }),
             a.inLibrary ? cardLink(title, () => openAnime({ ...a, title, image: a.image }), { href: `https://myanimelist.net/anime/${a.malId}` }) : h('h3', { class: 'card-title clamp-2' }, title),
             h('p', { class: 'card-meta' }, [a.releaseDate?.slice(0, 4), FORMAT_LABEL[a.format] || a.format, a.totalEpisodes ? `${a.totalEpisodes} eps` : null].filter(Boolean).join(' · ')),
             h('div', { class: 'card-actions' }, addButton(a, a.inLibrary), a.status === 'NOT_YET_RELEASED' ? null : watchedButton(a.malId, title)));
