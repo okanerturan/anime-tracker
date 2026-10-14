@@ -304,7 +304,9 @@ function draw(view, data, cr) {
   fill(view,
     tonight(data.continueWatching, inProgress),
     carousel('Continue watching', `${plural(data.continueWatching.length, 'show')} with episodes waiting`,
-      data.continueWatching.map((x) => epCard(x, 'continue', () => refresh(view))), "You're all caught up."),
+      // Shows with an episode that aired since your last visit lead the row; the rest keep their recency order.
+      [...data.continueWatching].sort((a, b) => Number(isNewSinceVisit(b.latestAiredAt)) - Number(isNewSinceVisit(a.latestAiredAt)))
+        .map((x) => epCard(x, 'continue', () => refresh(view))), "You're all caught up."),
     rateSection,
     inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map((p) => pausedCard(p, () => refresh(view))), '') : null,
     weekStrip(airingWeek),
