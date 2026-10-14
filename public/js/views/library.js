@@ -54,7 +54,12 @@ function progressState(x) {
   if (x.listStatus === 'on_hold') return { key: 'on-hold', label: 'On hold', left };
   if (x.status === 'NOT_YET_RELEASED') return { key: 'upcoming', label: 'Upcoming', left };
   if (!x.watchedCount) return { key: 'not-started', label: aired ? `${aired} eps` : 'Not started', left };
-  if (!left) return x.status === 'RELEASING' ? { key: 'caught-up', label: 'Caught up', left } : { key: 'completed', label: '✓ Completed', left };
+  if (!left) {
+    if (x.status !== 'RELEASING') return { key: 'completed', label: '✓ Completed', left };
+    const at = x.nextAiringAt ? x.nextAiringAt * (x.nextAiringAt < 1e12 ? 1000 : 1) : null;
+    const days = at ? Math.max(0, Math.round((at - Date.now()) / 86400000)) : null;
+    return { key: 'caught-up', label: days === null ? 'Caught up' : days === 0 ? 'New today' : days === 1 ? 'New tomorrow' : `Next in ${days} days`, left };
+  }
   // Unfinished = started, episodes waiting, and no activity for months (same rule as Up Next's "Paused a while ago").
   const ageDays = x.lastWatchedAt ? (Date.now() - new Date(x.lastWatchedAt).getTime()) / DAY : 9999;
   const progress = aired ? x.watchedCount / aired : 0;
