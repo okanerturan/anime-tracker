@@ -59,12 +59,14 @@ function epCard(item, mode, onChange) {
         icon('play'), h('span', {}, playExact ? `Play E${item.nextEpisode}` : `Open on ${item.nextEpisodeSite || 'Crunchyroll'}`))
     : null);
   // Watched it elsewhere, or the sync hasn't caught up: tick the next episode without opening the show.
-  const tick = (mode === 'continue' && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched` }, icon('check')) : null;
-  if (tick) tick.addEventListener('click', async () => {
+  const tick = (mode === 'continue' && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched. Shift-click marks every aired episode.` }, icon('check')) : null;
+  if (tick) tick.addEventListener('click', async (e) => {
     tick.disabled = true;
+    // Shift: caught up elsewhere, mark everything that has aired.
+    const through = e.shiftKey && item.aired ? item.aired : item.nextEpisode;
     try {
-      await api.watchedThrough(item.malId, item.nextEpisode);
-      toast(`E${item.nextEpisode} of ${item.title} marked watched`);
+      await api.watchedThrough(item.malId, through);
+      toast(through === item.nextEpisode ? `E${item.nextEpisode} of ${item.title} marked watched` : `${item.title}: marked watched through E${through}`);
       onChange?.(tick.closest('.card'));
     } catch (err) { tick.disabled = false; toast(err.message); }
   });
