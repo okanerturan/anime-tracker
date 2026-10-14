@@ -143,9 +143,18 @@ function pausedCard(p, onTracked) {
 }
 
 /** The one episode to put on tonight: a paused episode first, else the most recently active show with episodes waiting. */
-function tonight(items, inProgress) {
-  const pick = items.find((x) => x.resume) || items[0];
+function tonight(items, inProgress, forced = null) {
+  const pick = forced || items.find((x) => x.resume) || items[0];
   if (!pick) return null;
+  // Can't decide: swap in another show with episodes waiting (never the same one twice in a row).
+  const surprise = items.length > 1 ? h('button', { type: 'button', class: 'btn ghost' }, 'Surprise me') : null;
+  if (surprise) surprise.addEventListener('click', () => {
+    const others = items.filter((x) => x.malId !== pick.malId);
+    const next = others[Math.floor(Math.random() * others.length)];
+    const fresh = tonight(items, inProgress, next);
+    surprise.closest('.tonight').replaceWith(fresh);
+    fresh.querySelector('.btn.ghost')?.focus();
+  });
   const url = pick.resume ? watchUrl(pick.resume) : pick.nextEpisodeUrl;
   const name = realTitle(pick.nextEpisodeTitle) || (pick.resume ? realTitle(pick.resume.episodeTitle) : null);
   const minsLeft = pick.resume ? Math.round((pick.resume.durationS - pick.resume.playhead) / 60) : null;
@@ -156,13 +165,14 @@ function tonight(items, inProgress) {
       media({ src: still, fallback: pick.image, alt: '' }),
       url ? h('span', { class: 'play-overlay is-large' }, icon('play'), h('span', {}, minsLeft ? `Resume · ${minsLeft} min left` : `Play E${pick.nextEpisode}`)) : null),
     h('div', { class: 'tonight-info' },
-      h('p', { class: 'eyebrow' }, pick.resume ? 'Pick up where you left off' : 'Tonight'),
+      h('p', { class: 'eyebrow' }, forced ? 'How about this one' : pick.resume ? 'Pick up where you left off' : 'Tonight'),
       h('h2', { class: 'tonight-title' }, h('a', { class: 'tonight-link', href: `https://myanimelist.net/anime/${pick.malId}`, onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); open(); } }, pick.title)),
       h('p', { class: 'tonight-sub' }, `Episode ${pick.nextEpisode}${name ? ` · ${name}` : ''}`),
       h('p', { class: 'card-meta' }, [`${plural(pick.remaining, 'episode')} to go`, pick.leftInSeason === 1 ? 'season finale next' : null, pick.lastWatchedAt ? `last watched ${ago(pick.lastWatchedAt)}` : null].filter(Boolean).join(' · ')),
       h('div', { class: 'hero-actions' },
         url ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener', onclick: () => playToast(pick.nextEpisode) }, icon('play'), ' ', pick.resume ? 'Resume on Crunchyroll' : 'Play on Crunchyroll') : null,
-        h('button', { type: 'button', class: 'btn', onclick: open }, 'Details'))));
+        h('button', { type: 'button', class: 'btn', onclick: open }, 'Details'),
+        surprise)));
 }
 
 /** Airing shows you follow, laid out by weekday for the coming week. */
