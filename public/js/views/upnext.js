@@ -75,7 +75,13 @@ function epCard(item, mode, onChange) {
     const b = h('button', { type: 'button', class: cls }, label);
     b.addEventListener('click', async () => {
       b.disabled = true;
-      try { await api.setListStatus(item.malId, status); toast(status === 'dropped' ? `Dropped ${item.title}` : status ? `${item.title} is on hold` : `${item.title} is back in Continue watching`); onChange?.(b.closest('.card')); }
+      try {
+        const was = mode === 'hold' ? 'on_hold' : null; // what the card's shelf implies today
+        await api.setListStatus(item.malId, status);
+        onChange?.(b.closest('.card'));
+        toast(status === 'dropped' ? `Dropped ${item.title}` : status ? `${item.title} is on hold` : `${item.title} is back in Continue watching`,
+          { label: 'Undo', onClick: async () => { try { await api.setListStatus(item.malId, was); bus.emit('library-changed'); refresh(document.getElementById('view')); } catch (err) { toast(err.message); } } });
+      }
       catch (err) { b.disabled = false; toast(err.message); }
     });
     return b;
