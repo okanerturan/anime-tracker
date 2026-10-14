@@ -100,6 +100,10 @@ function card(x) {
 }
 
 export async function render(view) {
+  // Deep link: #/library?filter=unfinished&sort=left_asc
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  if (params.get('filter') && FILTERS.some(([k]) => k === params.get('filter'))) state.filter = params.get('filter');
+  if (params.get('sort')) { if (state.sort !== params.get('sort')) state.items = null; state.sort = params.get('sort'); }
   if (!state.items) {
     const serverSort = ['left_asc', 'rating_desc'].includes(state.sort) ? 'activity_desc' : state.sort;
     const snap = readSnap(serverSort);

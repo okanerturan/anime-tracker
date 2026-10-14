@@ -278,10 +278,11 @@ function draw(view, data, cr) {
   const rerender = (cardEl) => cardEl?.remove();
   // After the shelves are drawn, remember this visit so the next one can flag what aired in between.
   setTimeout(stampVisit, 1500);
-  const collapsible = (title, sub, items, mode) => h('details', { class: 'collapse section' },
+  const collapsible = (title, sub, items, mode, link = null) => h('details', { class: 'collapse section' },
     h('summary', {}, h('div', { class: 'section-head' },
       h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), title),
-      h('span', { class: 'sub' }, sub))),
+      h('span', { class: 'sub' }, sub),
+      link ? h('a', { class: 'sub push-end', href: link.href, onclick: (e) => e.stopPropagation() }, link.label) : null)),
     h('div', { class: 'collapse-body' },
       h('div', { class: 'cards cards--wide', style: { '--rows': '6' } }, items.slice(0, 60).map((x) => epCard(x, mode, rerender)))));
 
@@ -314,6 +315,6 @@ function draw(view, data, cr) {
     caughtUpRow(caughtUp),
     carousel('New seasons available', 'Sequels of shows you finished',
       data.newSeasons.map((x) => epCard(x, 'season')), 'No unwatched sequels.'),
-    data.stalled.length ? collapsible('Paused a while ago', `${plural(data.stalled.length, 'show')} you stopped partway. Hold or drop them to clear this list`, data.stalled, 'stalled') : null,
+    data.stalled.length ? collapsible('Paused a while ago', `${plural(data.stalled.length, 'show')} you stopped partway. Hold or drop them to clear this list`, data.stalled, 'stalled', { href: '#/library?filter=unfinished&sort=left_asc', label: 'All of them in the Library, fewest left first →' }) : null,
     data.onHold?.length ? collapsible('On hold', `${plural(data.onHold.length, 'show')}${data.dropped ? ` · ${data.dropped} dropped (see Library)` : ''}`, data.onHold, 'hold') : null);
 }
