@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { h, fill, media, progress, cardLink, statusPill, ago, FORMAT_LABEL } from '../ui.js';
+import { h, fill, icon, media, progress, cardLink, statusPill, ago, FORMAT_LABEL } from '../ui.js';
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 
@@ -65,8 +65,12 @@ function card(x) {
   const title = x.titleEnglish || x.title;
   const st = progressState(x);
   const badge = h('span', { class: `pill state-${st.key} num` }, st.label);
-  return h('article', { class: `card is-${st.key}` },
-    media({ src: x.imageUrl, alt: '', kind: 'poster', badges: [h('div', { class: 'badge-end' }, badge)] }),
+  // In-progress shows get a Play pill straight to the next episode, like Up Next.
+  const play = x.nextEpisodeUrl && ['watching', 'almost', 'unfinished'].includes(st.key)
+    ? h('a', { class: 'play-overlay', href: x.nextEpisodeUrl, target: '_blank', rel: 'noopener', 'aria-label': `Play episode ${x.nextEpisode} of ${title} on Crunchyroll` }, icon('play'), h('span', {}, `E${x.nextEpisode}`))
+    : null;
+  return h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''}` },
+    media({ src: x.imageUrl, alt: '', kind: 'poster', badges: [h('div', { class: 'badge-end' }, badge), play] }),
     progress(aired ? Math.min(x.watchedCount, aired) / aired : 0),
     cardLink(title, () => openAnime({ ...x, title, image: x.imageUrl }), { href: `https://myanimelist.net/anime/${x.malId}` }),
     h('div', { class: 'card-meta' },

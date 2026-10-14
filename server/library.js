@@ -72,10 +72,14 @@ function getWatchlist(sort = 'release_desc') {
     GROUP BY a.mal_id
     ORDER BY ${ORDER[sort] || ORDER.release_desc}
   `).all();
+  const nextStmt = db.prepare(`SELECT episode_number AS n, url FROM episode_sync WHERE mal_id = ? AND episode_number > COALESCE((SELECT MAX(episode_number) FROM episode_sync WHERE mal_id = ? AND watched = 1), 0) ORDER BY episode_number LIMIT 1`);
   return rows.map((r) => {
     const aired = airedCount({ status: r.status, next_airing_episode: r.nextAiringEpisode, episodes: r.mediaEpisodes });
+    const next = r.watchedCount && r.watchedCount < (aired ?? r.episodesCount) ? nextStmt.get(r.malId, r.malId) : null;
     return {
       malId: r.malId,
+      nextEpisode: next?.n ?? null,
+      nextEpisodeUrl: next?.url && /crunchyroll\.com\/watch\//.test(next.url) ? next.url.replace(/^http:/, 'https:') : null,
       title: r.title,
       titleEnglish: r.titleEnglish,
       releaseDate: r.releaseDate,

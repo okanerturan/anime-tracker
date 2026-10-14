@@ -5,6 +5,7 @@ const images = require('./images');
 const anilist = require('./sources/anilist');
 const library = require('./library');
 const { parseJSONField } = require('./util');
+const appState = require('./state');
 const crlinks = require('./crlinks');
 
 const DAY = 86400000;
@@ -169,11 +170,22 @@ function similarity(profile, media) {
   return s;
 }
 
+// Recommendations are slow to compute (AniList lookups for new candidates), so the result is kept
+// in memory for a quarter hour and on disk for six hours. The background refresh warms it, so
+// Discover opens instantly instead of after a skeleton.
 let recCache = null;
+const REC_DISK_TTL = 6 * 3600 * 1000;
+function loadPersistedRecs() {
+  const saved = appState.get('recommendations');
+  if (!saved?.data || !saved.at) return null;
+  const at = new Date(saved.at).getTime();
+  return Date.now() - at < REC_DISK_TTL ? { at, data: saved.data } : null;
+}
 
 /** Recommendations for unseen shows, built from AniList community recommendations of shows you engaged with. */
 async function recommendations({ limit = 120, refresh = false } = {}) {
   if (recCache && !refresh && Date.now() - recCache.at < 15 * 60 * 1000) return recCache.data;
+  if (!refresh) { const disk = loadPersistedRecs(); if (disk) { recCache = disk; return disk.data; } }
   const rows = libraryState();
   const weights = engagementWeights(rows);
   const profile = tasteProfile(rows, weights);
@@ -244,14 +256,15 @@ async function recommendations({ limit = 120, refresh = false } = {}) {
     .slice(0, limit);
   const data = { profile: { genres: profile.genres.slice(0, 12), tags: profile.tags.slice(0, 20) }, items: out };
   recCache = { at: Date.now(), data };
+  try { appState.set('recommendations', { data }); } catch {}
   return data;
 }
 
-function invalidate() { recCache = null; }
+function invalidate() { recCache = null; try { appState.set('recommendations', { data: null }); } catch {} }
 
 function dismiss(malId) {
   db.prepare('INSERT OR REPLACE INTO rec_dismissed (mal_id) VALUES (?)').run(malId);
-  recCache = null;
+  invalidate();
   return { ok: true };
 }
 

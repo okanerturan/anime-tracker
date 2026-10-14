@@ -161,6 +161,10 @@ async function refreshCycle() {
     `).all().map((r) => r.id);
     need.forEach(enqueue);
     summary.episodesQueued = need.length;
+
+    // Warm Discover: recompute recommendations now so the page opens without a wait.
+    state.phase = 'recommendations';
+    try { await require('./insights').recommendations({ refresh: true }); summary.recommendationsWarmed = true; } catch (err) { summary.recommendationsError = String(err.message || err); }
   } catch (err) {
     state.lastError = String(err.message || err);
     summary.error = state.lastError;

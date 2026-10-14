@@ -1494,3 +1494,6 @@ select {
   .rate-item { transition: border-color 200ms var(--ease-out), opacity 300ms var(--ease-out); }
   .rate-item.is-done { opacity: 0.5; }
 }
+
+/* The selected filter keeps its fill inside the rail (the rail's transparent-chip rule outranked it) */
+.chips.segmented > .chip-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
