@@ -25,7 +25,7 @@ function cookieValue(request, name) {
   return m ? m[1] : null;
 }
 
-function loginPage(error = '') {
+function loginPage(error = '', next = '') {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light"><title>Anime Tracker</title>
 <style>
@@ -41,7 +41,7 @@ button:active { transform: scale(0.97); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .err { color: oklch(0.72 0.17 25); margin: 0; font-size: 0.9rem; }
 </style></head><body>
-<form method="post" action="/login">
+<form method="post" action="/login${next ? `?next=${encodeURIComponent(next)}` : ''}">
   <h1>Anime Tracker</h1>
   <label for="key">Passphrase</label>
   <input id="key" name="key" type="password" autocomplete="current-password" required autofocus>
@@ -98,15 +98,17 @@ async function handle(request, env) {
         const form = await request.formData();
         if (await safeEqual(String(form.get('key') || ''), passphrase)) {
           const token = await sessionToken(passphrase);
+          // Back to the view the user was on, when the login page was reached from the app.
+          const next = String(url.searchParams.get('next') || '');
           return new Response(null, { status: 303, headers: {
-            Location: '/',
+            Location: `/${/^#\/[a-z-]+(\?[\w=&-]*)?$/.test(next) ? next : ''}`,
             'Set-Cookie': `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`
           } });
         }
         await new Promise((r) => setTimeout(r, 1500)); // slow down guessing
-        return loginPage('That passphrase is not right.');
+        return loginPage('That passphrase is not right.', url.searchParams.get('next') || '');
       }
-      return loginPage();
+      return loginPage('', url.searchParams.get('next') || '');
     }
     if (url.pathname === '/logout') {
       return new Response(null, { status: 303, headers: { Location: '/login', 'Set-Cookie': `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0` } });
