@@ -240,11 +240,12 @@ async function recommendations({ limit = 120, refresh = false } = {}) {
       const quality = (c.media.average_score || 60) / 100;
       const final = (c.score / maxScore) * 0.55 + Math.min(sim, 1.5) / 1.5 * 0.3 + quality * 0.15;
       const seenRoots = new Set();
-      const because = c.because.sort((a, b) => b.w - a.w).map((b) => titleOf.get(b.malId)).filter((t) => {
-        const root = franchiseRoot(t);
-        if (!t || seenRoots.has(root)) return false;
+      const becauseShows = c.because.sort((a, b) => b.w - a.w).map((b) => ({ malId: b.malId, title: titleOf.get(b.malId) })).filter(({ title }) => {
+        const root = franchiseRoot(title);
+        if (!title || seenRoots.has(root)) return false;
         seenRoots.add(root); return true;
       }).slice(0, 3);
+      const because = becauseShows.map((b) => b.title);
       const sharedGenres = parseJSONField(c.media.genres, []).filter((g) => profile.genres.slice(0, 8).some(([pg]) => pg === g));
       return {
         malId: c.id, title: c.media.title_english || c.media.title, image: images.localUrl(c.media.cover_url),
@@ -252,7 +253,7 @@ async function recommendations({ limit = 120, refresh = false } = {}) {
         averageScore: c.media.average_score, genres: parseJSONField(c.media.genres, []), siteUrl: c.media.site_url,
         duration: c.media.duration, onCrunchyroll: Boolean(crlinks.seriesFor(c.id)),
         crunchyrollUrl: (() => { const s = crlinks.seriesFor(c.id); return s ? (s.url || `https://www.crunchyroll.com/series/${s.id}`) : null; })(),
-        because, sharedGenres, inLibrary: library.isInLibrary(c.id), match: Math.round(final * 100)
+        because, becauseShows, sharedGenres, inLibrary: library.isInLibrary(c.id), match: Math.round(final * 100)
       };
     })
     .sort((a, b) => b.match - a.match)

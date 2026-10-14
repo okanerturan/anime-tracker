@@ -1539,3 +1539,9 @@ select {
 @media (hover: hover) and (pointer: fine) {
   .card-dismiss:hover { background: var(--badge-bg); color: oklch(1 0 none); }
 }
+
+/* "Because you watched …" names open the show */
+.because-link { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 0.15em; position: relative; z-index: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .because-link:hover { color: var(--text); text-decoration-color: var(--accent); }
+}
