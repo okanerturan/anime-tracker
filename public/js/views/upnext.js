@@ -285,7 +285,7 @@ function draw(view, data, cr) {
       h('div', { class: 'cards cards--wide', style: { '--rows': '6' } }, items.slice(0, 60).map((x) => epCard(x, mode, rerender)))));
 
   const airingWeek = [...data.airingSoon, ...(data.caughtUpAiring || [])].filter((x) => x.nextAiringAt && x.nextAiringAt - Date.now() < 7 * 86400000);
-  const caughtUp = (data.caughtUpAiring || []).filter((x) => !x.nextAiringAt || x.nextAiringAt - Date.now() >= 7 * 86400000);
+  const caughtUp = [...(data.airingSoon || []), ...(data.caughtUpAiring || [])].filter((x) => !x.nextAiringAt || x.nextAiringAt - Date.now() >= 7 * 86400000);
   const nothingYet = !data.continueWatching.length && !inProgress.length && !data.airingSoon.length && !data.newSeasons.length && !data.stalled.length && !(data.onHold || []).length && !(data.recentlyFinished || []).length;
   if (nothingYet) {
     fill(view, h('section', { class: 'tonight get-started' },
@@ -309,8 +309,6 @@ function draw(view, data, cr) {
     inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map((p) => pausedCard(p, () => refresh(view))), '') : null,
     weekStrip(airingWeek),
     caughtUpRow(caughtUp),
-    data.airingSoon.length ? carousel('New episodes soon', 'Airing shows you keep up with',
-      data.airingSoon.map((x) => epCard(x, 'airing')), '') : null,
     carousel('New seasons available', 'Sequels of shows you finished',
       data.newSeasons.map((x) => epCard(x, 'season')), 'No unwatched sequels.'),
     data.stalled.length ? collapsible('Paused a while ago', `${plural(data.stalled.length, 'show')} you stopped partway. Hold or drop them to clear this list`, data.stalled, 'stalled') : null,
