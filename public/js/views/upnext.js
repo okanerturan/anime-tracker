@@ -154,7 +154,8 @@ function pausedCard(p, onTracked) {
 
 /** The one episode to put on tonight: a paused episode first, else the most recently active show with episodes waiting. */
 function tonight(items, inProgress, forced = null) {
-  const pick = forced || items.find((x) => x.resume) || items[0];
+  // Priority: an episode you're mid-way through, then a show with a new episode since your last visit, then most recent activity.
+  const pick = forced || items.find((x) => x.resume) || items.find((x) => isNewSinceVisit(x.latestAiredAt)) || items[0];
   if (!pick) return null;
   // Can't decide: swap in another show with episodes waiting (never the same one twice in a row).
   const surprise = items.length > 1 ? h('button', { type: 'button', class: 'btn ghost' }, 'Surprise me') : null;
@@ -176,7 +177,7 @@ function tonight(items, inProgress, forced = null) {
       url ? h('span', { class: 'play-overlay is-large' }, icon('play'), h('span', {}, minsLeft ? `Resume · ${minsLeft} min left` : `Play E${pick.nextEpisode}`)) : null,
       pick.resume && pick.resume.durationS ? h('span', { class: 'tonight-progress', style: { '--p': String(pick.resume.playhead / pick.resume.durationS) }, 'aria-hidden': 'true' }) : null),
     h('div', { class: 'tonight-info' },
-      h('p', { class: 'eyebrow' }, forced ? 'How about this one' : pick.resume ? 'Pick up where you left off' : 'Tonight'),
+      h('p', { class: 'eyebrow' }, forced ? 'How about this one' : pick.resume ? 'Pick up where you left off' : isNewSinceVisit(pick.latestAiredAt) ? 'New since you were here' : 'Tonight'),
       h('h2', { class: 'tonight-title' }, h('a', { class: 'tonight-link', href: `https://myanimelist.net/anime/${pick.malId}`, onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); open(); } }, pick.title)),
       h('p', { class: 'tonight-sub' }, `Episode ${pick.nextEpisode}${name ? ` · ${name}` : ''}`),
       h('p', { class: 'card-meta' }, [`${plural(pick.remaining, 'episode')} to go`, pick.leftInSeason === 1 ? 'season finale next' : null, pick.lastWatchedAt ? `last watched ${ago(pick.lastWatchedAt)}` : null].filter(Boolean).join(' · ')),
