@@ -246,9 +246,21 @@ function dismiss(malId) {
 
 /** The viewing-habits study, built from Crunchyroll timestamps + library state. */
 function study() {
-  const plays = db.prepare(`SELECT h.*, m.genres, m.format, m.average_score
+  const allPlays = db.prepare(`SELECT h.*, m.genres, m.format, m.average_score
     FROM cr_history h LEFT JOIN media m ON m.mal_id = h.mal_id
-    WHERE (h.fully_watched = 1 OR (h.duration_s > 0 AND 1.0*h.playhead/h.duration_s >= 0.8)) AND h.date_played IS NOT NULL`).all();
+    WHERE (h.fully_watched = 1 OR (h.duration_s > 0 AND 1.0*h.playhead/h.duration_s >= 0.8)) AND h.date_played IS NOT NULL
+    ORDER BY h.date_played`).all();
+  // Crunchyroll keeps each dub as its own season with its own episode ids, so one episode marked
+  // watched in ten languages shows up ten times. Count each episode once (its first play).
+  const seenEpisodes = new Set();
+  const plays = allPlays.filter((p) => {
+    // Mapped plays are keyed by MAL episode: Crunchyroll's own season numbers changed over the years.
+    const key = p.mal_id > 0 && p.mal_episode ? `mal:${p.mal_id}:${p.mal_episode}`
+      : `cr:${p.series_id || p.series_title}|${p.season_number ?? ''}|${p.episode_number ?? p.episode_title}`;
+    if (seenEpisodes.has(key)) return false;
+    seenEpisodes.add(key);
+    return true;
+  });
   // Times are shown in your timezone (TIMEZONE env var on Cloudflare, where the runtime clock is UTC).
   const tz = (typeof process !== 'undefined' && process.env && process.env.TIMEZONE) || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23', weekday: 'short' });
@@ -305,9 +317,14 @@ function study() {
     if (r.average_score) { scoreSum += r.average_score; scoreN += 1; }
     formats[r.format || 'UNKNOWN'] = (formats[r.format || 'UNKNOWN'] || 0) + 1;
   }
-  const topShows = db.prepare(`SELECT series_title AS title, COUNT(*) AS episodes, ROUND(SUM(duration_s)/3600.0, 1) AS hours
-    FROM cr_history WHERE fully_watched = 1 OR (duration_s > 0 AND 1.0*playhead/duration_s >= 0.8)
-    GROUP BY series_title ORDER BY episodes DESC LIMIT 15`).all();
+  const perShow = new Map();
+  for (const p of plays) {
+    const s = perShow.get(p.series_title) || { title: p.series_title, episodes: 0, seconds: 0 };
+    s.episodes += 1; s.seconds += p.duration_s || 0;
+    perShow.set(p.series_title, s);
+  }
+  const topShows = [...perShow.values()].sort((a, b) => b.episodes - a.episodes).slice(0, 15)
+    .map((s) => ({ title: s.title, episodes: s.episodes, hours: Math.round(s.seconds / 360) / 10 }));
   const recentYears = Object.keys(byYear).map(Number).sort();
   return {
     timezone: tz,
