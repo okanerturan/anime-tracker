@@ -50,7 +50,7 @@ async function loadUpNext(s) {
       const t = document.createElement('div'); t.className = 't'; t.textContent = x.title;
       const sub = document.createElement('div'); sub.className = 's'; sub.textContent = `E${x.nextEpisode}${name ? ` · ${name}` : ''} · ${x.remaining} to go`;
       text.append(t, sub);
-      const play = document.createElement('span'); play.className = 'play'; play.textContent = x.nextEpisodeUrlIsExact ? '▶ Play' : 'Open';
+      const play = document.createElement('span'); play.className = 'play'; play.textContent = x.nextEpisodeUrlIsExact ? '▶ Play' : `Open on ${x.nextEpisodeSite || 'Crunchyroll'}`;
       a.append(img, text, play);
       box.append(a);
     }
