@@ -22,7 +22,7 @@ export async function render(view) {
         h('td', {}, h('div', { class: 'inline-form' }, malInput, offInput, save, r.malId ? ok : null)));
     })) : h('div', { class: 'muted' }, 'All Crunchyroll seasons are mapped.');
 
-  const fileInput = h('input', { type: 'file', accept: 'application/json' });
+  const fileInput = h('input', { type: 'file', accept: 'application/json', 'aria-label': 'Watch history JSON file' });
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files[0];
     if (!file) return;
@@ -59,6 +59,22 @@ export async function render(view) {
         h('li', {}, 'In the extension’s popup, set the Tracker URL to this page’s address (and the passphrase as Tracker key when it’s hosted). The popup shows the last sync and has a “Sync now” button.')),
         h('p', { class: 'muted' }, 'The extension uses your existing Crunchyroll login inside your own browser. It never stores your password or tokens, and only talks to crunchyroll.com and your tracker.'))),
     section('Needs review', 'Seasons the tracker mapped by guessing', h('div', { class: 'panel' }, review)),
+    cr.sampled?.length ? section('Sampled, not tracked', `${cr.sampled.length} Crunchyroll seasons you tried but never finished an episode of. Track one to add it to your library.`,
+      h('div', { class: 'quiet-list' }, cr.sampled.map((s) => {
+        const btn = h('button', { type: 'button', class: 'btn small' }, 'Track');
+        const row = h('div', { class: 'rate-item' },
+          h('img', { src: s.thumb || '', alt: '', loading: 'lazy' }),
+          h('div', { class: 'rate-text' },
+            h('span', { class: 'week-item-title one-line', title: `${s.seriesTitle} · ${s.seasonTitle || ''}` }, s.seriesTitle),
+            h('span', { class: 'week-item-sub one-line' }, `${s.seasonTitle && s.seasonTitle !== s.seriesTitle ? `${s.seasonTitle} · ` : ''}${s.plays} play${s.plays === 1 ? '' : 's'} · ${ago(s.lastPlayed)}`)),
+          btn);
+        btn.addEventListener('click', async () => {
+          btn.disabled = true; btn.textContent = 'Finding…';
+          try { const r = await api.crTrack(s.seasonId); toast(r.needsReview ? `Added ${r.title}; check the match above` : `Added ${r.title}`); row.remove(); }
+          catch (err) { btn.disabled = false; btn.textContent = 'Track'; toast(err.message); }
+        });
+        return row;
+      }))) : null,
     section('Manual import', 'Alternative to the extension: a watch-history JSON export', h('div', { class: 'panel' }, fileInput)),
     section('Background metadata', [
       bg.phase !== 'idle' ? `Refreshing (${bg.phase})` : bg.lastCycle ? `Last refresh ${ago(bg.lastCycle.at)}` : 'No refresh yet',

@@ -178,6 +178,17 @@ export async function openAnime(partial) {
     return h('div', { class: 'list-controls' }, h('span', { class: 'watch-label' }, 'Your rating'), stars, statusBox);
   }
 
+  // "Mark all watched" for shows finished elsewhere; hidden once everything is ticked.
+  const markAllBtn = h('button', { type: 'button', class: 'btn small ghost push-end', hidden: true }, 'Mark all watched');
+  markAllBtn.addEventListener('click', async () => {
+    const last = Math.max(0, ...[...epContainer.querySelectorAll('.ep-tile')].map((t) => Number(t.dataset.episode) || 0));
+    if (!last) return;
+    markAllBtn.disabled = true;
+    try { await api.watchedThrough(item.malId, last); await load(); bus.emit('library-changed'); toast(`All ${last} episodes marked watched`); }
+    catch (err) { toast(err.message); }
+    markAllBtn.disabled = false;
+  });
+
   const closeBtn = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close' }, icon('close'));
   closeBtn.addEventListener('click', closeDrawer);
 
@@ -204,7 +215,7 @@ export async function openAnime(partial) {
           linksRow)),
       relatedSection,
       item.inLibrary === false ? null : h('section', { class: 'section' },
-        h('div', { class: 'section-head' }, h('h2', {}, 'Episodes'), summary, h('span', { class: 'sub push-end' }, 'Shift-click a check to mark everything up to it')),
+        h('div', { class: 'section-head' }, h('h2', {}, 'Episodes'), summary, h('span', { class: 'sub' }, 'Shift-click a check to mark everything up to it'), markAllBtn),
         epContainer)));
 
   if (!dialog().open) dialog().showModal();
@@ -239,6 +250,7 @@ export async function openAnime(partial) {
     const next = eps.find((e) => e.episodeNumber === furthest + 1) || eps.find((e) => !e.watched);
     allWatched = eps.length > 0 && eps.every((e) => e.watched);
     episodesLoaded = true;
+    markAllBtn.hidden = allWatched || eps.length === 0;
 
     // Long shows: watched episodes before the next one fold away behind a count, so the panel opens on what's next.
     // A finished show keeps only its last eight tiles out.
@@ -265,7 +277,7 @@ export async function openAnime(partial) {
       'aria-label': `Episode ${ep.episodeNumber} watched`,
       title: 'Toggle watched. Shift-click marks every episode up to this one.'
     }, icon('check'));
-    const el = h('article', { class: 'card ep-tile', 'data-watched': String(ep.watched) },
+    const el = h('article', { class: 'card ep-tile', 'data-watched': String(ep.watched), 'data-episode': String(ep.episodeNumber) },
       media({ src: ep.image, alt: '', badges: [h('span', { class: 'pill dark badge-bottom num' }, `E${ep.episodeNumber}`)] }),
       h('div', { class: 'ep-row' },
         h('span', { class: 'name clamp-2', title: name }, name),

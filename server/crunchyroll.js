@@ -325,9 +325,20 @@ function status() {
     ORDER BY h.date_played DESC LIMIT 12`).all();
   const images = require('./images');
   for (const p of inProgress) p.thumb = images.localUrl(p.thumb);
+  // Seasons you sampled that aren't tracked: no rule yet, or a rule that says "skip" (mal_id 0).
+  const sampled = db.prepare(`
+    SELECT h.season_id AS seasonId, h.series_title AS seriesTitle, h.season_title AS seasonTitle, COUNT(*) AS plays,
+           MAX(h.date_played) AS lastPlayed, MAX(h.thumb_url) AS thumb,
+           SUM(h.fully_watched = 1 OR (h.duration_s > 0 AND 1.0 * h.playhead / h.duration_s >= 0.8)) AS watchedPlays
+    FROM cr_history h LEFT JOIN cr_season_map r ON r.season_id = h.season_id
+    WHERE h.season_id IS NOT NULL AND (r.season_id IS NULL OR r.mal_id = 0)
+      AND h.season_title NOT LIKE '%Dub)%'
+    GROUP BY h.season_id ORDER BY lastPlayed DESC LIMIT 60`).all();
+  const imagesMod = require('./images');
+  for (const s of sampled) s.thumb = imagesMod.localUrl(s.thumb);
   const seen = require('./state').get('extension');
   const extension = { seen: seen?.version || null, seenAt: seen?.at || null, latest: require('../extension/manifest.json').version };
-  return { extension, wantSeasons: wantedSeasons(), wantSeries: require('./crlinks').wanted(), lastSync: last ? { at: last.at.replace(' ', 'T') + 'Z', source: last.source, summary: JSON.parse(last.summary) } : null, ...counts, needsReview: review, inProgress };
+  return { sampled, extension, wantSeasons: wantedSeasons(), wantSeries: require('./crlinks').wanted(), lastSync: last ? { at: last.at.replace(' ', 'T') + 'Z', source: last.source, summary: JSON.parse(last.summary) } : null, ...counts, needsReview: review, inProgress };
 }
 
 /** Manually fix a season mapping and re-apply its rows. */
