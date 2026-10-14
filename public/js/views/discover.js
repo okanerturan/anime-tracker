@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { h, media, section, toast, cardLink, FORMAT_LABEL } from '../ui.js';
+import { h, icon, media, section, toast, cardLink, FORMAT_LABEL } from '../ui.js';
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 
@@ -71,7 +71,7 @@ function recCard(r, onDismiss) {
   const open = () => openAnime({ malId: r.malId, title: r.title, image: r.image });
   return h('article', { class: 'card' },
     media({ src: r.image, alt: '', kind: 'poster', badges: [
-      r.onCrunchyroll ? h('span', { class: 'pill cr badge-bottom', title: 'Streaming on Crunchyroll' }, 'Crunchyroll') : null,
+      r.crunchyrollUrl ? h('a', { class: 'play-overlay', href: r.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${r.title} on Crunchyroll`, title: 'Open on Crunchyroll' }, icon('play'), h('span', {}, 'Crunchyroll')) : null,
       h('div', { class: 'badge-end' }, h('span', { class: 'pill accent num' }, `${r.match}% match`))] }),
     cardLink(r.title, open, { href: r.siteUrl || `https://myanimelist.net/anime/${r.malId}` }),
     h('p', { class: 'card-meta' }, [r.year, FORMAT_LABEL[r.format] || r.format, r.episodes ? `${r.episodes} eps` : null, r.averageScore ? `★ ${r.averageScore}` : null].filter(Boolean).join(' · ')),

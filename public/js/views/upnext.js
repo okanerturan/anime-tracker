@@ -116,7 +116,7 @@ function tonight(items, inProgress) {
       url ? h('span', { class: 'play-overlay is-large' }, icon('play'), h('span', {}, minsLeft ? `Resume · ${minsLeft} min left` : `Play E${pick.nextEpisode}`)) : null),
     h('div', { class: 'tonight-info' },
       h('p', { class: 'eyebrow' }, pick.resume ? 'Pick up where you left off' : 'Tonight'),
-      h('h2', { class: 'tonight-title' }, h('a', { class: 'card-link', href: `https://myanimelist.net/anime/${pick.malId}`, onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); open(); } }, pick.title)),
+      h('h2', { class: 'tonight-title' }, h('a', { class: 'tonight-link', href: `https://myanimelist.net/anime/${pick.malId}`, onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); open(); } }, pick.title)),
       h('p', { class: 'tonight-sub' }, `Episode ${pick.nextEpisode}${name ? ` · ${name}` : ''}`),
       h('p', { class: 'card-meta' }, [`${plural(pick.remaining, 'episode')} to go`, pick.leftInSeason === 1 ? 'season finale next' : null, pick.lastWatchedAt ? `last watched ${ago(pick.lastWatchedAt)}` : null].filter(Boolean).join(' · ')),
       h('div', { class: 'hero-actions' },
@@ -149,6 +149,47 @@ function weekStrip(airing) {
         : h('span', { class: 'week-empty' }, '—')))));
 }
 
+/** Airing shows you're current on whose next episode is more than a week out: a quiet list, not cards. */
+function caughtUpRow(items) {
+  if (!items.length) return null;
+  return h('section', { class: 'section' },
+    h('div', { class: 'section-head' }, h('h2', {}, 'Caught up'), h('span', { class: 'sub' }, `${plural(items.length, 'airing show')} with nothing new yet`)),
+    h('div', { class: 'quiet-list' }, items.map((x) => h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
+      h('img', { src: x.image, alt: '', loading: 'lazy' }),
+      h('span', { class: 'week-item-text' },
+        h('span', { class: 'week-item-title one-line' }, x.title),
+        h('span', { class: 'week-item-sub num' }, x.nextAiringAt ? `E${x.nextAiringEpisode} ${relTime(x.nextAiringAt)}` : 'next episode not scheduled'))))));
+}
+
+/** "You just finished X": five stars right there, because ratings are what make Discover good. */
+function rateStrip(items, onRated) {
+  if (!items.length) return null;
+  const row = (x) => {
+    const el = h('div', { class: 'rate-item' });
+    const stars = h('div', { class: 'stars', role: 'group', 'aria-label': `Rate ${x.title}` }, [1, 2, 3, 4, 5].map((n) => {
+      const b = h('button', { type: 'button', class: 'star', 'aria-label': `${n} star${n > 1 ? 's' : ''}` }, '★');
+      b.addEventListener('click', async () => {
+        stars.querySelectorAll('.star').forEach((s, i) => s.setAttribute('aria-pressed', String(i < n)));
+        try { await api.setRating(x.malId, n); toast(`${x.title}: ${n}/5`); el.classList.add('is-done'); setTimeout(() => { el.remove(); onRated?.(); }, 900); }
+        catch (err) { toast(err.message); }
+      });
+      return b;
+    }));
+    const skip = h('button', { type: 'button', class: 'icon-btn', 'aria-label': `Skip rating ${x.title}`, title: 'Skip' }, icon('close'));
+    skip.addEventListener('click', () => { el.remove(); onRated?.(); });
+    fill(el,
+      h('img', { src: x.image, alt: '', loading: 'lazy' }),
+      h('div', { class: 'rate-text' },
+        h('span', { class: 'week-item-title one-line', title: x.title }, x.title),
+        h('span', { class: 'week-item-sub' }, `Finished ${ago(x.finishedAt)} · ${plural(x.episodes, 'episode')}`)),
+      stars, skip);
+    return el;
+  };
+  return h('section', { class: 'section rate-strip' },
+    h('div', { class: 'section-head' }, h('h2', {}, 'Just finished'), h('span', { class: 'sub' }, 'A rating steers your recommendations')),
+    h('div', { class: 'quiet-list' }, items.map(row)));
+}
+
 export async function render(view) {
   view.replaceChildren(h('div', { class: 'skeleton' }));
   const [data, cr] = await Promise.all([api.upNext(), api.crStatus().catch(() => null)]);
@@ -173,12 +214,16 @@ export async function render(view) {
       h('div', { class: 'cards cards--wide', style: { '--rows': '6' } }, items.slice(0, 60).map((x) => epCard(x, mode, rerender)))));
 
   const airingWeek = [...data.airingSoon, ...(data.caughtUpAiring || [])].filter((x) => x.nextAiringAt && x.nextAiringAt - Date.now() < 7 * 86400000);
+  const caughtUp = (data.caughtUpAiring || []).filter((x) => !x.nextAiringAt || x.nextAiringAt - Date.now() >= 7 * 86400000);
+  const rateSection = rateStrip(data.recentlyFinished || [], () => { if (!rateSection.querySelector('.rate-item')) rateSection.remove(); });
   fill(view,
     tonight(data.continueWatching, inProgress),
+    rateSection,
     carousel('Continue watching', `${plural(data.continueWatching.length, 'show')} with episodes waiting`,
       data.continueWatching.map((x) => epCard(x, 'continue', () => render(view))), "You're all caught up."),
     inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map(pausedCard), '') : null,
     weekStrip(airingWeek),
+    caughtUpRow(caughtUp),
     data.airingSoon.length ? carousel('New episodes soon', 'Airing shows you keep up with',
       data.airingSoon.map((x) => epCard(x, 'airing')), '') : null,
     carousel('New seasons available', 'Sequels of shows you finished',

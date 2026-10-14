@@ -117,7 +117,13 @@ function upNext() {
   newSeasonCards.sort((a, b) => (b.format === 'TV') - (a.format === 'TV') || (b.averageScore || 0) - (a.averageScore || 0));
 
   onHold.sort((a, b) => a.lastAgeDays - b.lastAgeDays);
-  return { continueWatching, airingSoon, newSeasons: newSeasonCards, caughtUpAiring, stalled, onHold, dropped };
+  // Finished in the last two weeks and not rated yet: the moment a rating is easiest to give.
+  const recentlyFinished = rows
+    .filter((r) => r.watched && !r.rating && r.episodes && r.watched >= r.episodes && r.status === 'FINISHED' && r.last_watched && now - new Date(r.last_watched).getTime() < 14 * DAY)
+    .sort((a, b) => String(b.last_watched).localeCompare(String(a.last_watched)))
+    .slice(0, 6)
+    .map((r) => card(r, { finishedAt: r.last_watched, episodes: r.episodes }));
+  return { continueWatching, airingSoon, newSeasons: newSeasonCards, caughtUpAiring, stalled, onHold, dropped, recentlyFinished };
 }
 
 // Your rating scales a show's pull on recommendations: 5 stars counts double, 1-2 stars count against.
@@ -230,6 +236,7 @@ async function recommendations({ limit = 120, refresh = false } = {}) {
         format: c.media.format, status: c.media.status, episodes: c.media.episodes, year: c.media.season_year,
         averageScore: c.media.average_score, genres: parseJSONField(c.media.genres, []), siteUrl: c.media.site_url,
         duration: c.media.duration, onCrunchyroll: Boolean(crlinks.seriesFor(c.id)),
+        crunchyrollUrl: (() => { const s = crlinks.seriesFor(c.id); return s ? (s.url || `https://www.crunchyroll.com/series/${s.id}`) : null; })(),
         because, sharedGenres, inLibrary: library.isInLibrary(c.id), match: Math.round(final * 100)
       };
     })
