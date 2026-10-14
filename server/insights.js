@@ -16,7 +16,7 @@ const franchiseRoot = (t) => String(t || '').toLowerCase()
 
 function libraryState() {
   return db.prepare(`
-    SELECT a.mal_id, a.title, a.title_english, COALESCE(m.cover_url, a.image_url) AS cover, w.list_status, w.rating, m.status, m.format,
+    SELECT a.mal_id, a.title, a.title_english, COALESCE(m.cover_url, a.image_url) AS cover, w.list_status, w.rating, m.external_links, m.status, m.format,
            m.episodes, m.next_airing_episode, m.next_airing_at, m.average_score, m.genres, m.tags, m.duration, m.start_date,
            COUNT(e.episode_number) AS ep_rows, COALESCE(SUM(e.watched = 1), 0) AS watched,
            MAX(CASE WHEN e.watched = 1 THEN e.watched_at END) AS last_watched,
@@ -64,14 +64,22 @@ function upNext() {
     const nextEp = remaining > 0 ? furthest + 1 : null;
     const nextRow = nextEp ? nextRowStmt.get(r.mal_id, nextEp) : null;
     // Where "Play" goes: the exact episode when Crunchyroll's URL is known, else the series page.
+    let nextSite = 'Crunchyroll';
     const nextUrl = nextRow?.url && /crunchyroll\.com\/watch\//.test(nextRow.url) ? nextRow.url.replace(/^http:/, 'https:')
-      : (() => { const s = crlinks.seriesFor(r.mal_id); return s ? (s.url || `https://www.crunchyroll.com/series/${s.id}`) : null; })();
+      : (() => {
+        const s = crlinks.seriesFor(r.mal_id);
+        if (s) return s.url || `https://www.crunchyroll.com/series/${s.id}`;
+        // Not on Crunchyroll: the first streaming service AniList lists (Netflix, HIDIVE, ...).
+        const other = parseJSONField(r.external_links, []).find((l) => l.url);
+        if (other) { nextSite = other.site; return other.url; }
+        return null;
+      })();
     const latestAired = remaining > 0 ? latestAiredStmt.get(r.mal_id, furthest)?.at : null;
     const info = card(r, {
       watched: r.watched, furthest, aired, remaining, lastWatchedAt: r.last_watched, latestAiredAt: latestAired || null,
       // Episodes left in the whole season (null when the season's length isn't announced).
       totalEpisodes: r.episodes ?? null, leftInSeason: r.episodes ? Math.max(0, r.episodes - furthest) : null,
-      nextEpisode: nextEp, nextEpisodeTitle: nextRow?.title || null, nextEpisodeUrl: nextUrl, nextEpisodeUrlIsExact: Boolean(nextRow?.url && /watch\//.test(nextRow.url)),
+      nextEpisode: nextEp, nextEpisodeTitle: nextRow?.title || null, nextEpisodeUrl: nextUrl, nextEpisodeSite: nextSite, nextEpisodeUrlIsExact: Boolean(nextRow?.url && /watch\//.test(nextRow.url)),
       nextEpisodeImage: nextRow?.hasImage ? library.episodeImageUrl(r.mal_id, nextEp, nextRow.updated_at) : null,
       nextAiringEpisode: r.next_airing_episode, nextAiringAt: r.next_airing_at ? r.next_airing_at * 1000 : null
     });

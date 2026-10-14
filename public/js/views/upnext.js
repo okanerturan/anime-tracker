@@ -56,7 +56,7 @@ function epCard(item, mode, onChange) {
     : null;
   const play = seasonPlay || (playUrl && (mode === 'continue' || mode === 'airing' || mode === 'hold' || mode === 'stalled')
     ? h('a', { class: 'play-overlay', href: playUrl, target: '_blank', rel: 'noopener', 'aria-label': playExact ? `Play episode ${item.nextEpisode} on Crunchyroll` : `Open ${item.title} on Crunchyroll`, onclick: () => playToast(playExact ? item.nextEpisode : null) },
-        icon('play'), h('span', {}, playExact ? `Play E${item.nextEpisode}` : 'Open on Crunchyroll'))
+        icon('play'), h('span', {}, playExact ? `Play E${item.nextEpisode}` : `Open on ${item.nextEpisodeSite || 'Crunchyroll'}`))
     : null);
   // Watched it elsewhere, or the sync hasn't caught up: tick the next episode without opening the show.
   const tick = (mode === 'continue' && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched` }, icon('check')) : null;
@@ -170,7 +170,7 @@ function tonight(items, inProgress, forced = null) {
       h('p', { class: 'tonight-sub' }, `Episode ${pick.nextEpisode}${name ? ` · ${name}` : ''}`),
       h('p', { class: 'card-meta' }, [`${plural(pick.remaining, 'episode')} to go`, pick.leftInSeason === 1 ? 'season finale next' : null, pick.lastWatchedAt ? `last watched ${ago(pick.lastWatchedAt)}` : null].filter(Boolean).join(' · ')),
       h('div', { class: 'hero-actions' },
-        url ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener', onclick: () => playToast(pick.nextEpisode) }, icon('play'), ' ', pick.resume ? 'Resume on Crunchyroll' : 'Play on Crunchyroll') : null,
+        url ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener', onclick: () => playToast(pick.nextEpisode) }, icon('play'), ' ', pick.resume ? 'Resume on Crunchyroll' : `Play on ${pick.nextEpisodeSite || 'Crunchyroll'}`) : null,
         h('button', { type: 'button', class: 'btn', onclick: open }, 'Details'),
         surprise)));
 }
