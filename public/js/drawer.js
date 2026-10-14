@@ -121,6 +121,17 @@ export async function openAnime(partial) {
     const done = r.episodes && r.watched >= r.episodes;
     const progressText = r.watched ? (done ? '✓ Watched' : `${r.watched}/${r.episodes ?? '?'} watched`) : (r.inLibrary ? 'Not started' : 'Not in library');
     const open = () => openAnime({ malId: r.malId, title: r.title, image: r.image });
+    // One-tap Add for a related season that isn't in the library yet (not for unreleased ones).
+    let addBtn = null;
+    if (!r.inLibrary && r.status !== 'NOT_YET_RELEASED') {
+      addBtn = h('button', { type: 'button', class: 'btn small ghost related-add' }, 'Add');
+      addBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        addBtn.disabled = true;
+        try { await api.add({ malId: r.malId, title: r.title, totalEpisodes: r.episodes }); addBtn.textContent = 'Added'; bus.emit('library-changed'); toast(`Added ${r.title}`); }
+        catch (err) { addBtn.disabled = false; toast(err.message); }
+      });
+    }
     return h('article', { class: `card related-card ${done ? 'is-completed' : ''}` },
       media({ src: r.image, alt: '', kind: 'poster' }),
       h('div', { class: 'related-info' },
@@ -128,7 +139,8 @@ export async function openAnime(partial) {
         h('h3', { class: 'card-title clamp-2', title: r.title },
           h('a', { class: 'card-link', href: `https://myanimelist.net/anime/${r.malId}`, onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); open(); } }, r.title)),
         h('p', { class: 'card-meta' }, [r.startDate?.slice(0, 4), FORMAT_LABEL[r.format] || r.format, r.episodes ? `${r.episodes} eps` : null].filter(Boolean).join(' · ')),
-        h('p', { class: `card-sub ${done ? 'done-text' : ''}` }, progressText)));
+        h('p', { class: `card-sub ${done ? 'done-text' : ''}` }, progressText),
+        addBtn));
   }
 
   function notInLibraryActions() {
