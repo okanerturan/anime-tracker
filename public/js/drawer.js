@@ -100,6 +100,7 @@ export async function openAnime(partial) {
     const crUrl = !d.links.crunchyrollIsSearch ? d.links.crunchyroll : (d.watchOn.find((l) => /crunchyroll/i.test(l.site))?.url || d.links.crunchyroll);
     fill(watchRow,
       h('span', { class: 'watch-label' }, 'Where to watch'),
+      d.links.notOnCrunchyroll ? h('span', { class: 'chip', title: 'Crunchyroll’s search found no match in your region' }, 'Not on Crunchyroll') : null,
       ext(hasCrunchyroll ? 'Crunchyroll' : 'Search Crunchyroll', crUrl, {
         class: `btn small ${hasCrunchyroll ? 'primary' : ''}`,
         title: d.links.notOnCrunchyroll ? 'Crunchyroll search found no match for this show' : d.links.crunchyrollSource === 'franchise' ? 'Series page shared with its other seasons' : null }),

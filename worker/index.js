@@ -63,7 +63,7 @@ function corsHeaders(request) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Tracker-Client',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Tracker-Client, X-Extension-Version',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin'
   };

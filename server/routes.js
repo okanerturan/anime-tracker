@@ -128,6 +128,7 @@ const routes = {
   'GET /api/crunchyroll/status': (req, res) => sendJSON(res, 200, crunchyroll.status()),
   'POST /api/crunchyroll/ingest': async (req, res) => {
     requireClientHeader(req);
+    if (req.headers['x-extension-version']) { try { require('./state').set('extension', { version: String(req.headers['x-extension-version']).slice(0, 20) }); } catch {} }
     const body = await parseBody(req);
     const rows = Array.isArray(body) ? body : body.rows;
     if (!Array.isArray(rows)) return sendJSON(res, 400, { error: 'rows array required' });

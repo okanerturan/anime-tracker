@@ -29,7 +29,8 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
 chrome.tabs.onRemoved.addListener((tabId) => { if (watchTabs.has(tabId)) { watchTabs.delete(tabId); leftWatchPage(); } });
 
 // The hosted tracker (Cloudflare) needs the passphrase as a bearer key; the local one ignores it.
-const authHeaders = (key) => (key ? { Authorization: `Bearer ${key}` } : {});
+const VERSION = chrome.runtime.getManifest().version;
+const authHeaders = (key) => ({ 'X-Extension-Version': VERSION, ...(key ? { Authorization: `Bearer ${key}` } : {}) });
 let trackerKey = '';
 
 async function trackerStatus(trackerUrl) {
