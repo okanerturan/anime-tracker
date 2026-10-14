@@ -51,10 +51,13 @@ function epCard(item, mode, onChange) {
   // Play opens Crunchyroll: the exact episode when known (resume beats it, since it's the real playhead), else the series page.
   const playUrl = item.resume ? watchUrl(item.resume) : item.nextEpisodeUrl;
   const playExact = Boolean(item.resume) || item.nextEpisodeUrlIsExact;
-  const play = playUrl && (mode === 'continue' || mode === 'airing' || mode === 'hold' || mode === 'stalled')
+  const seasonPlay = mode === 'season' && item.crunchyrollUrl
+    ? h('a', { class: 'play-overlay', href: item.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${item.title} on Crunchyroll` }, icon('play'), h('span', {}, 'Crunchyroll'))
+    : null;
+  const play = seasonPlay || (playUrl && (mode === 'continue' || mode === 'airing' || mode === 'hold' || mode === 'stalled')
     ? h('a', { class: 'play-overlay', href: playUrl, target: '_blank', rel: 'noopener', 'aria-label': playExact ? `Play episode ${item.nextEpisode} on Crunchyroll` : `Open ${item.title} on Crunchyroll`, onclick: () => playToast(playExact ? item.nextEpisode : null) },
         icon('play'), h('span', {}, playExact ? `Play E${item.nextEpisode}` : 'Open on Crunchyroll'))
-    : null;
+    : null);
   // Watched it elsewhere, or the sync hasn't caught up: tick the next episode without opening the show.
   const tick = (mode === 'continue' && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched` }, icon('check')) : null;
   if (tick) tick.addEventListener('click', async () => {
@@ -75,9 +78,20 @@ function epCard(item, mode, onChange) {
     });
     return b;
   };
+  // New seasons: add to the library in one tap (the card then shows In library), and open Crunchyroll from the thumbnail.
+  let seasonActions = null;
+  if (mode === 'season') {
+    const add = h('button', { type: 'button', class: `btn small ${item.inLibrary ? '' : 'primary'}`, disabled: Boolean(item.inLibrary) }, item.inLibrary ? 'In library' : 'Add to library');
+    add.addEventListener('click', async () => {
+      add.disabled = true;
+      try { await api.add({ malId: item.malId, title: item.title, totalEpisodes: item.episodes }); add.textContent = 'In library'; item.inLibrary = true; toast(`Added ${item.title}`); bus.emit('library-changed'); }
+      catch (err) { add.disabled = false; toast(err.message); }
+    });
+    seasonActions = h('div', { class: 'card-actions' }, add);
+  }
   const actions = mode === 'stalled' ? h('div', { class: 'card-actions card-actions--pair' }, action('Hold', 'on_hold'), action('Drop', 'dropped', 'btn small ghost'))
     : mode === 'hold' ? h('div', { class: 'card-actions card-actions--pair' }, action('Resume', null, 'btn small primary'), action('Drop', 'dropped', 'btn small ghost'))
-      : null;
+      : seasonActions;
   return h('article', { class: `card ${play ? 'has-play' : ''}` },
     media({ src: still, fallback: item.image, alt: '', badges: [badge, play, tick] }),
     progress(frac, { hideWhenEmpty: mode === 'season' }),

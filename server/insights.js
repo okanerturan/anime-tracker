@@ -116,7 +116,9 @@ function upNext() {
     // Only suggest sequels for shows you finished (or nearly).
     const srcAired = src ? (library.airedCount({ status: src.status, next_airing_episode: src.next_airing_episode, episodes: src.episodes }) ?? src.ep_rows) : 0;
     if (src && srcAired && src.watched / srcAired < 0.75) continue;
-    newSeasonCards.push(card(s, { after: src ? displayTitle(src) : null, inLibrary: library.isInLibrary(s.mal_id), episodes: s.episodes, startDate: s.start_date }));
+    const cr = crlinks.seriesFor(s.mal_id);
+    newSeasonCards.push(card(s, { after: src ? displayTitle(src) : null, inLibrary: library.isInLibrary(s.mal_id), episodes: s.episodes, startDate: s.start_date,
+      crunchyrollUrl: cr ? (cr.url || `https://www.crunchyroll.com/series/${cr.id}`) : null }));
   }
   newSeasonCards.sort((a, b) => (b.format === 'TV') - (a.format === 'TV') || (b.averageScore || 0) - (a.averageScore || 0));
 
