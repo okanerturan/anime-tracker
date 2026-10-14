@@ -86,6 +86,7 @@ export async function openAnime(partial) {
   let details = null;
   api.details(item.malId).then((d) => {
     details = d;
+    renderPlay();
     offerSequel();
     // Shows known only as someone's sequel or recommendation lack full metadata; fetch it (through the
     // browser relay when AniList blocks the server) and reopen once it has arrived.
@@ -263,11 +264,25 @@ export async function openAnime(partial) {
     fill(epContainer, unfold, ...(eps.length ? tiles
       : [h('div', { class: 'empty' }, unreleased ? `${premiereText()}. Episodes appear here once they air.` : 'No episodes yet. Try “Refresh episodes”.')]));
     updateSummary();
-    const nextName = next && !/^Episode \d+$/.test(next.title || '') ? cleanEpisodeTitle(next.title) : '';
-    fill(playRow, next && next.crunchyrollUrl
-      ? h('a', { class: 'btn primary', href: next.crunchyrollUrl, target: '_blank', rel: 'noopener' }, icon('play'), ' ', `Play E${next.episodeNumber}${nextName ? ` · ${nextName}` : ''}`)
-      : null);
+    nextEp = next;
+    renderPlay();
     offerSequel();
+  }
+
+  let nextEp = null;
+  /** Play next: the exact episode when its URL is known, else the show's Crunchyroll page once details arrive. */
+  function renderPlay() {
+    if (!episodesLoaded || !nextEp) return;
+    const nextName = !/^Episode \d+$/.test(nextEp.title || '') ? cleanEpisodeTitle(nextEp.title) : '';
+    // Fallbacks: the show's Crunchyroll page, else the first service AniList lists (Netflix, HIDIVE, ...).
+    const crSeries = details && !details.links.crunchyrollIsSearch ? { url: details.links.crunchyroll, site: 'Crunchyroll' } : null;
+    const other = details?.watchOn?.[0] ? { url: details.watchOn[0].url, site: details.watchOn[0].site } : null;
+    const fallback = crSeries || other;
+    const url = nextEp.crunchyrollUrl || fallback?.url;
+    fill(playRow, url
+      ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener' }, icon('play'), ' ',
+          nextEp.crunchyrollUrl ? `Play E${nextEp.episodeNumber}${nextName ? ` · ${nextName}` : ''}` : `Open on ${fallback.site} · next is E${nextEp.episodeNumber}`)
+      : null);
   }
 
   function tile(ep) {
