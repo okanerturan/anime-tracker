@@ -150,7 +150,8 @@ async function ensure(url) {
 /** Local URL the browser should use for a remote image. */
 function localUrl(url) {
   if (!url || !isAllowed(url)) return url || '';
-  return `/img/${hashOf(url)}?u=${encodeURIComponent(url)}`;
+  const hash = hashOf(url);
+  return `/img/${hash}?u=${encodeURIComponent(url)}${require('./imgsig').suffix(hash)}`;
 }
 
 function sendCached(req, res, row) {
@@ -170,6 +171,10 @@ function sendCached(req, res, row) {
 
 async function handle(req, res, url) {
   const remote = url.searchParams.get('u') || '';
+  // The path names the image (/img/<sha1 of its address>): a link whose address doesn't match it
+  // was edited, and could make the hub download anything from the allowed hosts.
+  const named = url.pathname.slice('/img/'.length);
+  if (/^[0-9a-f]{40}$/.test(named) && named !== hashOf(remote)) { res.writeHead(404); return res.end(); }
   try {
     const row = await ensure(remote);
     if (String(row.file || '').startsWith('r2:')) {

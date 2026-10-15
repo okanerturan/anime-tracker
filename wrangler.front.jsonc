@@ -1,0 +1,12 @@
+// The hosted tracker's front Worker (D8): deployed in place of the Durable Object build at 8.9, under
+// the same name so the workers.dev address stays. Until then this file is only used for local runs:
+//   npx wrangler dev -c wrangler.front.jsonc --var ORIGIN_URL:http://127.0.0.1:8080 ...
+// Secrets: ORIGIN_URL, ORIGIN_SECRET, IMAGE_SIGNING_KEY (wrangler secret put -c wrangler.front.jsonc).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "anime-tracker",
+  "main": "worker/front.js",
+  "compatibility_date": "2026-10-01",
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "anime-tracker-images" }],
+  "observability": { "enabled": true }
+}
