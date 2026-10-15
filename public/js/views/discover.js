@@ -128,6 +128,24 @@ function searchPanel(initial = '') {
 let mounted = null;
 bus.on('recommendations-changed', () => { if (mounted?.isConnected) render(mounted); });
 
+/**
+ * "Because you watched X" rows: the three shows of yours that inspired the most recommendations,
+ * each with up to ten of them. A recommendation appears in one row at most.
+ */
+function becauseRows(items, onHide) {
+  const counts = new Map();
+  for (const r of items) for (const b of r.becauseShows || []) if (b.malId) counts.set(b.malId, { title: b.title, n: (counts.get(b.malId)?.n || 0) + 1 });
+  const seeds = [...counts.entries()].filter(([, v]) => v.n >= 5).sort((a, b) => b[1].n - a[1].n).slice(0, 3);
+  const used = new Set();
+  return seeds.map(([malId, seed]) => {
+    const picks = items.filter((r) => !used.has(r.malId) && (r.becauseShows || []).some((b) => b.malId === malId)).slice(0, 10);
+    picks.forEach((r) => used.add(r.malId));
+    if (picks.length < 4) return null;
+    const cards = picks.map((r) => { const card = recCard({ ...r, note: null }, () => { card.remove(); onHide(r); }); return card; });
+    return carousel(`Because you watched ${seed.title}`, null, cards, '');
+  }).filter(Boolean);
+}
+
 /** This season's airing anime that fit your taste, as a carousel at the top of Discover. */
 async function seasonalSection() {
   let d;
@@ -183,6 +201,7 @@ export async function render(view) {
   }
   view.replaceChildren(...[
     seasonalSlot,
+    ...becauseRows(data.items, (r) => { items = items.filter((x) => x.malId !== r.malId); draw(); }),
     section('Your taste', 'Weighted by how much of each show you watched, how recently, and your star ratings',
       h('div', { class: 'taste' },
         h('div', { class: 'taste-group' },
