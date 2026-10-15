@@ -28,7 +28,7 @@ export async function openAnime(partial) {
         image: partial.image || full.imageUrl,
         synopsis: full.synopsis, genres: full.genres, status: full.status, format: full.format,
         averageScore: full.averageScore, nextAiringAt: full.nextAiringAt, nextAiringEpisode: full.nextAiringEpisode,
-        inLibrary: full.inLibrary, totalEpisodes: full.totalEpisodes, listStatus: full.listStatus, rating: full.rating,
+        inLibrary: full.inLibrary, totalEpisodes: full.totalEpisodes, listStatus: full.listStatus, rating: full.rating, episodeMinutes: full.episodeMinutes, watchedCount: full.watchedCount, airedEpisodes: full.airedEpisodes,
         releaseDate: full.releaseDate
       };
     } catch {}
@@ -202,6 +202,17 @@ export async function openAnime(partial) {
     markAllBtn.disabled = false;
   });
 
+  /** "12 eps · ~4 h 48 min", or "~1 h 12 min left" once started. */
+  function runtimeChip() {
+    const eps = item.totalEpisodes || item.airedEpisodes;
+    if (!eps || !item.episodeMinutes) return null;
+    const fmt = (m) => (m < 60 ? `~${Math.round(m)} min` : `~${Math.floor(m / 60)} h${Math.round(m % 60) ? ` ${Math.round(m % 60)} min` : ''}`);
+    const watched = item.watchedCount || 0;
+    const left = Math.max(0, (item.airedEpisodes ?? eps) - watched);
+    const text = watched && left ? `${fmt(left * item.episodeMinutes)} left` : `${eps} eps · ${fmt(eps * item.episodeMinutes)}`;
+    return h('span', { class: 'chip num', title: `${item.episodeMinutes} min per episode` }, text);
+  }
+
   const closeBtn = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close' }, icon('close'));
   closeBtn.addEventListener('click', closeDrawer);
 
@@ -218,6 +229,7 @@ export async function openAnime(partial) {
             statusPill(item.status),
             item.format ? h('span', { class: 'chip' }, FORMAT_LABEL[item.format] || item.format) : null,
             item.averageScore ? h('span', { class: 'chip num' }, `★ ${item.averageScore}`) : null,
+            runtimeChip(),
             ...(item.genres || []).slice(0, 6).map((g) => h('span', { class: 'chip' }, g))),
           airsAt ? h('p', { class: 'muted' }, `Episode ${item.nextAiringEpisode} airs ${relTime(airsAt)}`) : null,
           synopsis, more,

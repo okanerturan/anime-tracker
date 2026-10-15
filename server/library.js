@@ -150,7 +150,7 @@ function getAnime(malId) {
     malId, title: m.title, titleEnglish: m.title_english || '', releaseDate: m.start_date, imageUrl: images.localUrl(m.cover_url),
     synopsis: m.description || '', totalEpisodes: m.episodes, format: m.format, status: m.status,
     genres: parseJSONField(m.genres, []), averageScore: m.average_score, nextAiringEpisode: m.next_airing_episode,
-    nextAiringAt: m.next_airing_at, airedEpisodes: airedCount(m), episodesCount: 0, watchedCount: 0, inLibrary: false
+    nextAiringAt: m.next_airing_at, airedEpisodes: airedCount(m), episodesCount: 0, watchedCount: 0, inLibrary: false, episodeMinutes: m.duration || null
   };
 }
 
