@@ -20,7 +20,7 @@ const COMMANDS = [
   { label: 'Airing calendar link', words: ['calendar', 'schedule', 'ics'], run: () => { location.hash = '#/sync?calendar=1'; } },
   { label: 'Import from AniList or MyAnimeList', words: ['import', 'anilist', 'myanimelist', 'mal'], run: () => { location.hash = '#/sync?import=1'; } },
   { label: 'Switch light / dark theme', words: ['theme', 'dark', 'light'], run: () => document.querySelector('.theme-btn')?.click() },
-  { label: 'Keyboard shortcuts', words: ['shortcuts', 'keys', 'help'], run: () => document.getElementById('help')?.showModal() }
+  { label: 'Shortcuts and gestures', words: ['shortcuts', 'keys', 'help', 'gestures'], run: () => document.getElementById('help')?.showModal() }
 ];
 function matchCommands(q) {
   const t = norm(q);
