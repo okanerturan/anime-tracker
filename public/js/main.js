@@ -10,9 +10,10 @@ import * as library from './views/library.js';
 import * as discover from './views/discover.js';
 import * as insights from './views/insights.js';
 import * as sync from './views/sync.js';
+import * as account from './views/account.js';
 
-const VIEWS = { 'up-next': upnext, library, discover, insights, sync };
-const VIEW_NAMES = { 'up-next': 'Up Next', library: 'Library', discover: 'Discover', insights: 'Insights', sync: 'Sync' };
+const VIEWS = { 'up-next': upnext, library, discover, insights, sync, account };
+const VIEW_NAMES = { 'up-next': 'Up Next', library: 'Library', discover: 'Discover', insights: 'Insights', sync: 'Sync', account: 'Account' };
 const view = document.getElementById('view');
 
 async function route({ refresh = false } = {}) {
@@ -87,6 +88,14 @@ const THEME_GLYPH = { dark: '☾', light: '☀', system: '◐' };
 const findBtn = document.getElementById('find-btn');
 findBtn?.append(icon('search'));
 findBtn?.addEventListener('click', () => openQuickSwitcher());
+// Hosted tracker with accounts: an account button in the header (the local and Cloudflare
+// single-user builds have no /auth/state, so nothing shows there).
+fetch('/auth/state').then((r) => (r.ok ? r.json() : null)).then((st) => {
+  if (!st?.signedIn) return;
+  const a = h('a', { class: 'icon-btn account-btn', href: '#/account', 'aria-label': 'Account', title: st.account?.name ? `Account (${st.account.name})` : 'Account' },
+    (st.account?.name || '?').trim().charAt(0).toUpperCase() || '?');
+  document.getElementById('find-btn')?.before(a);
+}).catch(() => {});
 const themeBtn = document.getElementById('theme-btn');
 function paintThemeButton() {
   const t = document.documentElement.dataset.theme || 'dark';

@@ -1927,3 +1927,19 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 .signin-panel input:not([type="checkbox"]) { inline-size: 100%; padding: 0.7em 0.9em; border: 1px solid var(--line); border-radius: calc(var(--radius-outer) - 4px); background: var(--surface-2); color: var(--text); font: inherit; }
 .signin-panel input:not([type="checkbox"]):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .signin-foot a { color: var(--accent-text); }
+
+/* ---- Account page (hosted mode) ---- */
+.account-btn { font-weight: 700; text-decoration: none; color: var(--text); }
+.account-list { display: grid; gap: var(--space-xs); }
+.account-row { display: grid; grid-template-columns: minmax(8rem, 16rem) minmax(0, 1fr) auto; align-items: center; gap: var(--space-s); }
+.account-row--code { grid-template-columns: minmax(8rem, 16rem) auto; justify-content: start; margin-block-start: var(--space-xs); }
+.account-name { padding: 0.45em 0.7em; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); font: inherit; min-inline-size: 0; }
+.account-name:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.account-codes { display: grid; gap: var(--space-s); margin-block-start: var(--space-s); }
+.account-danger { display: grid; gap: var(--space-s); margin-block-start: var(--space-s); padding: var(--space-s); border: 1px solid color-mix(in oklch, var(--line), oklch(0.65 0.2 25) 45%); border-radius: var(--radius-outer); }
+.btn.btn-danger { background: oklch(0.6 0.19 25); color: oklch(0.98 0 none); border-color: transparent; }
+@media (max-width: 40rem) { .account-row { grid-template-columns: minmax(0, 1fr) auto; } .account-row > .muted { grid-column: 1 / -1; grid-row: 2; } }
+.privacy { inline-size: min(100%, 44rem); }
+.privacy h2 { margin: var(--space-s) 0 0; font-size: var(--step-0); }
+.privacy ul { margin: 0; padding-inline-start: 1.2em; display: grid; gap: var(--space-2xs); }
+.privacy a { color: var(--accent-text); }

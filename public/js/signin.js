@@ -1,6 +1,7 @@
 // Sign-in page (hosted mode): passkey sign-in, invite sign-up, recovery codes, recovery sign-in.
 // After signing in it returns to the app at the page that asked (?next=#/library?anime=…).
 import { h, fill } from './ui.js';
+import { authPost as post, makePasskey, usePasskey, cancelled, codesFile } from './passkey.js';
 
 const panel = document.getElementById('panel');
 const params = new URLSearchParams(location.search);
@@ -8,25 +9,6 @@ const invite = params.get('invite');
 const next = params.get('next') || '#/up-next';
 const goApp = () => { location.href = `/${next.startsWith('#') ? next : '#/up-next'}`; };
 
-// WebAuthn options travel as JSON with base64url fields; the browser API wants bytes.
-const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-const unb64 = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
-async function post(path, body) {
-  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'app' }, body: JSON.stringify(body || {}) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || `Something went wrong (${r.status}).`);
-  return j;
-}
-async function makePasskey(o) {
-  const c = await navigator.credentials.create({ publicKey: { ...o, challenge: unb64(o.challenge), user: { ...o.user, id: unb64(o.user.id) }, excludeCredentials: (o.excludeCredentials || []).map((x) => ({ ...x, id: unb64(x.id) })) } });
-  return { id: c.id, rawId: b64(c.rawId), type: c.type, clientExtensionResults: {}, response: { clientDataJSON: b64(c.response.clientDataJSON), attestationObject: b64(c.response.attestationObject), transports: c.response.getTransports?.() || [] } };
-}
-async function usePasskey(o) {
-  const c = await navigator.credentials.get({ publicKey: { ...o, challenge: unb64(o.challenge), allowCredentials: [] } });
-  return { id: c.id, rawId: b64(c.rawId), type: c.type, clientExtensionResults: {}, response: { clientDataJSON: b64(c.response.clientDataJSON), authenticatorData: b64(c.response.authenticatorData), signature: b64(c.response.signature), userHandle: c.response.userHandle ? b64(c.response.userHandle) : undefined } };
-}
-// A dismissed browser prompt is not an error worth alarming anyone about.
-const cancelled = (err) => err?.name === 'NotAllowedError' || err?.name === 'AbortError';
 const note = (text, kind = '') => h('p', { class: `signin-note ${kind}`, role: kind === 'bad' ? 'alert' : null }, text);
 const busy = (btn, on, label) => { btn.disabled = on; if (label) btn.textContent = label; };
 
@@ -118,7 +100,7 @@ function codesView(codes) {
   const list = h('ol', { class: 'codes num' }, codes.map((c) => h('li', {}, c)));
   const copy = h('button', { type: 'button', class: 'btn' }, 'Copy');
   copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(text); copy.textContent = 'Copied'; } catch { copy.textContent = 'Select and copy them'; } });
-  const save = h('a', { class: 'btn', href: URL.createObjectURL(new Blob([`Anime Tracker recovery codes\n${location.host}\n\n${text}\n`], { type: 'text/plain' })), download: 'anime-tracker-recovery-codes.txt' }, 'Download');
+  const save = h('a', { class: 'btn', href: codesFile(codes), download: 'anime-tracker-recovery-codes.txt' }, 'Download');
   const ok = h('input', { type: 'checkbox', id: 'saved' });
   const go = h('button', { type: 'button', class: 'btn primary', disabled: true }, 'Continue');
   ok.addEventListener('change', () => { go.disabled = !ok.checked; });

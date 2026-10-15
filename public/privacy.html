@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Privacy · Anime Tracker</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script>try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="signin-body">
+  <main class="signin privacy">
+    <a class="brand" href="/"><img class="brand-logo" src="/favicon.svg" alt="" width="28" height="28"><span>Anime Tracker</span></a>
+    <article class="panel signin-panel">
+      <h1>Privacy</h1>
+      <p>Anime Tracker turns your Crunchyroll watch history into a watch list. This page says what it keeps, where, and how to remove it.</p>
+      <h2>What is kept</h2>
+      <ul>
+        <li><b>Your account:</b> an optional name, your passkeys' public keys (never anything that could sign in as you), and recovery codes stored only as hashes.</li>
+        <li><b>Your watching:</b> the Crunchyroll plays the extension sends (show, episode, when, how far), your library, ratings, list states and settings.</li>
+        <li><b>Sign-in sessions and extension tokens,</b> stored only as hashes, with the device name you see on your account page.</li>
+      </ul>
+      <p>Never kept: your Crunchyroll password, cookies or tokens. The extension reads your history inside your own browser and sends only the plays.</p>
+      <h2>Where it lives</h2>
+      <ul>
+        <li><b>Hetzner</b> (Germany) runs the server and stores your data in its own file.</li>
+        <li><b>Cloudflare</b> serves the web address and stores posters, episode pictures and nightly backups.</li>
+        <li><b>AniList</b> provides show information. Nothing about you is sent to it.</li>
+      </ul>
+      <h2>Deleting it</h2>
+      <p>Your account page has <b>Export everything</b> and <b>Delete my account</b>. Deleting removes your data file and every way to sign in, right away. Nightly backups that still contain it expire within 30 days. Accounts unused for 24 months are deleted the same way.</p>
+      <p class="muted">Show data from <a href="https://anilist.co" rel="noopener">AniList</a>. Not affiliated with Crunchyroll.</p>
+    </article>
+  </main>
+</body>
+</html>

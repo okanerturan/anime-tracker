@@ -54,6 +54,27 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     check('lands in the app, signed in', (await run('location.hash')) === '#/up-next' && (await run("fetch('/api/up-next').then((r) => r.status)")) === 200);
     await shot('3-app');
 
+    // Account page: header button, rename a passkey, new recovery codes, export.
+    check('the header shows an account button', (await run("document.querySelector('.account-btn')?.textContent")) === 'O');
+    await go(`${ORIGIN}/#/account`); await wait(1000);
+    check('account page lists the passkey', (await run("document.querySelectorAll('.account-row').length")) === 1);
+    await run("const i = document.querySelector('.account-row input'); i.value = 'Work laptop'; i.dispatchEvent(new Event('change')); 'ok'");
+    await wait(600);
+    check('renames it', (await run("fetch('/auth/passkeys').then((r) => r.json()).then((j) => j.passkeys[0].name)")) === 'Work laptop');
+    await run("[...document.querySelectorAll('button')].find((b) => /new recovery codes/.test(b.textContent)).click(); 'ok'");
+    await wait(800);
+    const newCodes = await run("[...document.querySelectorAll('.account-codes li')].map((li) => li.textContent)");
+    check('makes new recovery codes on the page', newCodes?.length === 10);
+    if (newCodes?.length) codes.splice(0, codes.length, ...newCodes); // the sign-up set no longer works
+    await shot('6-account');
+    check('export downloads the account as JSON', (await run("fetch('/auth/account/export').then((r) => r.json()).then((j) => j.format)")) === 'anime-tracker-account-export');
+    await run("fetch('/auth/signout', { method: 'POST', headers: { 'X-Tracker-Client': 'app' } }).then((r) => r.status)");
+    await go(`${ORIGIN}/privacy.html`);
+    check('privacy page is readable signed out', /What is kept/.test(await run('document.body.innerText')));
+    await shot('7-privacy');
+    await go(`${ORIGIN}/signin.html`);
+    await run("[...document.querySelectorAll('button')].find((b) => /Sign in with a passkey/.test(b.textContent)).click(); 'ok'");
+    await wait(2000);
     await run("fetch('/auth/signout', { method: 'POST', headers: { 'X-Tracker-Client': 'app' } }).then((r) => r.status)");
     await go(`${ORIGIN}/#/library?anime=37430`);
     await wait(1500);
@@ -69,7 +90,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     await wait(300);
     await run(`document.querySelector('input').value = ${JSON.stringify(codes?.[0] || '')}; document.querySelector('form').requestSubmit(); 'ok'`);
     await wait(1500);
-    check('a recovery code signs in and offers to add a passkey', /You.re in/.test(await run('document.body.innerText')) && /9 recovery codes left/.test(await run('document.body.innerText')));
+    check('a recovery code signs in and offers to add a passkey', /You.re in/.test(await run('document.body.innerText')) && /9 recovery codes left/.test(await run('document.body.innerText')), await run('document.body.innerText.slice(0, 160)'));
     await shot('5-recovered');
     p.close();
   } catch (err) { check('run', false, err.message); }
