@@ -24,7 +24,15 @@ const EMPTY = {
   rated: 'No ratings yet. Open a show from the library and tap a star; ratings steer your recommendations.'
 };
 const DAY = 86400000;
-const state = { filter: 'all', query: '', sort: 'activity_desc', group: false, items: null };
+const state = { filter: 'all', query: '', sort: 'activity_desc', group: false, items: null, part: 'all' };
+// Inside Unfinished: the ones a sitting away from done, and the ones you only sampled.
+const PARTS = [['all', 'All'], ['near', '1–2 left'], ['barely', 'Barely started']];
+function partOf(x) {
+  const left = progressState(x).left;
+  if (left >= 1 && left <= 2) return 'near';
+  if ((x.progress ?? x.watchedCount) <= 1) return 'barely';
+  return 'mid';
+}
 // Select mode: tap cards to pick them, then Hold / Drop / Back to active for all of them at once.
 const select = { on: false, ids: new Set(), onChange: () => {} };
 // Remember the last filter and sort per browser.
@@ -60,6 +68,7 @@ function matches(x) {
   if (state.filter === 'sequel' && !(x.sequel && progressState(x).key === 'completed')) return false;
   if (state.filter === 'airing' && x.status !== 'RELEASING') return false;
   if (wanted && !wanted.includes(st)) return false;
+  if (state.filter === 'unfinished' && state.part !== 'all' && partOf(x) !== state.part) return false;
   if (state.query && !titleMatches(x, state.query, (x.genres || []).join(' '))) return false;
   return true;
 }
@@ -201,7 +210,7 @@ export async function render(view) {
   const grid = h('div', { class: 'cards', style: { '--rows': state.filter === 'unfinished' ? '5' : '4' } });
   const count = h('span', { class: 'sub num' });
   // How many shows each filter would show, so a filter never looks broken when it's simply empty.
-  const countFor = (key) => { const was = state.filter; const q = state.query; state.filter = key; state.query = ''; const n = state.items.filter(matches).length; state.filter = was; state.query = q; return n; };
+  const countFor = (key) => { const was = state.filter; const q = state.query; const part = state.part; state.filter = key; state.query = ''; state.part = 'all'; const n = state.items.filter(matches).length; state.filter = was; state.query = q; state.part = part; return n; };
   let drawSeq = 0;
   const draw = () => {
     grid.style.setProperty('--rows', state.filter === 'unfinished' ? '5' : '4');
@@ -261,7 +270,7 @@ export async function render(view) {
     const b = h('button', { type: 'button', class: 'chip-toggle', 'aria-pressed': String(state.filter === key), disabled: n === 0 && key !== state.filter },
       h('span', {}, label), key === 'all' ? null : h('span', { class: 'chip-count num' }, String(n)));
     b.addEventListener('click', () => {
-      state.filter = key;
+      state.filter = key; state.part = 'all';
       remember();
       paintBulk();
       chips.querySelectorAll('.chip-toggle').forEach((c) => c.setAttribute('aria-pressed', String(c === b)));
@@ -324,7 +333,19 @@ export async function render(view) {
   // Unfinished view: one button to shelve everything untouched for a year.
   const bulk = h('button', { type: 'button', class: 'btn small ghost', hidden: true });
   const staleIds = () => state.items.filter((x) => progressState(x).key === 'unfinished' && (!x.lastWatchedAt || Date.now() - new Date(x.lastWatchedAt).getTime() > 365 * DAY)).map((x) => x.malId);
-  const paintBulk = () => { const n = state.filter === 'unfinished' ? staleIds().length : 0; bulk.hidden = !n; bulk.textContent = `Review the ${n} untouched for a year (hold or drop them)`; };
+  const parts = h('div', { class: 'chips unfinished-parts', role: 'group', 'aria-label': 'Which unfinished shows' });
+  const paintParts = () => {
+    parts.hidden = state.filter !== 'unfinished';
+    if (parts.hidden) return;
+    const all = state.items.filter((x) => progressState(x).key === 'unfinished');
+    fill(parts, PARTS.map(([k, label]) => {
+      const n = k === 'all' ? all.length : all.filter((x) => partOf(x) === k).length;
+      const b = h('button', { type: 'button', class: 'chip-toggle', 'aria-pressed': String(state.part === k), disabled: n === 0 && k !== state.part }, h('span', {}, label), h('span', { class: 'chip-count num' }, String(n)));
+      b.addEventListener('click', () => { state.part = k; draw(); paintParts(); });
+      return b;
+    }));
+  };
+  const paintBulk = () => { paintParts(); const n = state.filter === 'unfinished' ? staleIds().length : 0; bulk.hidden = !n; bulk.textContent = `Review the ${n} untouched for a year (hold or drop them)`; };
   // Opens Select mode with those shows already picked: untick any you still mean to finish, then
   // Hold or Drop the rest (one Undo puts each back).
   bulk.addEventListener('click', () => {
@@ -338,6 +359,7 @@ export async function render(view) {
   view.replaceChildren(h('section', { class: 'section' },
     h('div', { class: 'section-head' }, h('h2', {}, 'Library'), count, h('div', { class: 'push-end library-tools' }, search, selectBtn, groupBtn, h('a', { class: 'btn small ghost', href: '/api/library.csv', download: '' }, 'Export CSV'), sort)),
     h('div', { class: 'toolbar' }, chips),
+    parts,
     bulk,
     grid,
     bar));

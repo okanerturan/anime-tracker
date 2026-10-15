@@ -1833,3 +1833,6 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 /* Coming soon: the row opens the show; "Remind me" sits beside it (a button can't hold another). */
 .soon-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-xs); }
 .soon-on-list { font-size: var(--step--2); color: var(--muted); white-space: nowrap; padding-inline: var(--space-2xs); }
+/* Unfinished split: label and count spaced like the filter bar's chips. */
+.unfinished-parts .chip-toggle { display: inline-flex; align-items: baseline; gap: 0.45em; }
+.unfinished-parts .chip-toggle:disabled { opacity: 0.4; cursor: default; }
