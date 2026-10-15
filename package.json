@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "enrich": "node scripts/enrich_anilist.js",
     "prefetch-images": "node scripts/prefetch_images.js",
     "optimize-images": "node scripts/optimize_images.js && node scripts/optimize_episode_thumbs.js",
