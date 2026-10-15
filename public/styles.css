@@ -1606,7 +1606,9 @@ a.week-item { text-decoration: none; color: inherit; }
 
 /* Phone header: brand, sync status and theme on the first row; the tabs get the full second row
    (they were squeezed to zero width, which left phones without navigation). */
-@media (max-width: 40rem) {
+/* Tabs keep their label width and scroll instead of overlapping. */
+.tabs li, .tabs a { flex: none; }
+@media (max-width: 52rem) {
   .topbar { flex-wrap: wrap; column-gap: var(--space-xs); row-gap: 0; padding-inline: var(--space-s); }
   .topbar > .tabs { order: 3; flex: 1 0 100%; min-inline-size: 0; margin-inline: calc(-1 * var(--space-xs)); }
   .topbar > .topbar-status { margin-inline-start: auto; font-size: var(--step--2); min-inline-size: 0; overflow: clip; text-overflow: ellipsis; white-space: nowrap; }
