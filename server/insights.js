@@ -79,6 +79,7 @@ function upNext() {
       watched: r.watched, furthest, aired, remaining, lastWatchedAt: r.last_watched, latestAiredAt: latestAired || null,
       // Episodes left in the whole season (null when the season's length isn't announced).
       totalEpisodes: r.episodes ?? null, leftInSeason: r.episodes ? Math.max(0, r.episodes - furthest) : null,
+      episodeMinutes: r.duration || null,
       nextEpisode: nextEp, nextEpisodeTitle: nextRow?.title || null, nextEpisodeUrl: nextUrl, nextEpisodeSite: nextSite, nextEpisodeUrlIsExact: Boolean(nextRow?.url && /watch\//.test(nextRow.url)),
       nextEpisodeImage: nextRow?.hasImage ? library.episodeImageUrl(r.mal_id, nextEp, nextRow.updated_at) : null,
       nextAiringEpisode: r.next_airing_episode, nextAiringAt: r.next_airing_at ? r.next_airing_at * 1000 : null

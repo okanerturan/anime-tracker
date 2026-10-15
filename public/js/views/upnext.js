@@ -4,6 +4,12 @@ import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+/** "~46 min" / "~2 h 10 min" for n episodes of a given length; null when the length is unknown. */
+function timeFor(n, minutes) {
+  if (!n || !minutes) return null;
+  const total = Math.round(n * minutes);
+  return total < 60 ? `~${total} min` : `~${Math.floor(total / 60)} h${total % 60 ? ` ${total % 60} min` : ''}`;
+}
 
 // "New since your last visit": a per-browser timestamp, nothing the server needs to know.
 const LAST_VISIT_KEY = 'upnext:lastVisit';
@@ -33,7 +39,8 @@ function epCard(item, mode, onChange) {
     const name = realTitle(item.nextEpisodeTitle);
     line = `Episode ${item.nextEpisode}${name ? ` · ${name}` : ''}`;
     frac = item.aired ? Math.min(item.furthest || item.watched, item.aired) / item.aired : 0;
-    meta.push(`${plural(item.remaining, 'episode')} to go`);
+    const toGo = timeFor(item.remaining, item.episodeMinutes);
+    meta.push(`${plural(item.remaining, 'episode')} to go${toGo ? ` · ${toGo}` : ''}`);
     if (item.resume) meta.push(`resume, ${Math.round((item.resume.durationS - item.resume.playhead) / 60)} min left`);
     else if (item.lastWatchedAt) meta.push(ago(item.lastWatchedAt));
   } else if (mode === 'airing') {
@@ -180,7 +187,7 @@ function tonight(items, inProgress, forced = null) {
       h('p', { class: 'eyebrow' }, forced ? 'How about this one' : pick.resume ? 'Pick up where you left off' : isNewSinceVisit(pick.latestAiredAt) ? 'New since you were here' : 'Tonight'),
       h('h2', { class: 'tonight-title' }, h('a', { class: 'tonight-link', href: `https://myanimelist.net/anime/${pick.malId}`, onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); open(); } }, pick.title)),
       h('p', { class: 'tonight-sub' }, `Episode ${pick.nextEpisode}${name ? ` · ${name}` : ''}`),
-      h('p', { class: 'card-meta' }, [`${plural(pick.remaining, 'episode')} to go`, pick.leftInSeason === 1 ? 'season finale next' : null, pick.lastWatchedAt ? `last watched ${ago(pick.lastWatchedAt)}` : null].filter(Boolean).join(' · ')),
+      h('p', { class: 'card-meta' }, [`${plural(pick.remaining, 'episode')} to go`, timeFor(pick.remaining, pick.episodeMinutes), pick.leftInSeason === 1 ? 'season finale next' : null, pick.lastWatchedAt ? `last watched ${ago(pick.lastWatchedAt)}` : null].filter(Boolean).join(' · ')),
       h('div', { class: 'hero-actions' },
         url ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener', onclick: () => playToast(pick.nextEpisode) }, icon('play'), ' ', pick.resume ? 'Resume on Crunchyroll' : `Play on ${pick.nextEpisodeSite || 'Crunchyroll'}`) : null,
         h('button', { type: 'button', class: 'btn', onclick: open }, 'Details'),
