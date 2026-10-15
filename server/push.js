@@ -79,6 +79,14 @@ function quietHours(at = new Date()) {
   return hour >= 23 || hour < 8;
 }
 
+// The episode that just aired, and where you are if you're behind ("Episode 8 is out. You're on episode 4.").
+function episodeLine(x) {
+  const newest = x.aired || x.nextEpisode;
+  if (!newest) return 'A new episode is out.';
+  const behind = x.nextEpisode && x.nextEpisode < newest ? ` You're on episode ${x.nextEpisode}.` : '';
+  return `Episode ${newest} is out.${behind}`;
+}
+
 async function notifyNewEpisodes(items, seasons = [], { now: nowAt = new Date() } = {}) {
   // Nothing is marked as told during quiet hours, so the first check after 8:00 picks it all up.
   if (quietHours(nowAt) && subscriptions().length) return { sent: 0, quiet: true };
@@ -107,7 +115,7 @@ async function notifyNewEpisodes(items, seasons = [], { now: nowAt = new Date() 
   }
   const names = fresh.slice(0, 3).map((x) => x.title);
   const message = fresh.length === 1
-    ? { title: `New episode: ${fresh[0].title}`, body: fresh[0].nextEpisode ? `Episode ${fresh[0].nextEpisode} is out.` : 'A new episode is out.', url: `/#/library?anime=${fresh[0].malId}` }
+    ? { title: `New episode: ${fresh[0].title}`, body: episodeLine(fresh[0]), url: `/#/library?anime=${fresh[0].malId}` }
     : { title: `${fresh.length} new episodes`, body: `${names.join(', ')}${fresh.length > 3 ? ` and ${fresh.length - 3} more` : ''}`, url: '/#/up-next' };
   if (premieres.length) message.body += ` · New season: ${premieres.map((s) => s.title).slice(0, 2).join(', ')}`;
   return { ...(await sendAll(message)), fresh: fresh.length, premieres: premieres.length };
@@ -124,4 +132,4 @@ function libraryPremieres() {
     .map((r) => ({ ...r, inLibrary: false, premiere: true }));
 }
 
-module.exports = { quietHours, libraryPremieres, keys, subscribe, unsubscribe, subscriptions, sendAll, notifyNewEpisodes, vapidJwt, b64url, fromB64url };
+module.exports = { episodeLine, quietHours, libraryPremieres, keys, subscribe, unsubscribe, subscriptions, sendAll, notifyNewEpisodes, vapidJwt, b64url, fromB64url };
