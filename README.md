@@ -48,7 +48,9 @@ It's built around a real account: 3,884 Crunchyroll history entries going back t
 
 **Sync page.** Import a public AniList list by username, or a MyAnimeList list export (episodes watched, scores as stars, on hold and dropped; nothing already watched is ever un-watched). Seasons the tracker matched by guessing (fix one by searching for the right show), shows with odd progress (a finale ticked with most episodes not, usually a stray bulk mark), Crunchyroll seasons you sampled but never tracked, backups, and the extension's version.
 
-**On your phone.** The site installs to the home screen (Add to Home Screen on iOS, Install on Android) and opens offline with whatever it showed last time. Syncing stays on the computer; the phone is for checking what's next and ticking things off.
+**On your phone.** The site installs to the home screen (Add to Home Screen on iOS, Install on Android) and opens offline with whatever it showed last time. Syncing stays on the computer; the phone is for checking what's next and ticking things off. Long-press the icon (Android, desktop) for shortcuts: Play tonight's pick goes straight to that episode on Crunchyroll; the others open Up Next, unfinished shows or Discover.
+
+**Notifications.** Sync → Notifications turns on web push for the device you're holding (on iPhone, from the home-screen app). The background refresh then sends one when a show you're watching has a new episode ("Episode 8 is out. You're on episode 4.", with a Play button on Android and desktop), when a show you watched starts a new season, and when a show you added before it aired premieres. Each is sent once; nothing goes out between 23:00 and 08:00, and the morning check sends what aired overnight. The push itself is empty: the device fetches the text from your tracker with its own login, so show names never pass through Apple's or Google's servers.
 
 ## How it fits together
 
@@ -186,6 +188,8 @@ server/
   crunchyroll.js       history ingest and Crunchyroll season to MAL mapping
   sync.js              background refresh: metadata, new episodes, titles, thumbnails
   state.js             small persistent key/value store (last refresh, last backup)
+  push.js              web push (VAPID, no payload): subscriptions, new-episode/season/premiere checks
+  calendar.js          the private airing-calendar (.ics) feed
   insights.js          Up Next, recommendations, viewing study
   images.js            fetch-once image cache (shrinks PNGs with macOS sips when available)
   sources/anilist.js   rate-limited AniList GraphQL client
