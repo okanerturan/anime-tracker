@@ -72,7 +72,16 @@ async function sendAll(message) {
  * After a refresh: tell devices about episodes that aired since the last check (once per episode).
  * `items` are Up Next's continue-watching cards (title, malId, nextEpisode, latestAiredAt).
  */
-async function notifyNewEpisodes(items, seasons = []) {
+/** 23:00–08:00 in your time zone: hold notifications; the morning check sends what aired overnight. */
+function quietHours(at = new Date()) {
+  const tz = (typeof process !== 'undefined' && process.env && process.env.TIMEZONE) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: tz }).format(at));
+  return hour >= 23 || hour < 8;
+}
+
+async function notifyNewEpisodes(items, seasons = [], { now: nowAt = new Date() } = {}) {
+  // Nothing is marked as told during quiet hours, so the first check after 8:00 picks it all up.
+  if (quietHours(nowAt) && subscriptions().length) return { sent: 0, quiet: true };
   // (Own field name: state.get() overwrites `at` with the row's save time.)
   const checked = state.get('pushChecked')?.checkedAt;
   const last = checked ? new Date(checked).getTime() : Date.now();
@@ -115,4 +124,4 @@ function libraryPremieres() {
     .map((r) => ({ ...r, inLibrary: false, premiere: true }));
 }
 
-module.exports = { libraryPremieres, keys, subscribe, unsubscribe, subscriptions, sendAll, notifyNewEpisodes, vapidJwt, b64url, fromB64url };
+module.exports = { quietHours, libraryPremieres, keys, subscribe, unsubscribe, subscriptions, sendAll, notifyNewEpisodes, vapidJwt, b64url, fromB64url };

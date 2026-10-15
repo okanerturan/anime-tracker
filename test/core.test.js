@@ -317,16 +317,21 @@ test('web push: VAPID token verifies, requests are well-formed, gone subscriptio
     const hourAgo = new Date(Date.now() - 3600e3).toISOString();
     require('../server/state').set('pushChecked', { checkedAt: hourAgo });
     const aired = new Date(Date.now() - 600e3).toISOString();
-    const r2 = await push.notifyNewEpisodes([{ title: 'Old', malId: 1, latestAiredAt: '2020-01-01T00:00:00Z' }, { title: 'Fresh Show', malId: 2, nextEpisode: 5, latestAiredAt: aired }]);
+    const noon = new Date(); noon.setHours(12, 0, 0, 0);
+    const night = new Date(); night.setHours(3, 0, 0, 0);
+    assert.equal(push.quietHours(night), true);
+    assert.equal(push.quietHours(noon), false);
+    assert.equal((await push.notifyNewEpisodes([{ title: 'X', malId: 3, latestAiredAt: new Date().toISOString() }], [], { now: night })).quiet, true);
+    const r2 = await push.notifyNewEpisodes([{ title: 'Old', malId: 1, latestAiredAt: '2020-01-01T00:00:00Z' }, { title: 'Fresh Show', malId: 2, nextEpisode: 5, latestAiredAt: aired }], [], { now: noon });
     assert.equal(r2.fresh, 1);
     assert.equal(require('../server/state').get('pushLatest').title, 'New episode: Fresh Show');
-    const r3 = await push.notifyNewEpisodes([{ title: 'Fresh Show', malId: 2, latestAiredAt: aired }]);
+    const r3 = await push.notifyNewEpisodes([{ title: 'Fresh Show', malId: 2, latestAiredAt: aired }], [], { now: noon });
     assert.equal(r3.fresh, 0, 'the same episode is not announced twice');
     const today = new Date().toISOString().slice(0, 10);
     const season = { malId: 99, title: 'Show Season 2', after: 'Show', inLibrary: false, startDate: today };
-    const r4 = await push.notifyNewEpisodes([], [season, { malId: 98, title: 'Old S2', startDate: '2020-01-01' }]);
+    const r4 = await push.notifyNewEpisodes([], [season, { malId: 98, title: 'Old S2', startDate: '2020-01-01' }], { now: noon });
     assert.equal(r4.premieres, 1);
     assert.equal(require('../server/state').get('pushLatest').title, 'New season: Show Season 2');
-    assert.equal((await push.notifyNewEpisodes([], [season])).premieres, 0, 'a premiere is announced once');
+    assert.equal((await push.notifyNewEpisodes([], [season], { now: noon })).premieres, 0, 'a premiere is announced once');
   } finally { global.fetch = realFetch; }
 });
