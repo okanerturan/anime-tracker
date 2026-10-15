@@ -4,29 +4,25 @@ import { h, icon, media, progress, cardLink } from './ui.js';
 import { openAnime } from './drawer.js';
 
 /**
- * A compact show row: poster and title on the left (one target that opens the show), actions on
- * the right, or underneath with `stack` when there are several.
+ * A show row: poster, title and a grey line, with actions beside it (or under the text with
+ * `stack`, for decision rows with several buttons). The whole row is one target that opens the
+ * show (the title's hit area stretches over the row); the actions sit above that layer.
  *   show      { malId, title, image } opens the show panel; or
  *   href      a URL (e.g. a Crunchyroll page) for shows that aren't in the tracker
  *   sub       the grey second line (text or a node)
- *   actions   buttons/nodes; never put inside the open target (a button can't hold buttons)
+ *   actions   buttons/nodes, kept outside the open target (a button can't hold buttons)
  */
 export function showRow({ show = null, href = null, image = '', title = '', sub = '', actions = [], stack = false, label = null } = {}) {
   const name = title || show?.title || '';
-  const inner = [
-    h('img', { src: image || show?.image || '', alt: '', loading: 'lazy' }),
-    h('span', { class: 'show-row-text' },
-      h('span', { class: 'show-row-title one-line', title: name }, name),
-      sub ? h('span', { class: 'show-row-sub one-line' }, sub) : null)
-  ];
   const open = href
-    ? h('a', { class: 'show-row-open', href, target: '_blank', rel: 'noopener', 'aria-label': label || `Open ${name} on Crunchyroll` }, ...inner)
+    ? h('a', { class: 'show-row-open', href, target: '_blank', rel: 'noopener', title: name, 'aria-label': label || `Open ${name} on Crunchyroll` }, name)
     : show
-      ? h('button', { type: 'button', class: 'show-row-open', 'aria-label': label || `Open ${name}`, onclick: () => openAnime(show) }, ...inner)
-      : h('div', { class: 'show-row-open is-static' }, ...inner);
+      ? h('button', { type: 'button', class: 'show-row-open', title: name, 'aria-label': label || `Open ${name}`, onclick: () => openAnime(show) }, name)
+      : h('span', { class: 'show-row-open is-static', title: name }, name);
   const acts = actions.filter(Boolean);
-  return h('div', { class: `show-row ${stack ? 'show-row--stack' : ''}` },
-    open,
+  return h('div', { class: `show-row ${stack ? 'show-row--stack' : ''} ${href || show ? 'is-link' : ''}`.trim() },
+    h('img', { class: 'show-row-poster', src: image || show?.image || '', alt: '', loading: 'lazy' }),
+    h('div', { class: 'show-row-text' }, open, sub ? h('span', { class: 'show-row-sub one-line' }, sub) : null),
     acts.length ? h('div', { class: 'show-row-actions' }, ...acts) : null);
 }
 

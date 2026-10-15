@@ -1806,55 +1806,80 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 .unfinished-parts .chip-toggle { display: inline-flex; align-items: baseline; gap: 0.45em; }
 .unfinished-parts .chip-toggle:disabled { opacity: 0.4; cursor: default; }
 
-/* ---- showRow (components.js): every compact show row. The poster+title is one target that
-   opens the show; actions sit beside it, or under the title with --stack. ---- */
+/* ---- showRow (components.js) ----
+   One card: the poster runs down the left edge, title and grey line beside it, actions to the
+   right (or under the text with --stack). The title's ::after covers the whole card, so the card
+   is a single click/hover target; the actions sit above that layer. */
 .show-row {
-  --row-pad: var(--space-xs);
+  --poster: 3.5rem;
+  --pad: var(--space-xs);
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: var(--poster) minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: var(--space-xs);
+  column-gap: var(--space-s);
+  row-gap: var(--space-xs);
+  padding: var(--pad);
   padding-inline-end: var(--space-s);
   border: 1px solid var(--line);
   border-radius: var(--radius-outer);
   background: var(--surface);
 }
+.show-row-poster {
+  grid-row: 1 / -1;
+  inline-size: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: max(0.25rem, calc(var(--radius-outer) - var(--pad)));
+  background: var(--surface-2);
+}
+.show-row-text { display: flex; flex-direction: column; gap: 0.3em; min-inline-size: 0; }
 .show-row-open {
-  display: grid;
-  grid-template-columns: 2.75rem minmax(0, 1fr);
-  column-gap: var(--space-s);
-  align-items: center;
-  min-inline-size: 0;
-  padding: var(--row-pad);
+  /* Two lines before shortening: stars or buttons beside it leave little width. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: clip;
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-outer);
   background: none;
   color: inherit;
   font: inherit;
+  font-size: var(--step--1);
+  font-weight: 600;
   text-align: start;
   text-decoration: none;
   cursor: pointer;
 }
 .show-row-open.is-static { cursor: default; }
-.show-row-open > img { inline-size: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: max(0.25rem, calc(var(--radius-outer) - var(--row-pad))); background: var(--surface-2); }
-.show-row-text { display: flex; flex-direction: column; gap: 0.3em; min-inline-size: 0; }
-.show-row-title { font-size: var(--step--1); font-weight: 600; }
+.show-row-open:not(.is-static)::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.show-row-open:focus-visible { outline: none; }
+.show-row:has(.show-row-open:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .show-row-sub { font-size: var(--step--2); color: var(--muted); }
-.show-row-actions { display: flex; align-items: center; gap: var(--space-xs); }
+.show-row-actions { position: relative; z-index: 1; display: flex; align-items: center; gap: var(--space-xs); pointer-events: none; }
+/* Only the controls sit above the card's click layer; the empty space around them belongs to the card. */
+.show-row-actions > * { pointer-events: auto; }
 .show-row-actions .star { font-size: var(--step-0); }
 .show-row-actions .icon-btn { inline-size: 1.75rem; block-size: 1.75rem; border-color: transparent; background: transparent; color: var(--faint); }
-.show-row-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (hover: hover) and (pointer: fine) {
-  .show-row-open:not(.is-static):hover { background: color-mix(in oklch, var(--surface), var(--accent) 10%); }
-  .show-row-open:not(.is-static):hover .show-row-title { color: var(--accent-text); }
+  .show-row.is-link:has(.show-row-open:hover) { border-color: color-mix(in oklch, var(--line), var(--accent) 45%); background: color-mix(in oklch, var(--surface), var(--accent) 6%); }
+  .show-row.is-link:has(.show-row-open:hover) .show-row-open { color: var(--accent-text); }
 }
-.show-row-open:not(.is-static):active { transform: scale(0.99); }
-/* Several actions: under the title, lined up with the text (poster column + gap). */
-.show-row--stack { grid-template-columns: minmax(0, 1fr); padding-inline-end: 0; }
-.show-row--stack > .show-row-actions { flex-wrap: wrap; padding-inline: calc(var(--row-pad) + 2.75rem + var(--space-s)) var(--space-s); padding-block-end: var(--space-s); }
+.show-row.is-link:has(.show-row-open:active) { scale: 0.99; }
+/* Decision rows: a bigger poster down the side, the buttons under the text. */
+.show-row--stack {
+  --poster: 4.75rem;
+  grid-template-columns: var(--poster) minmax(0, 1fr);
+  /* The poster is taller than text + buttons: the spare height goes below the buttons, not between them. */
+  grid-template-rows: auto 1fr;
+  align-items: start;
+  padding-block-end: var(--space-s);
+}
+.show-row--stack > .show-row-text { padding-block-start: var(--space-2xs); }
+.show-row--stack > .show-row-actions { grid-column: 2; flex-wrap: wrap; }
 .show-row.is-done { border-color: var(--good); }
 @media (prefers-reduced-motion: no-preference) {
-  .show-row-open { transition: background-color 140ms var(--ease-out), transform 140ms var(--ease-out); }
-  .show-row { transition: border-color 200ms var(--ease-out), opacity 300ms var(--ease-out); }
+  .show-row { transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), opacity 300ms var(--ease-out), scale 120ms var(--ease-out); }
   .show-row.is-done { opacity: 0.5; }
 }
