@@ -4,7 +4,7 @@ import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 
 const FILTERS = [
-  ['all', 'All'], ['watching', 'Watching'], ['almost', 'Almost done'], ['unfinished', 'Unfinished'], ['completed', 'Completed'],
+  ['all', 'All'], ['watching', 'Watching'], ['almost', 'Almost done'], ['unfinished', 'Unfinished'], ['completed', 'Completed'], ['sequel', 'Sequel out'],
   ['airing', 'Airing'], ['not-started', 'Not started'], ['upcoming', 'Upcoming'], ['on-hold', 'On hold'], ['dropped', 'Dropped'], ['rated', 'Rated']
 ];
 // What each empty filter means, so an empty grid explains itself.
@@ -14,6 +14,7 @@ const EMPTY = {
   almost: 'No show is within three episodes of its finale.',
   unfinished: 'No unfinished shows: everything you started is either done or still active.',
   completed: 'Nothing finished yet.',
+  sequel: 'No finished show has a new season waiting.',
   airing: 'None of your shows is airing at the moment.',
   'not-started': 'Everything in your library has at least one episode watched.',
   upcoming: 'No upcoming seasons in your library. New seasons of finished shows appear on Up Next.',
@@ -53,6 +54,7 @@ function matches(x) {
     'not-started': ['not-started'], upcoming: ['upcoming'], 'on-hold': ['on-hold'], dropped: ['dropped']
   }[state.filter];
   if (state.filter === 'rated' && !x.rating) return false;
+  if (state.filter === 'sequel' && !(x.sequel && progressState(x).key === 'completed')) return false;
   if (state.filter === 'airing' && x.status !== 'RELEASING') return false;
   if (wanted && !wanted.includes(st)) return false;
   if (state.query && !titleMatches(x, state.query, (x.genres || []).join(' '))) return false;
