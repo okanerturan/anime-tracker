@@ -98,7 +98,7 @@ function card(x, inSeries = 1) {
     : null;
   // In-progress shows get a Play pill straight to the next episode, like Up Next.
   const play = x.nextEpisodeUrl && ['watching', 'almost', 'unfinished', 'not-started'].includes(st.key)
-    ? h('a', { class: 'play-overlay', href: x.nextEpisodeUrl, target: '_blank', rel: 'noopener', 'aria-label': x.nextEpisodeUrlIsExact ? `Play episode ${x.nextEpisode} of ${title} on Crunchyroll` : `Open ${title} on ${x.nextEpisodeSite}` }, icon('play'), h('span', {}, x.nextEpisodeUrlIsExact ? `E${x.nextEpisode}` : x.nextEpisodeSite === 'Crunchyroll' ? 'Open' : x.nextEpisodeSite))
+    ? h('a', { class: 'play-overlay', href: x.nextEpisodeUrl, target: '_blank', rel: 'noopener', 'aria-label': x.nextEpisodeUrlIsExact ? `Play episode ${x.nextEpisode} of ${title} on Crunchyroll` : `Open ${title} on ${x.nextEpisodeSite}` }, icon('play'), h('span', {}, x.nextEpisodeUrlIsExact ? `E${x.nextEpisode}` : x.nextEpisodeSite === 'Crunchyroll' ? (st.key === 'not-started' ? 'Start' : 'Open') : x.nextEpisodeSite))
     : null;
   // Same tick as Up Next: mark the next episode watched from the card.
   const tick = x.nextEpisode && ['watching', 'almost', 'unfinished', 'caught-up'].includes(st.key) && st.left > 0
