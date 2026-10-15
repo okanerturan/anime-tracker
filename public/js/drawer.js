@@ -60,7 +60,7 @@ export async function openAnime(partial) {
   };
   const airsAt = item.nextAiringAt ? item.nextAiringAt * (item.nextAiringAt < 1e12 ? 1000 : 1) : null;
 
-  const refreshBtn = h('button', { type: 'button', class: 'btn' }, 'Refresh episodes');
+  const refreshBtn = h('button', { type: 'button', class: 'btn small ghost' }, 'Refresh episodes');
   refreshBtn.addEventListener('click', async () => {
     refreshBtn.disabled = true;
     try {
@@ -71,7 +71,7 @@ export async function openAnime(partial) {
     } catch (err) { toast(err.message); }
     refreshBtn.disabled = false;
   });
-  const removeBtn = h('button', { type: 'button', class: 'btn ghost' }, 'Remove');
+  const removeBtn = h('button', { type: 'button', class: 'btn small ghost btn-danger-quiet' }, 'Remove from library');
   removeBtn.addEventListener('click', async () => {
     // No confirm dialog: remove right away and offer Undo, which puts back the rating and list state too.
     removeBtn.disabled = true;
@@ -86,8 +86,10 @@ export async function openAnime(partial) {
   });
 
   // External links + franchise (prequels, sequels, side stories), filled in once details load.
-  const linksRow = h('div', { class: 'hero-actions' },
-    h('a', { class: 'btn', href: `https://myanimelist.net/anime/${item.malId}`, target: '_blank', rel: 'noopener' }, 'MyAnimeList'));
+  // Upkeep lives in one quiet row at the end: outside links, then refresh and remove (never in the way of Play).
+  const upkeep = () => (item.inLibrary === false ? [] : [refreshBtn, removeBtn]);
+  const linksRow = h('div', { class: 'hero-actions upkeep-row' },
+    h('a', { class: 'btn small ghost', href: `https://myanimelist.net/anime/${item.malId}`, target: '_blank', rel: 'noopener' }, 'MyAnimeList'), ...upkeep());
   const relatedSection = h('section', { class: 'section', hidden: true });
   const similarSection = h('section', { class: 'section', hidden: true });
   const watchRow = h('div', { class: 'hero-actions watch-row' });
@@ -120,7 +122,8 @@ export async function openAnime(partial) {
       ...services.map((l) => ext(l.site, l.url, { class: 'btn small' })));
     fill(linksRow,
       ext('MyAnimeList', d.links.myAnimeList, { class: 'btn small ghost' }),
-      d.links.aniList ? ext('AniList', d.links.aniList, { class: 'btn small ghost' }) : null);
+      d.links.aniList ? ext('AniList', d.links.aniList, { class: 'btn small ghost' }) : null,
+      ...upkeep());
     if (d.similar?.length) {
       similarSection.hidden = false;
       fill(similarSection,
@@ -280,7 +283,7 @@ export async function openAnime(partial) {
           playRow,
           watchRow,
           item.inLibrary === false ? null : listControls(),
-          h('div', { class: 'hero-actions' }, ...(item.inLibrary === false ? notInLibraryActions() : [refreshBtn, removeBtn])),
+          item.inLibrary === false ? h('div', { class: 'hero-actions' }, ...notInLibraryActions()) : null,
           linksRow)),
       // Episodes first: ticking them off is why you open a show; other seasons and lookalikes follow.
       item.inLibrary === false ? null : h('section', { class: 'section' },

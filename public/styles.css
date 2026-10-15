@@ -1892,3 +1892,9 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 .card-meta:has(> .num.push-end) { flex-wrap: nowrap; }
 .card-meta:has(> .num.push-end) > span:not(.pill):not(.num) { min-inline-size: 0; overflow: clip; text-overflow: ellipsis; white-space: nowrap; }
 .card-meta:has(> .num.push-end) > .pill, .card-meta:has(> .num.push-end) > .num { flex-shrink: 0; }
+
+/* Show panel: the upkeep row (links, refresh, remove) is quiet; Remove sits last, red only on hover. */
+.upkeep-row .btn-danger-quiet { margin-inline-start: auto; }
+@media (hover: hover) and (pointer: fine) {
+  .btn-danger-quiet:hover { color: var(--bad, oklch(0.7 0.17 25)); border-color: color-mix(in oklch, var(--line), var(--bad, oklch(0.7 0.17 25)) 50%); }
+}
