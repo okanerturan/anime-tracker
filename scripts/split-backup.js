@@ -18,7 +18,7 @@ if (!input || !outDir) { console.error('usage: node scripts/split-backup.js <bac
 const accountId = rest.includes('--account') ? rest[rest.indexOf('--account') + 1] : '1';
 if (!/^[A-Za-z0-9_-]{1,64}$/.test(accountId)) throw new Error('invalid account id');
 // Same rule as server/state.js.
-const GLOBAL_STATE = /^(anilistBlocked|pushKeys|refreshCycle|episodeRun|backup|seasonal:)/;
+const GLOBAL_STATE = /^(anilistBlocked|catalogPaused|pushKeys|refreshCycle|episodeRun|backup|seasonal:)/;
 
 /** { table: { columns, rows } } from either input format. */
 function readInput(file) {

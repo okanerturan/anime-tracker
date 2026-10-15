@@ -8,7 +8,7 @@
 // single-user mode it is all one table, as before.
 const { db, catalog, MULTI } = require('./db');
 
-const GLOBAL = /^(anilistBlocked|pushKeys|refreshCycle|episodeRun|backup|seasonal:)/;
+const GLOBAL = /^(anilistBlocked|catalogPaused|pushKeys|refreshCycle|episodeRun|backup|seasonal:)/;
 
 const statements = (handle, table) => ({
   get: handle.prepare(`SELECT value, at FROM ${table} WHERE key = ?`),

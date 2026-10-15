@@ -295,4 +295,4 @@ function relayStatus() {
   };
 }
 
-module.exports = { gql, fetchFullByMalIds, search, toLibraryAnime, storeFull, takeRelayJobs, applyRelayAnswers, relayStatus, isBlocked, AniListBlockedError };
+module.exports = { FULL_QUERY, gql, fetchFullByMalIds, search, toLibraryAnime, storeFull, takeRelayJobs, applyRelayAnswers, relayStatus, isBlocked, AniListBlockedError };

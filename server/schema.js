@@ -141,6 +141,27 @@ CREATE TABLE IF NOT EXISTS app_state (
   at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Catalog worker (hosted mode): AniList jobs, deduplicated by key; priority grows with every
+-- account that waits on a job and with how recent the plays waiting on it are.
+CREATE TABLE IF NOT EXISTS catalog_jobs (
+  key TEXT PRIMARY KEY,
+  type TEXT NOT NULL,               -- full | search | refresh
+  payload TEXT NOT NULL,            -- JSON: { malId } or { query }
+  priority REAL NOT NULL DEFAULT 0,
+  waiting INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'queued',   -- queued | done | quarantined
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_catalog_jobs_next ON catalog_jobs(status, priority DESC, created_at);
+CREATE TABLE IF NOT EXISTS catalog_lease (
+  name TEXT PRIMARY KEY,
+  holder TEXT NOT NULL,
+  expires_at INTEGER NOT NULL       -- ms since epoch
+);
+
 -- Settings that are the same for everyone (hosted mode keeps them in the catalog; see state.js).
 CREATE TABLE IF NOT EXISTS catalog_state (
   key TEXT PRIMARY KEY,
@@ -197,7 +218,7 @@ const ADDED_COLUMNS = [
 // recommendations, the image index, AniList job queues, Crunchyroll season fetch times) lives in
 // one catalog file; everything about a person lives in their account file. Single-user mode keeps
 // all of it in one file, as before.
-const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state']);
+const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state', 'catalog_jobs', 'catalog_lease']);
 
 /** The table a CREATE TABLE / CREATE INDEX statement is about. */
 function tableOf(statement) {
