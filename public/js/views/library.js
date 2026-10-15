@@ -102,7 +102,29 @@ function card(x) {
       statusPill(x.status),
       h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
       x.rating ? h('span', { class: 'num rating', title: `Your rating: ${x.rating}/5` }, `★${x.rating}`) : null,
-      h('span', { class: 'num push-end' }, `${x.watchedCount}/${aired ?? '?'}`)));
+      h('span', { class: 'num push-end' }, `${x.watchedCount}/${aired ?? '?'}`)),
+    state.filter === 'unfinished' ? triage(x, title) : null);
+}
+
+/** Hold / Drop straight from an Unfinished card, with Undo in the toast. */
+function triage(x, title) {
+  const act = (label, status, cls) => {
+    const b = h('button', { type: 'button', class: cls }, label);
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      try {
+        await api.setListStatus(x.malId, status);
+        x.listStatus = status;
+        bus.emit('library-changed');
+        render(document.getElementById('view'));
+        toast(status === 'dropped' ? `Dropped ${title}` : `${title} is on hold`, { label: 'Undo', onClick: async () => {
+          try { await api.setListStatus(x.malId, null); x.listStatus = null; bus.emit('library-changed'); render(document.getElementById('view')); } catch (err) { toast(err.message); }
+        } });
+      } catch (err) { b.disabled = false; toast(err.message); }
+    });
+    return b;
+  };
+  return h('div', { class: 'card-actions card-actions--pair' }, act('Hold', 'on_hold', 'btn small'), act('Drop', 'dropped', 'btn small ghost'));
 }
 
 export async function render(view) {
@@ -123,11 +145,12 @@ export async function render(view) {
       writeSnap(serverSort, state.items);
     }
   }
-  const grid = h('div', { class: 'cards', style: { '--rows': '4' } });
+  const grid = h('div', { class: 'cards', style: { '--rows': state.filter === 'unfinished' ? '5' : '4' } });
   const count = h('span', { class: 'sub num' });
   // How many shows each filter would show, so a filter never looks broken when it's simply empty.
   const countFor = (key) => { const was = state.filter; const q = state.query; state.filter = key; state.query = ''; const n = state.items.filter(matches).length; state.filter = was; state.query = q; return n; };
   const draw = () => {
+    grid.style.setProperty('--rows', state.filter === 'unfinished' ? '5' : '4');
     let list = state.items.filter(matches);
     if (state.sort === 'rating_desc') {
       // Your stars first, highest up; unrated shows after, by recent activity.
