@@ -167,3 +167,22 @@ test('a finale ticked with most episodes unwatched is flagged as odd progress', 
   library.setWatched(700, 12, false);
   assert.ok(!library.suspiciousProgress().some((x) => x.malId === 700));
 });
+
+test('a MyAnimeList export imports progress, ratings and list states without lowering existing progress', () => {
+  addShow(800, 'Already Here', { episodes: 12 });
+  library.markWatchedElsewhere(800); // 12/12 already
+  const r = library.importMalList([
+    { malId: 800, title: 'Already Here', episodes: 12, watched: 3, score: 8, status: 'watching' },
+    { malId: 801, title: 'New Finished', episodes: 4, watched: 4, score: 9, status: 'completed' },
+    { malId: 802, title: 'New Dropped', episodes: 24, watched: 2, score: 3, status: 'dropped' },
+    { malId: 803, title: 'Someday', episodes: 12, watched: 0, score: 0, status: 'plan' }
+  ]);
+  assert.equal(r.added, 2);
+  assert.equal(r.skipped, 1);
+  assert.deepEqual(watched(800).length, 12, 'existing progress is never lowered');
+  assert.deepEqual(watched(801), [1, 2, 3, 4]);
+  const lib = library.getWatchlist('title_asc');
+  assert.equal(lib.find((x) => x.malId === 801).rating, 5);
+  assert.equal(lib.find((x) => x.malId === 802).listStatus, 'dropped');
+  assert.equal(library.isInLibrary(803), false);
+});

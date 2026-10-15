@@ -366,7 +366,41 @@ function suspiciousProgress() {
     .map((r) => ({ malId: r.malId, title: r.title, image: images.localUrl(r.cover), watched: r.watched, aired: r.aired }));
 }
 
+/**
+ * Import a MyAnimeList list export (already parsed): [{ malId, title, episodes, watched, score, status }].
+ * Uses only what the file contains, so it works without AniList; metadata fills in afterwards.
+ * Never un-watches anything and never lowers progress the tracker already has.
+ */
+function importMalList(entries) {
+  const summary = { shows: 0, added: 0, episodesMarked: 0, rated: 0, held: 0, dropped: 0, skipped: 0 };
+  const insertEp = db.prepare(`INSERT OR IGNORE INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, updated_at)
+    VALUES (?, ?, 1, ?, '', NULL, 0, CURRENT_TIMESTAMP)`);
+  const ratingStmt = db.prepare('UPDATE watchlist SET rating = ? WHERE mal_id = ? AND rating IS NULL');
+  const statusStmt = db.prepare('UPDATE watchlist SET list_status = ? WHERE mal_id = ? AND list_status IS NULL');
+  db.transaction(() => {
+    for (const e of entries || []) {
+      const malId = Number(e.malId);
+      const watched = Math.max(0, Math.floor(Number(e.watched) || 0));
+      if (!malId || !e.title) { summary.skipped += 1; continue; }
+      // Plan-to-watch entries with nothing watched are skipped: they'd only clutter "Not started".
+      if (!watched && e.status === 'plan') { summary.skipped += 1; continue; }
+      summary.shows += 1;
+      if (!isInLibrary(malId)) { addToLibrary({ malId, title: e.title, titleEnglish: '', totalEpisodes: Number(e.episodes) || null }); summary.added += 1; }
+      if (watched) {
+        for (let n = 1; n <= watched; n += 1) insertEp.run(malId, n, `Episode ${n}`);
+        summary.episodesMarked += markWatchedThrough(malId, watched).changed || 0;
+      }
+      const score = Number(e.score) || 0;
+      if (score > 0 && ratingStmt.run(Math.max(1, Math.min(5, Math.round(score / 2))), malId).changes) summary.rated += 1;
+      if (e.status === 'onhold' && statusStmt.run('on_hold', malId).changes) summary.held += 1;
+      if (e.status === 'dropped' && statusStmt.run('dropped', malId).changes) summary.dropped += 1;
+    }
+  })();
+  return summary;
+}
+
 module.exports = {
+  importMalList,
   suspiciousProgress,
   progressOf,
   resolveOverflow,

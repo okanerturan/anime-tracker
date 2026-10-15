@@ -44,7 +44,7 @@ It's built around a real account: 3,884 Crunchyroll history entries going back t
 
 **Keyboard.** ⌘K / Ctrl+K opens any show by name (or searches AniList), `/` jumps to search, 1–5 switch tabs, `?` lists them all.
 
-**Sync page.** Seasons the tracker matched by guessing (fix one by searching for the right show), shows with odd progress (a finale ticked with most episodes not, usually a stray bulk mark), Crunchyroll seasons you sampled but never tracked, backups, and the extension's version.
+**Sync page.** Import a MyAnimeList list export (episodes watched, scores as stars, on hold and dropped; nothing already watched is ever un-watched). Seasons the tracker matched by guessing (fix one by searching for the right show), shows with odd progress (a finale ticked with most episodes not, usually a stray bulk mark), Crunchyroll seasons you sampled but never tracked, backups, and the extension's version.
 
 **On your phone.** The site installs to the home screen (Add to Home Screen on iOS, Install on Android) and opens offline with whatever it showed last time. Syncing stays on the computer; the phone is for checking what's next and ticking things off.
 

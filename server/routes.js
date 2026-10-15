@@ -188,6 +188,18 @@ const routes = {
     return sendJSON(res, 200, result);
   },
   // For the extension's card on crunchyroll.com series pages.
+  // MyAnimeList export import (the page parses the XML and sends the entries).
+  'POST /api/import/mal': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    const entries = Array.isArray(body.entries) ? body.entries.slice(0, 10000) : [];
+    const summary = library.importMalList(entries);
+    // Metadata, episode titles and thumbnails for the new shows fill in in the background.
+    const ids = entries.map((e) => Number(e.malId)).filter(Boolean);
+    anilist.fetchFullByMalIds(ids).catch(() => {}).finally(() => ids.slice(0, 300).forEach((id) => sync.enqueue(id)));
+    insights.invalidate();
+    return sendJSON(res, 200, summary);
+  },
   'GET /api/library/suspicious': (req, res) => sendJSON(res, 200, library.suspiciousProgress()),
   'GET /api/crunchyroll/series-info': (req, res, url) => sendJSON(res, 200, require('./crlinks').showsForSeries(String(url.searchParams.get('seriesId') || ''))),
   'POST /api/crunchyroll/dismiss-play': async (req, res) => {

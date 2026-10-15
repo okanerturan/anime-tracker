@@ -1,5 +1,36 @@
 import { api } from '../api.js';
+import { bus } from '../bus.js';
 import { h, section, ago, toast, FORMAT_LABEL } from '../ui.js';
+
+const MAL_STATUS = { Completed: 'completed', Watching: 'watching', 'On-Hold': 'onhold', Dropped: 'dropped', 'Plan to Watch': 'plan' };
+
+/** Read a MAL export (.xml or .xml.gz) in the browser and send just the fields the tracker needs. */
+function malInput() {
+  const input = h('input', { type: 'file', accept: '.xml,.gz,application/xml,application/gzip', 'aria-label': 'MyAnimeList export file' });
+  const status = h('p', { class: 'muted', role: 'status' });
+  input.addEventListener('change', async () => {
+    const file = input.files[0];
+    if (!file) return;
+    try {
+      status.textContent = 'Reading…';
+      const text = /\.gz$/i.test(file.name)
+        ? await new Response(file.stream().pipeThrough(new DecompressionStream('gzip'))).text()
+        : await file.text();
+      const doc = new DOMParser().parseFromString(text, 'application/xml');
+      const pick = (n, tag) => n.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
+      const entries = [...doc.getElementsByTagName('anime')].map((n) => ({
+        malId: Number(pick(n, 'series_animedb_id')), title: pick(n, 'series_title'), episodes: Number(pick(n, 'series_episodes')) || null,
+        watched: Number(pick(n, 'my_watched_episodes')) || 0, score: Number(pick(n, 'my_score')) || 0, status: MAL_STATUS[pick(n, 'my_status')] || null
+      })).filter((e) => e.malId);
+      if (!entries.length) { status.textContent = 'No anime found in that file. Is it a MyAnimeList anime list export?'; return; }
+      status.textContent = `Importing ${entries.length} shows…`;
+      const r = await api.importMal(entries);
+      status.textContent = `Imported ${r.shows} shows: ${r.added} new to the library, ${r.episodesMarked} episodes marked watched, ${r.rated} ratings, ${r.held} on hold, ${r.dropped} dropped${r.skipped ? `, ${r.skipped} plan-to-watch skipped` : ''}. Details and thumbnails fill in over the next minutes.`;
+      bus.emit('library-changed');
+    } catch (err) { status.textContent = `Import failed: ${err.message}`; }
+  });
+  return [input, status];
+}
 
 export async function render(view) {
   view.replaceChildren(h('div', { class: 'skeleton' }));
@@ -109,6 +140,12 @@ export async function render(view) {
         });
         return row;
       }))) : null,
+    section('Import from MyAnimeList', 'Bring in everything you tracked elsewhere: episodes watched, scores (as stars), on hold and dropped',
+      h('div', { class: 'panel' },
+        h('ol', { class: 'steps' },
+          h('li', {}, 'On MyAnimeList, open ', h('a', { href: 'https://myanimelist.net/panel.php?go=export', target: '_blank', rel: 'noopener' }, 'Export'), ' and export your anime list. You get a .xml.gz file.'),
+          h('li', {}, 'Choose that file (or the .xml inside it) here. Nothing already watched is ever un-watched.')),
+        malInput())),
     section('Manual import', 'Alternative to the extension: a watch-history JSON export', h('div', { class: 'panel' }, fileInput)),
     section('Background metadata', [
       bg.phase !== 'idle' ? `Refreshing (${bg.phase})` : bg.lastCycle ? `Last refresh ${ago(bg.lastCycle.at)}` : 'No refresh yet',

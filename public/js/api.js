@@ -39,6 +39,7 @@ export const api = {
   history: (before) => request(`/api/history${before ? `?before=${encodeURIComponent(before)}` : ''}`),
   crStatus: () => request('/api/crunchyroll/status'),
   crDismissPlay: (episodeId, undo = false) => post('/api/crunchyroll/dismiss-play', { episodeId, undo }),
+  importMal: (entries) => post('/api/import/mal', { entries }),
   suspicious: () => request('/api/library/suspicious'),
   crTrack: (seasonId) => post('/api/crunchyroll/track', { seasonId }),
   crRemap: (seasonId, malId, offset) => post('/api/crunchyroll/remap', { seasonId, malId, offset }),
