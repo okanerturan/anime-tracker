@@ -16,7 +16,20 @@ async function request(url, options = {}, relayRounds = 0) {
   if (!res.ok) throw new Error(body.error || `Request failed: ${res.status}`);
   return body;
 }
-const post = (url, data) => request(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'app' }, body: JSON.stringify(data || {}) });
+// Short in-memory cache for the slower read-only views (Discover, Insights), so switching back to a
+// tab within a minute paints at once. Any change made through the app (every POST) clears it.
+const memo = new Map();
+function cached(url, ttl = 60000) {
+  const hit = memo.get(url);
+  if (hit && Date.now() - hit.at < ttl) return hit.promise;
+  const promise = request(url);
+  memo.set(url, { at: Date.now(), promise });
+  promise.catch(() => memo.delete(url));
+  return promise;
+}
+export function clearCache() { memo.clear(); }
+
+const post = (url, data) => { memo.clear(); return request(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'app' }, body: JSON.stringify(data || {}) }); };
 
 export const api = {
   upNext: () => request('/api/up-next'),
@@ -37,10 +50,10 @@ export const api = {
   remove: (malId) => post('/api/watchlist/remove', { malId }),
   restore: (removed) => post('/api/watchlist/restore', { removed }),
   search: (q) => request(`/api/search?q=${encodeURIComponent(q)}`),
-  recommendations: (refresh) => request(`/api/recommendations${refresh ? '?refresh=1' : ''}`),
+  recommendations: (refresh) => (refresh ? (memo.clear(), request('/api/recommendations?refresh=1')) : cached('/api/recommendations')),
   dismiss: (malId, undo = false) => post('/api/recommendations/dismiss', { malId, undo }),
-  study: () => request('/api/study'),
-  seasonal: () => request('/api/seasonal'),
+  study: () => cached('/api/study'),
+  seasonal: () => cached('/api/seasonal'),
   history: (before) => request(`/api/history${before ? `?before=${encodeURIComponent(before)}` : ''}`),
   crStatus: () => request('/api/crunchyroll/status'),
   crDismissPlay: (episodeId, undo = false) => post('/api/crunchyroll/dismiss-play', { episodeId, undo }),

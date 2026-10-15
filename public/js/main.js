@@ -1,4 +1,4 @@
-import { api } from './api.js';
+import { api, clearCache } from './api.js';
 import { runRelay } from './anilist-relay.js';
 import { openQuickSwitcher } from './quickopen.js';
 import { bus } from './bus.js';
@@ -114,6 +114,9 @@ async function relayTick() {
 }
 relayTimer = setTimeout(relayTick, 3000);
 bus.on('relay-now', relayTick);
+// Anything that changes the library (including relayed AniList data) makes cached views stale.
+bus.on('library-changed', clearCache);
+bus.on('recommendations-changed', clearCache);
 
 // Offline shell (see sw.js). Registered after load so it never competes with the first paint.
 if ('serviceWorker' in navigator) {
