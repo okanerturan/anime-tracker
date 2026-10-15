@@ -136,10 +136,12 @@ function card(x, inSeries = 1, eager = false) {
   const el = showCard({ show: { ...x, title, image: x.imageUrl }, eager, cls: `is-${st.key} ${inSeries > 1 ? 'is-stack' : ''} ${select.on && select.ids.has(x.malId) ? 'is-selected' : ''}`,
     badges: [h('div', { class: 'badge-end' }, badge), play || sequel, tick],
     progress: aired ? Math.min((x.progress ?? x.watchedCount), aired) / aired : 0,
+    // One short line: an airing tag says enough on its own, so the year and format only show without it.
     meta: h('div', { class: 'card-meta' },
       st.key === 'upcoming' ? null : statusPill(x.status),
       inSeries > 1 ? h('span', { title: 'Seasons, movies and OVAs of this series in your library. Open it to see them all.' }, `${inSeries} in series`)
-        : h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
+        : st.key !== 'upcoming' && statusPill(x.status) ? null
+          : h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
       x.rating ? h('span', { class: 'num rating', title: `Your rating: ${x.rating}/5` }, `★${x.rating}`) : null,
       st.key === 'upcoming' && !(x.progress ?? x.watchedCount) ? null : h('span', { class: 'num push-end' }, `${(x.progress ?? x.watchedCount)}/${aired ?? '?'}`)),
     actions: state.filter === 'unfinished' ? triage(x, title) : null });

@@ -566,6 +566,7 @@ html:has(dialog:modal) { overflow: hidden; }
 .card-meta {
   display: flex;
   flex-wrap: wrap;
+  min-inline-size: 0;
   align-items: center;
   gap: var(--space-2xs) var(--space-xs);
   color: var(--faint);
@@ -595,7 +596,9 @@ html:has(dialog:modal) { overflow: hidden; }
 .card::after { box-shadow: 0 6px 12px oklch(0 0 none / 0.18), 0 16px 36px oklch(0 0 none / 0.28); opacity: 0; }
 
 @media (hover: hover) and (pointer: fine) {
-  .card:hover { border-color: color-mix(in oklch, var(--line), var(--text) 18%); }
+  /* Same hover language as show rows: accent edge, title in the accent text colour, lifted shadow. */
+  .card:hover { border-color: color-mix(in oklch, var(--line), var(--accent) 45%); }
+  .card:hover .card-link { color: var(--accent-text); }
   .card:hover::before { opacity: 0; }
   .card:hover::after { opacity: 1; }
 }
@@ -1883,3 +1886,9 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
   .show-row { transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), opacity 300ms var(--ease-out), scale 120ms var(--ease-out); }
   .show-row.is-done { opacity: 0.5; }
 }
+
+/* With a count at the end (Library): one line, year and format give way (…) so "15/15" never
+   drops to a line of its own. Plain text metas (Discover) still wrap. */
+.card-meta:has(> .num.push-end) { flex-wrap: nowrap; }
+.card-meta:has(> .num.push-end) > span:not(.pill):not(.num) { min-inline-size: 0; overflow: clip; text-overflow: ellipsis; white-space: nowrap; }
+.card-meta:has(> .num.push-end) > .pill, .card-meta:has(> .num.push-end) > .num { flex-shrink: 0; }
