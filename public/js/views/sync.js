@@ -189,7 +189,10 @@ export async function render(view) {
         h('li', {}, 'Open crunchyroll.com once while logged in. The extension syncs right away, then every 30 minutes while Chrome is open and a couple of minutes after you finish an episode.'),
         h('li', {}, 'In the extension’s popup, set the Tracker URL to this page’s address (and the passphrase as Tracker key when it’s hosted). The popup shows the last sync and has a “Sync now” button.')),
         h('p', { class: 'muted' }, 'The extension uses your existing Crunchyroll login inside your own browser. It never stores your password or tokens, and only talks to crunchyroll.com and your tracker.'))),
-    cr.rows ? section('Needs review', 'Seasons the tracker mapped by guessing', h('div', { class: 'panel' }, review)) : null,
+    // Nothing to review (the usual case): one quiet line instead of an empty section.
+    cr.rows ? (cr.needsReview.length
+      ? section('Needs review', 'Seasons the tracker mapped by guessing', h('div', { class: 'panel' }, review))
+      : h('p', { class: 'muted all-clear' }, '✓ Every Crunchyroll season you played is matched to a show. Nothing needs review.')) : null,
     odd.length ? section('Odd progress', `${odd.length} show${odd.length === 1 ? '' : 's'} with the finale ticked but most episodes not. Usually a mapping slip or a stray bulk mark.`,
       h('div', { class: 'quiet-list' }, odd.map((x) => {
         const all = h('button', { type: 'button', class: 'btn small' }, 'I watched it all');
