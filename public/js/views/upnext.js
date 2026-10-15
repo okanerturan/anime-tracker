@@ -3,7 +3,7 @@ import { h, fill, icon, media, progress, carousel, cardLink, relTime, ago, toast
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 import { rememberPlay } from '../playcheck.js';
-import { showRow } from '../components.js';
+import { showRow, showCard, playPill } from '../components.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 /** "~46 min" / "~2 h 10 min" for n episodes of a given length; null when the length is unknown. */
@@ -94,8 +94,8 @@ function epCard(item, mode, onChange) {
     ? h('a', { class: 'play-overlay', href: item.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${item.title} on Crunchyroll` }, icon('play'), h('span', {}, 'Crunchyroll'))
     : null;
   const play = seasonPlay || (playUrl && (mode === 'continue' || mode === 'airing' || mode === 'hold' || mode === 'stalled')
-    ? h('a', { class: 'play-overlay', href: playUrl, target: '_blank', rel: 'noopener', 'aria-label': playExact ? `Play episode ${item.nextEpisode} on Crunchyroll` : `Open ${item.title} on Crunchyroll`, onclick: () => playToast(playExact ? item.nextEpisode : null, item) },
-        icon('play'), h('span', {}, playExact ? `Play E${item.nextEpisode}` : `Open on ${item.nextEpisodeSite || 'Crunchyroll'}`))
+    ? playPill(playUrl, playExact ? `Play E${item.nextEpisode}` : `Open on ${item.nextEpisodeSite || 'Crunchyroll'}`, {
+        label: playExact ? `Play episode ${item.nextEpisode} on Crunchyroll` : `Open ${item.title} on Crunchyroll`, onClick: () => playToast(playExact ? item.nextEpisode : null, item) })
     : null);
   // Watched it elsewhere, or the sync hasn't caught up: tick the next episode without opening the show.
   const tick = ((mode === 'continue' || mode === 'stalled') && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched. Shift-click (or hold, on touch) marks every aired episode.` }, icon('check')) : null;
@@ -173,13 +173,8 @@ function epCard(item, mode, onChange) {
       }
     });
   }
-  return h('article', { class: `card ${play ? 'has-play' : ''}` },
-    media({ src: still, fallback: item.image, alt: '', badges: [badge, play, tick, more] }),
-    progress(frac, { hideWhenEmpty: mode === 'season' }),
-    cardLink(item.title, open, { lines: 1, href: `https://myanimelist.net/anime/${item.malId}` }),
-    h('p', { class: 'card-sub one-line', title: line }, line),
-    h('p', { class: 'card-meta' }, meta.join(' · ')),
-    actions, menu);
+  return showCard({ show: item, open, kind: 'wide', image: still, fallback: item.image, badges: [badge, play, tick, more],
+    progress: frac, progressOpts: { hideWhenEmpty: mode === 'season' }, lines: 1, sub: line, subClass: 'one-line', meta, actions, extra: [menu] });
 }
 
 const watchUrl = (p) => `https://www.crunchyroll.com/watch/${encodeURIComponent(p.episodeId)}`;
@@ -203,16 +198,11 @@ function pausedCard(p, onTracked) {
   }
   // Dismiss a paused episode you won't come back to; Undo in the toast brings it back.
   const dismiss = h('button', { type: 'button', class: 'icon-btn card-tick card-dismiss', 'aria-label': `Hide ${p.seriesTitle} from this shelf`, title: 'Hide from this shelf' }, icon('close'));
-  const el = h('article', { class: 'card has-play' },
-    media({ src: p.thumb, alt: '', badges: [
-      h('a', { class: 'play-overlay', href: watchUrl(p), target: '_blank', rel: 'noopener', 'aria-label': `Resume ${p.seriesTitle} on Crunchyroll` }, icon('play'), h('span', {}, `Resume · ${minsLeft} min`)),
-      dismiss] }),
-    progress(p.durationS ? p.playhead / p.durationS : 0),
-    // Clicking a paused episode resumes it on Crunchyroll.
-    cardLink(p.seriesTitle, () => window.open(watchUrl(p), '_blank', 'noopener'), { lines: 1, href: watchUrl(p) }),
-    h('p', { class: 'card-sub one-line', title: name }, `E${p.episodeNumber ?? ''} · ${name}`),
-    h('p', { class: 'card-meta' }, `${Math.round((p.durationS - p.playhead) / 60)} min left · ${ago(p.datePlayed)}`),
-    track ? h('div', { class: 'card-actions' }, track) : null);
+  // Clicking a paused episode resumes it on Crunchyroll.
+  const el = showCard({ title: p.seriesTitle, open: () => window.open(watchUrl(p), '_blank', 'noopener'), link: watchUrl(p), kind: 'wide', image: p.thumb,
+    badges: [playPill(watchUrl(p), `Resume · ${minsLeft} min`, { label: `Resume ${p.seriesTitle} on Crunchyroll` }), dismiss],
+    progress: p.durationS ? p.playhead / p.durationS : 0, lines: 1, sub: `E${p.episodeNumber ?? ''} · ${name}`, subClass: 'one-line',
+    meta: [`${Math.round((p.durationS - p.playhead) / 60)} min left`, ago(p.datePlayed)], actions: track ? [track] : null });
   dismiss.addEventListener('click', async () => {
     try {
       await api.crDismissPlay(p.episodeId);

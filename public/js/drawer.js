@@ -4,6 +4,7 @@ import { h, fill, icon, media, toast, statusPill, relTime, FORMAT_LABEL } from '
 import { runRelay } from './anilist-relay.js';
 import { bus } from './bus.js';
 import { rememberPlay } from './playcheck.js';
+import { showCard } from './components.js';
 
 const dialog = () => document.getElementById('drawer');
 
@@ -149,15 +150,11 @@ export async function openAnime(partial) {
         catch (err) { addBtn.disabled = false; toast(err.message); }
       });
     }
-    return h('article', { class: `card related-card ${done ? 'is-completed' : ''}` },
-      media({ src: r.image, alt: '', kind: 'poster' }),
-      h('div', { class: 'related-info' },
-        h('span', { class: 'pill' }, label),
-        h('h3', { class: 'card-title clamp-2', title: r.title },
-          h('a', { class: 'card-link', href: `https://myanimelist.net/anime/${r.malId}`, onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); open(); } }, r.title)),
-        h('p', { class: 'card-meta' }, [r.startDate?.slice(0, 4), FORMAT_LABEL[r.format] || r.format, r.episodes ? `${r.episodes} eps` : null].filter(Boolean).join(' · ')),
-        h('p', { class: `card-sub ${done ? 'done-text' : ''}` }, progressText),
-        addBtn));
+    // Side-by-side layout: the text parts sit in .related-info next to the poster.
+    return showCard({ show: { malId: r.malId, title: r.title, image: r.image }, open, cls: `related-card ${done ? 'is-completed' : ''}`, wrap: 'related-info',
+      pill: h('span', { class: 'pill' }, label),
+      meta: [r.startDate?.slice(0, 4), FORMAT_LABEL[r.format] || r.format, r.episodes ? `${r.episodes} eps` : null],
+      metaFirst: true, sub: progressText, subClass: done ? 'done-text' : '', actions: addBtn });
   }
 
   function notInLibraryActions() {

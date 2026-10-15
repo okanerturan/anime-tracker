@@ -3,6 +3,7 @@ import { h, fill, icon, media, progress, cardLink, statusPill, ago, toast, FORMA
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 import { rememberPlay } from '../playcheck.js';
+import { showCard, playPill } from '../components.js';
 
 const FILTERS = [
   ['all', 'All'], ['watching', 'Watching'], ['almost', 'Almost done'], ['unfinished', 'Unfinished'], ['completed', 'Completed'], ['sequel', 'Sequel out'],
@@ -116,7 +117,9 @@ function card(x, inSeries = 1, eager = false) {
     : null;
   // In-progress shows get a Play pill straight to the next episode, like Up Next.
   const play = x.nextEpisodeUrl && ['watching', 'almost', 'unfinished', 'not-started'].includes(st.key)
-    ? h('a', { class: 'play-overlay', href: x.nextEpisodeUrl, target: '_blank', rel: 'noopener', onclick: () => { if (x.nextEpisodeUrlIsExact) rememberPlay({ malId: x.malId, title }, x.nextEpisode); }, 'aria-label': x.nextEpisodeUrlIsExact ? `Play episode ${x.nextEpisode} of ${title} on Crunchyroll` : `Open ${title} on ${x.nextEpisodeSite}` }, icon('play'), h('span', {}, x.nextEpisodeUrlIsExact ? `E${x.nextEpisode}` : x.nextEpisodeSite === 'Crunchyroll' ? (st.key === 'not-started' ? 'Start' : 'Open') : x.nextEpisodeSite))
+    ? playPill(x.nextEpisodeUrl, x.nextEpisodeUrlIsExact ? `E${x.nextEpisode}` : x.nextEpisodeSite === 'Crunchyroll' ? (st.key === 'not-started' ? 'Start' : 'Open') : x.nextEpisodeSite, {
+        label: x.nextEpisodeUrlIsExact ? `Play episode ${x.nextEpisode} of ${title} on Crunchyroll` : `Open ${title} on ${x.nextEpisodeSite}`,
+        onClick: () => { if (x.nextEpisodeUrlIsExact) rememberPlay({ malId: x.malId, title }, x.nextEpisode); } })
     : null;
   // Same tick as Up Next: mark the next episode watched from the card.
   const tick = x.nextEpisode && ['watching', 'almost', 'unfinished', 'caught-up'].includes(st.key) && st.left > 0
@@ -130,17 +133,16 @@ function card(x, inSeries = 1, eager = false) {
     }
     catch (err) { tick.disabled = false; toast(err.message); }
   });
-  const el = h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''} ${inSeries > 1 ? 'is-stack' : ''} ${select.on && select.ids.has(x.malId) ? 'is-selected' : ''}` },
-    media({ src: x.imageUrl, alt: '', kind: 'poster', eager, badges: [h('div', { class: 'badge-end' }, badge), play || sequel, tick] }),
-    progress(aired ? Math.min((x.progress ?? x.watchedCount), aired) / aired : 0),
-    cardLink(title, () => openAnime({ ...x, title, image: x.imageUrl }), { href: `https://myanimelist.net/anime/${x.malId}` }),
-    h('div', { class: 'card-meta' },
+  const el = showCard({ show: { ...x, title, image: x.imageUrl }, eager, cls: `is-${st.key} ${inSeries > 1 ? 'is-stack' : ''} ${select.on && select.ids.has(x.malId) ? 'is-selected' : ''}`,
+    badges: [h('div', { class: 'badge-end' }, badge), play || sequel, tick],
+    progress: aired ? Math.min((x.progress ?? x.watchedCount), aired) / aired : 0,
+    meta: h('div', { class: 'card-meta' },
       st.key === 'upcoming' ? null : statusPill(x.status),
       inSeries > 1 ? h('span', { title: 'Seasons, movies and OVAs of this series in your library. Open it to see them all.' }, `${inSeries} in series`)
         : h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
       x.rating ? h('span', { class: 'num rating', title: `Your rating: ${x.rating}/5` }, `★${x.rating}`) : null,
       st.key === 'upcoming' && !(x.progress ?? x.watchedCount) ? null : h('span', { class: 'num push-end' }, `${(x.progress ?? x.watchedCount)}/${aired ?? '?'}`)),
-    state.filter === 'unfinished' ? triage(x, title) : null);
+    actions: state.filter === 'unfinished' ? triage(x, title) : null });
   // In select mode a click anywhere on the card toggles it (capture phase, before links and buttons).
   el.addEventListener('click', (e) => {
     if (!select.on) return;

@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { h, fill, icon, media, section, carousel, toast, cardLink, FORMAT_LABEL } from '../ui.js';
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
+import { showCard, playPill } from '../components.js';
 
 function addButton(anime, inLibrary) {
   const btn = h('button', { type: 'button', class: 'btn small primary' }, inLibrary ? 'In library' : 'Add');
@@ -78,20 +79,18 @@ function recCard(r, onDismiss) {
     onDismiss();
     toast(`Hidden ${r.title}`, { label: 'Undo', onClick: async () => { await api.dismiss(r.malId, true); bus.emit('recommendations-changed'); } });
   });
-  const open = () => openAnime({ malId: r.malId, title: r.title, image: r.image });
-  return h('article', { class: 'card rec-card' },
-    media({ src: r.image, alt: '', kind: 'poster', badges: [
-      dismiss,
-      r.crunchyrollUrl ? h('a', { class: 'play-overlay', href: r.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${r.title} on Crunchyroll`, title: 'Open on Crunchyroll' }, icon('play'), h('span', {}, 'Crunchyroll')) : null,
-      r.match != null ? h('div', { class: 'badge-end' }, h('span', { class: 'pill accent num' }, `${r.match}% match`)) : null] }),
-    cardLink(r.title, open, { href: r.siteUrl || `https://myanimelist.net/anime/${r.malId}` }),
-    h('p', { class: 'card-meta' }, [r.year, FORMAT_LABEL[r.format] || r.format, r.episodes ? `${r.episodes} eps` : null,
+  return showCard({ show: { malId: r.malId, title: r.title, image: r.image }, link: r.siteUrl || null, cls: 'rec-card',
+    badges: [dismiss,
+      r.crunchyrollUrl ? playPill(r.crunchyrollUrl, 'Crunchyroll', { label: `Open ${r.title} on Crunchyroll` }) : null,
+      r.match != null ? h('div', { class: 'badge-end' }, h('span', { class: 'pill accent num' }, `${r.match}% match`)) : null],
+    meta: [r.year, FORMAT_LABEL[r.format] || r.format, r.episodes ? `${r.episodes} eps` : null,
       r.episodes && r.duration ? (() => { const m = r.episodes * r.duration; return m < 60 ? `~${m} min` : `~${Math.round(m / 60)} h`; })() : null,
-      r.averageScore ? `★ ${r.averageScore}` : null].filter(Boolean).join(' · ')),
-    h('p', { class: 'card-sub clamp-3' }, r.note ? r.note : r.because.length ? ['Because you watched ', ...(r.becauseShows || r.because.map((t) => ({ title: t }))).flatMap((b, i, arr) => [
+      r.averageScore ? `★ ${r.averageScore}` : null],
+    metaFirst: true, subClass: 'clamp-3',
+    sub: r.note ? r.note : r.because.length ? ['Because you watched ', ...(r.becauseShows || r.because.map((t) => ({ title: t }))).flatMap((b, i, arr) => [
       b.malId ? h('a', { class: 'because-link', href: `#/library?anime=${b.malId}`, onclick: (e) => { e.preventDefault(); openAnime({ malId: b.malId, title: b.title }); } }, b.title) : b.title,
-      i < arr.length - 1 ? ', ' : ''])] : ''),
-    h('div', { class: 'card-actions card-actions--pair' }, addButton({ malId: r.malId, title: r.title, titleEnglish: r.title, totalEpisodes: r.episodes }, r.inLibrary), watchedButton(r.malId, r.title, onDismiss)));
+      i < arr.length - 1 ? ', ' : ''])] : '',
+    actions: h('div', { class: 'card-actions card-actions--pair' }, addButton({ malId: r.malId, title: r.title, titleEnglish: r.title, totalEpisodes: r.episodes }, r.inLibrary), watchedButton(r.malId, r.title, onDismiss)) });
 }
 
 function searchPanel(initial = '') {
@@ -107,16 +106,15 @@ function searchPanel(initial = '') {
         const list = await api.search(q);
         results.replaceChildren(...list.map((a) => {
           const title = a.titleEnglish || a.title;
-          return h('article', { class: `card ${a.crunchyrollUrl ? 'has-play' : ''}` },
-            media({ src: a.image, alt: '', kind: 'poster', badges: [a.crunchyrollUrl
-              ? h('a', { class: 'play-overlay', href: a.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${title} on Crunchyroll` }, icon('play'), h('span', {}, 'Crunchyroll'))
-              : (a.watchOn?.length ? h('span', { class: 'pill dark badge-bottom', title: `Streaming on ${a.watchOn.join(', ')}` }, a.watchOn[0]) : null)] }),
-            cardLink(title, () => openAnime({ ...a, title, image: a.image }), { href: `https://myanimelist.net/anime/${a.malId}` }),
-            h('p', { class: 'card-meta' }, [a.releaseDate?.slice(0, 4), FORMAT_LABEL[a.format] || a.format, a.totalEpisodes ? `${a.totalEpisodes} eps` : null].filter(Boolean).join(' · ')),
+          return showCard({ show: { ...a, title, image: a.image },
+            badges: [a.crunchyrollUrl
+              ? playPill(a.crunchyrollUrl, 'Crunchyroll', { label: `Open ${title} on Crunchyroll` })
+              : (a.watchOn?.length ? h('span', { class: 'pill dark badge-bottom', title: `Streaming on ${a.watchOn.join(', ')}` }, a.watchOn[0]) : null)],
+            meta: [a.releaseDate?.slice(0, 4), FORMAT_LABEL[a.format] || a.format, a.totalEpisodes ? `${a.totalEpisodes} eps` : null],
             // Already yours: one button that opens it. Otherwise Add, plus Seen it once it has aired.
-            a.inLibrary
+            actions: a.inLibrary
               ? h('div', { class: 'card-actions' }, h('button', { type: 'button', class: 'btn small ghost', style: { flex: '1' }, onclick: () => openAnime({ ...a, title, image: a.image }) }, 'In library · Open'))
-              : h('div', { class: `card-actions ${a.status === 'NOT_YET_RELEASED' ? '' : 'card-actions--pair'}` }, addButton(a, false), a.status === 'NOT_YET_RELEASED' ? null : watchedButton(a.malId, title)));
+              : h('div', { class: `card-actions ${a.status === 'NOT_YET_RELEASED' ? '' : 'card-actions--pair'}` }, addButton(a, false), a.status === 'NOT_YET_RELEASED' ? null : watchedButton(a.malId, title)) });
         }));
       } catch (err) { results.replaceChildren(h('div', { class: 'empty' }, err.message)); }
     }, 350);
