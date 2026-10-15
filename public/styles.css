@@ -1793,3 +1793,6 @@ table.simple .num-col { text-align: end; }
   justify-self: center; padding: var(--space-xs) var(--space-s); border: 1px solid var(--line); border-radius: 999px;
   background: color-mix(in oklch, var(--surface) 92%, transparent); backdrop-filter: blur(8px); box-shadow: 0 8px 24px oklch(0 0 none / 0.35); }
 .select-bar > .num { padding-inline: var(--space-xs); font-weight: 600; }
+
+/* While the Library selection bar is showing, messages sit above it instead of covering it. */
+body:has(.select-bar:not([hidden])) .toast { inset-block-end: calc(var(--space-m) + 4rem + env(safe-area-inset-bottom, 0px)); }
