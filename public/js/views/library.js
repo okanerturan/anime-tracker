@@ -195,6 +195,7 @@ export async function render(view) {
   const count = h('span', { class: 'sub num' });
   // How many shows each filter would show, so a filter never looks broken when it's simply empty.
   const countFor = (key) => { const was = state.filter; const q = state.query; state.filter = key; state.query = ''; const n = state.items.filter(matches).length; state.filter = was; state.query = q; return n; };
+  let drawSeq = 0;
   const draw = () => {
     grid.style.setProperty('--rows', state.filter === 'unfinished' ? '5' : '4');
     let list = state.items.filter(matches);
@@ -228,7 +229,20 @@ export async function render(view) {
     if (select.on) { const shown = new Set(list.map((x) => x.malId)); for (const id of [...select.ids]) if (!shown.has(id)) select.ids.delete(id); select.onChange(); }
     const grouped = state.group && !select.on;
     count.textContent = `${list.length}${grouped ? ' series' : ''} of ${state.items.length}${grouped ? ' shows' : ''}${tail}`;
-    fill(grid, list.length ? list.map((x) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1))
+    // Draw what fills the screen now and the rest in batches right after, so a filter tap or a
+    // keystroke never waits on 400 cards; a newer draw cancels the batches still queued.
+    const make = (x) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1);
+    const myDraw = ++drawSeq;
+    if (list.length > 48) {
+      const rest = list.slice(48);
+      const more = () => {
+        if (myDraw !== drawSeq || !grid.isConnected) return;
+        grid.append(...rest.splice(0, 120).map(make));
+        if (rest.length) requestAnimationFrame(more);
+      };
+      requestAnimationFrame(more);
+    }
+    fill(grid, list.length ? list.slice(0, 48).map(make)
       : h('div', { class: 'empty' }, h('b', {}, 'Nothing here'), h('span', {}, state.query ? `No show in your library matches “${state.query}”${state.filter !== 'all' ? ' in this filter' : ''}.` : EMPTY[state.filter] || 'Nothing matches.'),
         // Not in the library: one step to find it on AniList and add it.
         state.query.trim().length >= 2 ? h('a', { class: 'btn small', href: `#/discover?q=${encodeURIComponent(state.query.trim())}` }, `Search AniList for “${state.query.trim()}”`) : null));
