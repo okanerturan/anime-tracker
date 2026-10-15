@@ -60,6 +60,17 @@ const routes = {
     insights.invalidate();
     return sendJSON(res, 200, result);
   },
+  // Several shows at once (bulk hold/drop from the Library), capped to keep one request small.
+  'POST /api/anime/list-status-batch': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    const ids = (Array.isArray(body.malIds) ? body.malIds : []).map(num).filter(Boolean).slice(0, 500);
+    const status = body.status || null;
+    let changed = 0;
+    db.transaction(() => { for (const id of ids) { try { library.setListStatus(id, status); changed += 1; } catch {} } })();
+    insights.invalidate();
+    return sendJSON(res, 200, { ok: true, changed, status });
+  },
   'POST /api/anime/rating': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);

@@ -26,6 +26,7 @@ export const api = {
   toggleWatched: (malId, episodeNumber, watched) => post('/api/episode/toggle-watched', { malId, episodeNumber, watched }),
   watchedElsewhere: (malId) => post('/api/anime/watched-elsewhere', { malId }),
   setListStatus: (malId, status) => post('/api/anime/list-status', { malId, status }),
+  setListStatusBatch: (malIds, status) => post('/api/anime/list-status-batch', { malIds, status }),
   setRating: (malId, rating) => post('/api/anime/rating', { malId, rating }),
   watchedThrough: (malId, episodeNumber) => post('/api/episode/watched-through', { malId, episodeNumber }),
   syncAnime: (malId) => post('/api/sync-episodes', { malId }),

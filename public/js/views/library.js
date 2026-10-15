@@ -182,6 +182,7 @@ export async function render(view) {
     b.addEventListener('click', () => {
       state.filter = key;
       remember();
+      paintBulk();
       chips.querySelectorAll('.chip-toggle').forEach((c) => c.setAttribute('aria-pressed', String(c === b)));
       draw();
     });
@@ -197,9 +198,31 @@ export async function render(view) {
     state.items = await api.watchlist(serverSort);
     draw();
   });
+  // Unfinished view: one button to shelve everything untouched for a year.
+  const bulk = h('button', { type: 'button', class: 'btn small ghost', hidden: true });
+  const staleIds = () => state.items.filter((x) => progressState(x).key === 'unfinished' && (!x.lastWatchedAt || Date.now() - new Date(x.lastWatchedAt).getTime() > 365 * DAY)).map((x) => x.malId);
+  const paintBulk = () => { const n = state.filter === 'unfinished' ? staleIds().length : 0; bulk.hidden = !n; bulk.textContent = `Put the ${n} untouched for a year on hold`; };
+  bulk.addEventListener('click', async () => {
+    const ids = staleIds();
+    if (!ids.length) return;
+    bulk.disabled = true;
+    try {
+      await api.setListStatusBatch(ids, 'on_hold');
+      for (const x of state.items) if (ids.includes(x.malId)) x.listStatus = 'on_hold';
+      // Redraw whatever Library is on screen now (the first paint may have been replaced by fresher data).
+      const redraw = () => { writeSnap(['left_asc', 'rating_desc'].includes(state.sort) ? 'activity_desc' : state.sort, state.items); render(document.getElementById('view')); };
+      redraw();
+      toast(`${ids.length} shows put on hold`, { label: 'Undo', onClick: async () => {
+        try { await api.setListStatusBatch(ids, null); for (const x of state.items) if (ids.includes(x.malId)) x.listStatus = null; redraw(); } catch (err) { toast(err.message); }
+      } });
+    } catch (err) { toast(err.message); }
+    bulk.disabled = false;
+  });
   view.replaceChildren(h('section', { class: 'section' },
     h('div', { class: 'section-head' }, h('h2', {}, 'Library'), count, h('div', { class: 'push-end' }, sort)),
     h('div', { class: 'toolbar' }, search, chips),
+    bulk,
     grid));
   draw();
+  paintBulk();
 }
