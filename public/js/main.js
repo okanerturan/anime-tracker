@@ -98,6 +98,19 @@ themeBtn.addEventListener('click', () => {
 paintThemeButton();
 
 window.addEventListener('hashchange', route);
+// Coming back to a tab left open for a while: redraw the page with fresh data (episodes may have
+// aired since). Pages paint from their snapshot first, so this doesn't flash. A panel or dialog
+// you're in stays as it is.
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { hiddenAt = Date.now(); return; }
+  if (hiddenAt && Date.now() - hiddenAt > 10 * 60000 && !document.querySelector('dialog[open]')) {
+    clearCache();
+    route();
+    updateStatus();
+  }
+  hiddenAt = 0;
+});
 route();
 updateStatus();
 setInterval(updateStatus, 60000);
