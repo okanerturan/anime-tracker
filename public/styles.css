@@ -1537,7 +1537,10 @@ select {
 
 /* Toast with an action (Undo) */
 .toast:has(.toast-action) { display: inline-flex; align-items: center; gap: var(--space-s); }
-.toast-action { font: inherit; font-weight: 700; color: var(--accent-text); background: none; border: 0; padding: 0.2em 0.4em; cursor: pointer; border-radius: 4px; }
+.toast-action { font: inherit; font-weight: 700; color: var(--accent-text); background: none; border: 0; padding: 0.2em 0.4em; cursor: pointer; border-radius: 4px;
+  /* Never squeezed by a long message: the text gives way (two lines at most), the button keeps its words. */
+  flex-shrink: 0; white-space: nowrap; min-block-size: 24px; }
+.toast:has(.toast-action) > span { min-inline-size: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: clip; }
 .toast-action:active { transform: scale(0.97); }
 
 /* Year-so-far and first-run blocks reuse the tonight panel without the media column */
