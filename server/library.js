@@ -352,9 +352,18 @@ function resolveOverflow(malId, episodeNumber) {
 
 /** Shows whose finale is ticked but most episodes aren't: usually a mapping slip or a stray bulk mark. */
 function suspiciousProgress() {
-  return getWatchlist('activity_desc')
-    .filter((x) => { const aired = x.airedEpisodes ?? x.episodesCount; return aired >= 4 && x.progress < aired && x.watchedCount / aired < 0.5 && db.prepare('SELECT 1 FROM episode_sync WHERE mal_id = ? AND episode_number >= ? AND watched = 1').get(x.malId, aired); })
-    .map((x) => ({ malId: x.malId, title: x.titleEnglish || x.title, image: x.imageUrl, watched: x.watchedCount, aired: x.airedEpisodes ?? x.episodesCount }));
+  // One pass over episode counts; the aired count is refined in JS (it depends on airing status).
+  const rows = db.prepare(`
+    SELECT a.mal_id AS malId, COALESCE(NULLIF(a.title_english, ''), m.title_english, a.title) AS title, COALESCE(m.cover_url, a.image_url) AS cover,
+           m.status, m.episodes, m.next_airing_episode, COUNT(e.episode_number) AS rows_, SUM(e.watched = 1) AS watched,
+           MAX(CASE WHEN e.watched = 1 THEN e.episode_number END) AS furthest
+    FROM watchlist w JOIN anime a ON a.mal_id = w.mal_id LEFT JOIN media m ON m.mal_id = a.mal_id
+    JOIN episode_sync e ON e.mal_id = a.mal_id
+    GROUP BY a.mal_id
+    HAVING watched > 0 AND furthest >= 4`).all();
+  return rows.map((r) => ({ ...r, aired: airedCount({ status: r.status, next_airing_episode: r.next_airing_episode, episodes: r.episodes }) ?? r.rows_ }))
+    .filter((r) => r.aired >= 4 && r.furthest >= r.aired && r.watched / r.aired < 0.5)
+    .map((r) => ({ malId: r.malId, title: r.title, image: images.localUrl(r.cover), watched: r.watched, aired: r.aired }));
 }
 
 module.exports = {
