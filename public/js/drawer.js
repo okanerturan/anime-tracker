@@ -219,6 +219,21 @@ export async function openAnime(partial) {
     markAllBtn.disabled = false;
   });
 
+  // Keys while this panel is open: P plays the next episode, W marks it watched (with Undo).
+  dialog().onkeydown = async (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || /^(input|textarea|select)$/i.test(document.activeElement?.tagName || '')) return;
+    const key = e.key.toLowerCase();
+    if (key === 'p') { const a = playRow.querySelector('a'); if (a) { e.preventDefault(); a.click(); } return; }
+    if (key === 'w' && nextEp && !nextEp.watched && item.inLibrary !== false) {
+      e.preventDefault();
+      const ep = nextEp.episodeNumber;
+      try {
+        await api.toggleWatched(item.malId, ep, true); await load(); bus.emit('library-changed');
+        toast(`E${ep} marked watched`, { label: 'Undo', onClick: async () => { try { await api.toggleWatched(item.malId, ep, false); if (dialog().open) await load(); bus.emit('library-changed'); } catch (err) { toast(err.message); } } });
+      } catch (err) { toast(err.message); }
+    }
+  };
+
   /** Undo for bulk ticks: unmark exactly the episodes that call changed, then redraw. */
   function undoMarks(r) {
     return { label: 'Undo', onClick: async () => {
