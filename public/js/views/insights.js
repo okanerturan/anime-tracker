@@ -69,7 +69,7 @@ function historySection() {
       const label = dayLabel(p.datePlayed);
       if (label !== lastDay) { list.append(h('h3', { class: 'history-day' }, label)); lastDay = label; }
       const name = p.episodeTitle && !/^Episode \d+$/.test(p.episodeTitle) ? p.episodeTitle : '';
-      const row = h(p.malId ? 'button' : 'div', { type: p.malId ? 'button' : null, class: 'history-row', onclick: p.malId ? () => openAnime({ malId: p.malId, title: p.title || p.seriesTitle }) : null },
+      const row = h(p.malId ? 'button' : 'div', { type: p.malId ? 'button' : null, class: `history-row ${p.percent != null && p.percent < 80 ? 'is-partial' : ''}`, onclick: p.malId ? () => openAnime({ malId: p.malId, title: p.title || p.seriesTitle }) : null },
         h('span', { class: 'history-time num' }, new Date(p.datePlayed).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })),
         h('span', { class: 'history-what' },
           h('span', { class: 'one-line' }, h('b', {}, p.title || p.seriesTitle), ` · E${p.malEpisode || p.episodeNumber || '?'}`),
@@ -80,11 +80,29 @@ function historySection() {
     next = page.next;
     more.hidden = !next;
     more.disabled = false;
+    syncDays();
   };
+  // "Finished only" hides episodes you only sampled; a day whose rows are all hidden hides its heading too.
+  let finishedOnly = false;
+  try { finishedOnly = localStorage.getItem('history:finishedOnly') === '1'; } catch {}
+  const toggle = h('button', { type: 'button', class: 'chip-toggle', 'aria-pressed': String(finishedOnly) }, 'Finished only');
+  const syncDays = () => {
+    list.classList.toggle('finished-only', finishedOnly);
+    for (const head of list.querySelectorAll('.history-day')) {
+      let el = head.nextElementSibling; let any = false;
+      while (el && !el.classList.contains('history-day')) { if (!(finishedOnly && el.classList.contains('is-partial'))) any = true; el = el.nextElementSibling; }
+      head.hidden = !any;
+    }
+  };
+  toggle.addEventListener('click', () => {
+    finishedOnly = !finishedOnly; toggle.setAttribute('aria-pressed', String(finishedOnly));
+    try { localStorage.setItem('history:finishedOnly', finishedOnly ? '1' : '0'); } catch {}
+    syncDays();
+  });
   more.addEventListener('click', load);
   load().catch(() => list.append(h('div', { class: 'muted' }, 'Could not load history.')));
   const csv = h('a', { class: 'btn small', href: '/api/history.csv', download: '' }, 'Export as CSV');
-  return section('Recently watched', 'Your Crunchyroll history, one row per episode', h('div', { class: 'panel' }, h('div', { class: 'hero-actions' }, csv), list, more));
+  return section('Recently watched', 'Your Crunchyroll history, one row per episode', h('div', { class: 'panel' }, h('div', { class: 'hero-actions' }, csv, toggle), list, more));
 }
 
 export async function render(view) {
