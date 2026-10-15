@@ -1226,9 +1226,12 @@ code, .mono {
 }
 
 /* ---------- Taste: a chip whose background is its weight ---------- */
-.taste { display: flex; flex-direction: column; gap: var(--space-xs); }
-.taste-group { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-xs); }
-.taste-group > .watch-label { flex: none; min-inline-size: 4.5rem; }
+/* Label column + chips column, so Genres and Themes line up the same way however much wraps. */
+.taste { display: flex; flex-direction: column; gap: var(--space-s); }
+.taste-group { display: grid; grid-template-columns: 5rem minmax(0, 1fr); align-items: baseline; column-gap: var(--space-s); }
+.taste-group > .watch-label { padding-block-start: 0.35em; }
+.taste-group > .chips { gap: var(--space-2xs); }
+@media (max-width: 30rem) { .taste-group { grid-template-columns: 1fr; row-gap: var(--space-2xs); } }
 
 .taste-chip {
   display: inline-flex;
@@ -1710,3 +1713,17 @@ button.history-row { cursor: pointer; }
 /* Week strip: day columns are narrow, so its rows stay compact and titles get two lines. */
 .week .week-item { grid-template-columns: 2.25rem minmax(0, 1fr); column-gap: var(--space-xs); padding-inline-end: var(--space-xs); }
 .week .week-item-title.one-line { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+
+/* Library: search sits in the header beside Export and Sort; the filter rail gets the full width
+   on one line, and scrolls sideways (with a fade) when even that is too narrow. */
+.library-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
+.library-tools > .search { inline-size: clamp(12rem, 22vw, 18rem); flex: 0 1 auto; }
+.toolbar > .chips.segmented { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-inline-size: 100%; }
+.toolbar > .chips.segmented::-webkit-scrollbar { display: none; }
+@media (max-width: 40rem) { .library-tools > .search { inline-size: 100%; order: -1; } }
+
+/* Small tables: dates and counts never break mid-value. */
+table.simple :is(.date-col, .num-col) { white-space: nowrap; overflow-wrap: normal; }
+table.simple .num-col { text-align: end; }
+/* The line that stands in for episodes that haven't aired yet spans the whole episode grid. */
+.ep-later { grid-column: 1 / -1; padding-block: var(--space-xs); }

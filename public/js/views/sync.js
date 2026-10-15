@@ -144,7 +144,7 @@ export async function render(view) {
     section('Crunchyroll sync', last ? `Last sync ${ago(last.at)} via ${last.source}` : 'Never synced',
       h('div', { class: 'stat-row' },
         h('div', { class: 'stat' }, h('div', { class: 'v' }, (cr.rows ?? 0).toLocaleString()), h('div', { class: 'l' }, 'history episodes stored')),
-        h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.latestPlayed ? new Date(cr.latestPlayed).toLocaleDateString() : '—'), h('div', { class: 'l' }, 'latest play')),
+        h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.latestPlayed ? new Date(cr.latestPlayed).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'), h('div', { class: 'l' }, 'latest play')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, last?.summary?.marked ?? '—'), h('div', { class: 'l' }, 'newly watched in last sync')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.needsReview.length), h('div', { class: 'l' }, 'seasons to review')),
         h('div', { class: 'stat' }, h('div', { class: 'v num' }, cr.extension?.seen || '—'), h('div', { class: 'l' }, cr.extension?.seen ? (cr.extension.seen === cr.extension.latest ? 'extension version (current)' : `extension version (latest ${cr.extension.latest})`) : 'extension not seen yet'))),

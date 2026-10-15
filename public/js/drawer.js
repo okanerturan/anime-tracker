@@ -264,9 +264,10 @@ export async function openAnime(partial) {
   if (synopsis) requestAnimationFrame(() => { if (synopsis.scrollHeight <= synopsis.clientHeight + 2) more.hidden = true; });
 
   function updateSummary() {
-    const all = epContainer.querySelectorAll('.ep-tile').length;
+    // Count real episode tiles only (not the "airs Saturday" placeholder); say "aired" while it's airing.
+    const all = epContainer.querySelectorAll('.ep-tile:not(.ep-upcoming)').length;
     const watched = epContainer.querySelectorAll('.ep-tile[data-watched="true"]').length;
-    summary.textContent = `${watched} of ${all} watched`;
+    summary.textContent = `${watched} of ${all} ${item.status === 'RELEASING' ? 'aired ' : ''}watched`;
   }
 
   let allWatched = false;
@@ -297,18 +298,31 @@ export async function openAnime(partial) {
     const cut = next ? next.episodeNumber : (eps.length > 24 ? eps[eps.length - 8].episodeNumber : 0);
     const foldCount = eps.filter((e) => e.watched && e.episodeNumber < cut).length;
     const folded = foldCount > 8;
-    const tiles = eps.map((e) => { const t = tile(e); if (folded && e.watched && e.episodeNumber < cut) t.hidden = true; return t; });
+    // Episodes that haven't aired yet have no picture or title: rather than a wall of empty tiles,
+    // the next one gets its air-time tile and the rest fold into one line.
+    const now = Date.now();
+    const notOut = (e) => !e.watched && !e.image && (
+      (e.aired && new Date(e.aired).getTime() > now) ||
+      (item.status === 'RELEASING' && item.nextAiringEpisode && e.episodeNumber >= item.nextAiringEpisode && !(e.episodeNumber === item.nextAiringEpisode && airsAt && airsAt <= now)));
+    const future = eps.filter(notOut);
+    const shown = eps.filter((e) => !notOut(e));
+    const tiles = shown.map((e) => { const t = tile(e); if (folded && e.watched && e.episodeNumber < cut) t.hidden = true; return t; });
     const unfold = folded ? h('button', { type: 'button', class: 'btn ghost unfold' }, next ? `Show ${foldCount} watched episodes` : `Show all ${eps.length} episodes`) : null;
     if (unfold) unfold.addEventListener('click', () => { tiles.forEach((t) => { t.hidden = false; }); unfold.remove(); });
     // Airing: a placeholder tile for the next episode with its air time.
-    const nextAirTile = airsAt && item.nextAiringEpisode && !eps.some((e) => e.episodeNumber >= item.nextAiringEpisode)
+    const nextAirTile = airsAt && item.nextAiringEpisode && !shown.some((e) => e.episodeNumber >= item.nextAiringEpisode)
       ? h('article', { class: 'card ep-tile ep-upcoming' },
           h('div', { class: 'media ep-upcoming-media' }, h('span', { class: 'pill dark badge-start num' }, `E${item.nextAiringEpisode}`),
             h('span', { class: 'ep-upcoming-when' }, new Date(airsAt).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' }))),
           h('div', { class: 'ep-row' }, h('span', { class: 'name' }, `${airsAt > Date.now() ? 'Airs' : 'Aired'} ${relTime(airsAt)}`)))
       : null;
     const emptyNote = h('div', { class: 'empty' }, unreleased ? `${premiereText()}. Episodes appear here once they air.` : 'No episodes yet. Try “Refresh episodes”.');
-    fill(epContainer, unfold, eps.length ? tiles : (nextAirTile ? null : emptyNote), nextAirTile);
+    const later = future.filter((e) => !(nextAirTile && e.episodeNumber === item.nextAiringEpisode));
+    const laterNote = later.length
+      ? h('p', { class: 'muted ep-later' }, later.length === 1 ? `E${later[0].episodeNumber} is not out yet.`
+        : `${later.length} more episodes not out yet (E${later[0].episodeNumber}–E${later[later.length - 1].episodeNumber}).`)
+      : null;
+    fill(epContainer, unfold, shown.length ? tiles : (nextAirTile || laterNote ? null : emptyNote), nextAirTile, laterNote);
     updateSummary();
     nextEp = next;
     renderPlay();

@@ -45,7 +45,7 @@ function historySection() {
         h('span', { class: 'history-what' },
           h('span', { class: 'one-line' }, h('b', {}, p.title || p.seriesTitle), ` · E${p.malEpisode || p.episodeNumber || '?'}`),
           name ? h('span', { class: 'history-sub one-line' }, name) : null),
-        h('span', { class: `history-pct num ${p.percent >= 80 ? 'is-done' : ''}` }, p.percent == null ? '' : p.percent >= 80 ? '✓' : `${p.percent}%`));
+        h('span', { class: `history-pct num ${p.percent >= 80 ? 'is-done' : ''}` }, p.percent == null ? '' : p.percent >= 80 ? '✓' : `${p.percent}% watched`));
       list.append(row);
     }
     next = page.next;
@@ -106,9 +106,9 @@ export async function render(view) {
         hbars(s.finishRateByGenre.map((g) => ({ name: `${g.name} (${g.finished}/${g.started})`, value: g.rate })), { suffix: '%' })) : null,
       h('div', { class: 'panel' }, h('h3', {}, 'Most watched'), hbars(s.topShows.map((x) => ({ name: x.title, value: x.episodes, malId: x.malId })), { suffix: ' eps', onOpen: (r) => openAnime({ malId: r.malId, title: r.name }) })),
       h('div', { class: 'panel' }, h('h3', {}, 'Biggest binges'),
-        s.binges.length ? h('table', { class: 'simple' }, h('tr', {}, h('th', {}, 'Day'), h('th', {}, 'Show'), h('th', {}, 'Eps')),
-          s.binges.map((b) => h('tr', {}, h('td', {}, new Date(b.day).toLocaleDateString()),
+        s.binges.length ? h('table', { class: 'simple' }, h('tr', {}, h('th', {}, 'Day'), h('th', {}, 'Show'), h('th', { class: 'num-col' }, 'Eps')),
+          s.binges.map((b) => h('tr', {}, h('td', { class: 'date-col' }, new Date(b.day).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })),
             h('td', {}, b.malId ? h('a', { class: 'row-link', href: `#/insights?anime=${b.malId}`, onclick: (e) => { e.preventDefault(); openAnime({ malId: b.malId, title: b.show }); } }, b.show) : b.show),
-            h('td', {}, b.episodes)))) : h('div', { class: 'muted' }, 'No 6+ episode days yet.'))),
+            h('td', { class: 'num-col' }, b.episodes)))) : h('div', { class: 'muted' }, 'No 6+ episode days yet.'))),
     historySection());
 }
