@@ -81,6 +81,25 @@ function cdp(url) {
     await run(`post('/auth/recover', { code: ${JSON.stringify(codes[1] || '')} })`);
     await run("post('/auth/signout-everywhere')");
     check('sign out everywhere ends the session', (await run("httpStatus('/api/up-next')")) === 401);
+    // Passkey management (signed in again with a code): rename; the last one needs fresh codes first.
+    await run(`post('/auth/recover', { code: ${JSON.stringify(codes[2] || '')} })`);
+    const list = await run("fetch('/auth/passkeys').then((r) => r.json())");
+    check('lists the passkeys', list?.passkeys?.length === 1, JSON.stringify(list));
+    const pkId = list?.passkeys?.[0]?.id;
+    await run(`post('/auth/passkeys/rename', { id: ${JSON.stringify(pkId)}, name: 'Laptop' })`);
+    check('renames one', (await run("fetch('/auth/passkeys').then((r) => r.json())"))?.passkeys?.[0]?.name === 'Laptop');
+    // Codes made at sign-up count as fresh for 15 minutes; age them as if that time had passed.
+    execFileSync(process.execPath, ['-e', "require('./server/accounts/store').adb().prepare(\"UPDATE accounts SET codes_at = '2020-01-01T00:00:00Z'\").run()"], { cwd: ROOT, env });
+    const lastNo = await run(`post('/auth/passkeys/remove', { id: ${JSON.stringify(pkId)} })`);
+    check('won\'t remove the last passkey without fresh codes', /last passkey/.test(lastNo?.error || ''), lastNo?.error);
+    const fresh = await run("post('/auth/recovery/regenerate')");
+    const lastYes = await run(`post('/auth/passkeys/remove', { id: ${JSON.stringify(pkId)} })`);
+    check('removes it after new codes', fresh?.recoveryCodes?.length === 10 && lastYes?.ok === true, lastYes?.error);
+    // Wrong recovery codes run into the limit.
+    await run("post('/auth/signout')");
+    const statuses = await run("(async () => { const out = []; for (let i = 0; i < 12; i += 1) { const r = await fetch('/auth/recover', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'app' }, body: JSON.stringify({ code: 'wrong-guess' }) }); out.push(r.status + ':' + (r.headers.get('retry-after') || '')); } return out; })()");
+    check('wrong recovery codes are rate limited', statuses?.slice(-1)[0]?.startsWith('429:') && Number(statuses.slice(-1)[0].split(':')[1]) > 0, (statuses || []).join(' '));
+    check('the server logged no secrets', !log.includes(codes[0] || 'none') && !/tracker_session=/.test(log) && !log.includes(invite));
     const forged = await run("fetch('/auth/signin/options', { method: 'POST' }).then((r) => r.status)");
     check('auth posts without the client header are refused', forged === 403);
     p.close();

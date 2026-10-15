@@ -96,4 +96,28 @@ test('recovery codes: ten, one-time, hashed, and a new set cancels the old', () 
   assert.equal(recovery.use(fresh[0]), id);
 });
 
+test('rate limits: past the limit an attempt is refused with a Retry-After', () => {
+  const limits = require('../server/accounts/limits');
+  limits.reset();
+  const t0 = Date.parse('2026-03-01T00:00:00Z');
+  for (let i = 0; i < 10; i += 1) assert.ok(limits.hit('recover', '1.2.3.4', t0 + i).ok);
+  const blocked = limits.hit('recover', '1.2.3.4', t0 + 20);
+  assert.equal(blocked.ok, false);
+  assert.ok(blocked.retryAfter > 3500 && blocked.retryAfter <= 3600);
+  assert.ok(limits.hit('recover', '5.6.7.8', t0 + 20).ok, 'other addresses are not affected');
+  assert.ok(limits.hit('recover', '1.2.3.4', t0 + 61 * 60e3).ok, 'the window slides');
+  // X-Client-IP counts only when the origin secret was checked.
+  assert.equal(limits.clientIp({ headers: { 'x-client-ip': '9.9.9.9' }, socket: { remoteAddress: '127.0.0.1' } }), '127.0.0.1');
+  assert.equal(limits.clientIp({ originTrusted: true, headers: { 'x-client-ip': '9.9.9.9' }, socket: { remoteAddress: '127.0.0.1' } }), '9.9.9.9');
+});
+
+test('log lines carry no tokens, cookies or codes', () => {
+  const log = require('../server/accounts/log');
+  const req = { method: 'GET', url: '/calendar/abcdef0123456789.ics?token=secret-value', headers: { cookie: 'tracker_session=sessionsecret', authorization: 'Bearer devicesecret' } };
+  const res = { statusCode: 200 };
+  const lineText = log.line(req, res, Date.now());
+  for (const secret of ['abcdef0123456789', 'secret-value', 'sessionsecret', 'devicesecret']) assert.ok(!lineText.includes(secret), secret);
+  assert.match(lineText, /^GET \/calendar\/\*\*\*\.ics 200 \d+ms$/);
+});
+
 test.after(() => { store.close(); db.close(); fs.rmSync(tmp, { recursive: true, force: true }); });

@@ -17,6 +17,7 @@ const normal = (code) => String(code || '').toLowerCase().replace(/[^a-z0-9]/g, 
 function regenerate(accountId) {
   const codes = Array.from({ length: 10 }, oneCode);
   const tx = adb().transaction(() => {
+    adb().prepare("UPDATE accounts SET codes_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").run(accountId);
     adb().prepare('DELETE FROM recovery_codes WHERE account_id = ?').run(accountId);
     const ins = adb().prepare('INSERT INTO recovery_codes (account_id, code_hash) VALUES (?, ?)');
     for (const c of codes) ins.run(accountId, sha256(normal(c)));

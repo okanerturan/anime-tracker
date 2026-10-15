@@ -10,9 +10,20 @@ const sessions = require('./sessions');
 const passkeys = require('./passkeys');
 const invites = require('./invites');
 const recovery = require('./recovery');
+const limits = require('./limits');
 const { sendJSON, parseBody } = require('../http');
 
-const fail = (status, message) => Object.assign(new Error(message), { status });
+const fail = (status, message, extra = {}) => Object.assign(new Error(message), { status, ...extra });
+/** Count an attempt; past the limit, answer 429 with Retry-After. */
+function limit(rule, who) {
+  const r = limits.hit(rule, who);
+  if (!r.ok) throw fail(429, `Too many attempts. Try again in ${Math.ceil(r.retryAfter / 60)} min.`, { retryAfter: r.retryAfter });
+}
+const signedIn = (req, res) => {
+  const who = authenticate(req, res);
+  if (!who || who.via !== 'session') throw fail(401, 'Sign in first.');
+  return who.accountId;
+};
 
 function deviceAccount(req) {
   const m = String(req.headers.authorization || '').match(/^Bearer\s+(\S{20,200})$/);
@@ -62,7 +73,8 @@ const ROUTES = {
   'POST /auth/signup/options': async (req, res) => {
     requireClient(req);
     const b = await parseBody(req);
-    invites.check(b.invite || null);
+    limit('signup', limits.clientIp(req));
+    try { invites.check(b.invite || null); } catch (err) { limit('invite', limits.clientIp(req)); throw err; }
     const name = String(b.name || '').trim().slice(0, 40) || null;
     // The account exists from here, but without a passkey it can't be used; the invite is spent
     // only when the passkey is saved, and accounts left without one are cleared by a daily job.
@@ -87,7 +99,11 @@ const ROUTES = {
   'POST /auth/signin/verify': async (req, res) => {
     requireClient(req);
     const b = await parseBody(req);
-    const accountId = await passkeys.finishAuthentication(b.flow, b.response);
+    const ip = limits.clientIp(req);
+    const allowed = limits.check('signinFail', ip);
+    if (!allowed.ok) throw fail(429, `Too many failed sign-ins. Try again in ${Math.ceil(allowed.retryAfter / 60)} min.`, { retryAfter: allowed.retryAfter });
+    let accountId;
+    try { accountId = await passkeys.finishAuthentication(b.flow, b.response); } catch (err) { limits.hit('signinFail', ip); throw err; }
     startSession(req, res, accountId);
     return sendJSON(res, 200, { ok: true });
   },
@@ -96,6 +112,7 @@ const ROUTES = {
   'POST /auth/recover': async (req, res) => {
     requireClient(req);
     const b = await parseBody(req);
+    limit('recover', limits.clientIp(req));
     const accountId = recovery.use(b.code);
     if (!accountId) throw fail(401, 'That code isn\'t valid or was already used.');
     startSession(req, res, accountId);
@@ -118,6 +135,41 @@ const ROUTES = {
     return sendJSON(res, 200, { ok: true });
   },
 
+  /** Signed in: the account's passkeys (named by device), for the account page. */
+  'GET /auth/passkeys': (req, res) => {
+    const accountId = signedIn(req, res);
+    const list = adb().prepare('SELECT id, name, created_at AS createdAt, last_used_at AS lastUsedAt FROM passkeys WHERE account_id = ? ORDER BY created_at').all(accountId);
+    return sendJSON(res, 200, { passkeys: list, recoveryCodesLeft: recovery.remaining(accountId) });
+  },
+  'POST /auth/passkeys/rename': async (req, res) => {
+    requireClient(req);
+    const accountId = signedIn(req, res);
+    const b = await parseBody(req);
+    const r = adb().prepare('UPDATE passkeys SET name = ? WHERE id = ? AND account_id = ?').run(String(b.name || '').trim().slice(0, 60) || null, String(b.id || ''), accountId);
+    if (!r.changes) throw fail(404, 'No such passkey.');
+    return sendJSON(res, 200, { ok: true });
+  },
+  /** Remove a passkey. The last one only goes after a fresh set of recovery codes (made in the last 15 min). */
+  'POST /auth/passkeys/remove': async (req, res) => {
+    requireClient(req);
+    const accountId = signedIn(req, res);
+    const b = await parseBody(req);
+    const count = adb().prepare('SELECT COUNT(*) n FROM passkeys WHERE account_id = ?').get(accountId).n;
+    if (count <= 1) {
+      const at = adb().prepare('SELECT codes_at FROM accounts WHERE id = ?').get(accountId)?.codes_at;
+      if (!at || Date.now() - Date.parse(at) > 15 * 60e3) throw fail(409, 'This is your last passkey. Make new recovery codes first, so you can still get in.', { needCodes: true });
+    }
+    const r = adb().prepare('DELETE FROM passkeys WHERE id = ? AND account_id = ?').run(String(b.id || ''), accountId);
+    if (!r.changes) throw fail(404, 'No such passkey.');
+    return sendJSON(res, 200, { ok: true });
+  },
+  /** A new set of recovery codes (the old set stops working); shown once. */
+  'POST /auth/recovery/regenerate': (req, res) => {
+    requireClient(req);
+    const accountId = signedIn(req, res);
+    return sendJSON(res, 200, { recoveryCodes: recovery.regenerate(accountId) });
+  },
+
   'POST /auth/signout': (req, res) => { requireClient(req); sessions.end(sessions.fromRequest(req)); res.setHeader('Set-Cookie', sessions.cookie(null)); return sendJSON(res, 200, { ok: true }); },
   'POST /auth/signout-everywhere': (req, res) => {
     requireClient(req);
@@ -133,7 +185,10 @@ const ROUTES = {
 async function handle(req, res, url) {
   const route = ROUTES[`${req.method} ${url.pathname}`];
   if (!route) return false;
-  try { await route(req, res); } catch (err) { sendJSON(res, err.status || 500, { error: err.status ? err.message : 'Something went wrong.' }); }
+  try { await route(req, res); } catch (err) {
+    if (err.retryAfter) res.setHeader('Retry-After', String(err.retryAfter));
+    sendJSON(res, err.status || 500, { error: err.status ? err.message : 'Something went wrong.', ...(err.needCodes ? { needCodes: true } : {}) });
+  }
   return true;
 }
 

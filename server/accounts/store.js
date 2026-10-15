@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   display_name TEXT,
   email TEXT UNIQUE,
   session_gen INTEGER NOT NULL DEFAULT 0,      -- bumped by "sign out everywhere"
-  last_active_at TEXT
+  last_active_at TEXT,
+  codes_at TEXT                                 -- when recovery codes were last made (removing the last passkey needs fresh ones)
 );
 CREATE TABLE IF NOT EXISTS sessions (
   id_hash TEXT PRIMARY KEY,
