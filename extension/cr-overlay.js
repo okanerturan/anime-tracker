@@ -28,7 +28,7 @@
     const current = info.shows.find((s) => s.nextEpisode && s.watched < (s.aired || 0)) || info.shows[info.shows.length - 1];
     const rows = info.shows.slice(-4).map((s) => {
       const done = s.aired && s.watched >= s.aired;
-      return `<li class="${s === current ? 'cur' : ''}"><span class="t">${esc(s.title)}</span><span class="p">${done ? '✓' : `${s.watched}/${s.aired ?? '?'}`}${s.rating ? ` · ★${s.rating}` : ''}</span></li>`;
+      return `<li class="${s === current ? 'cur' : ''}"><span class="t" title="${esc(s.title)}">${esc(s.title)}</span><span class="p">${done ? '✓' : `${s.watched}/${s.aired ?? '?'}`}${s.rating ? ` · ★${s.rating}` : ''}</span></li>`;
     }).join('');
     // Finished and not rated yet: rate it right here (ratings steer the tracker's recommendations).
     const finished = current && current.aired && current.watched >= current.aired && current.status === 'FINISHED';
@@ -60,10 +60,13 @@
       header { display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; }
       header img { width: 16px; height: 16px; border-radius: 4px; }
       header button { margin-left: auto; background: none; border: 0; color: #a7abb9; font-size: 16px; cursor: pointer; line-height: 1; }
-      ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+      ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; }
       li { display: flex; gap: 8px; justify-content: space-between; color: #a7abb9; }
       li.cur { color: #fff; }
-      .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      /* min-width: 0 lets a flex item shrink below its text, so long titles end in "…" instead of
+         running off the card. With one show on the card, its title gets two lines instead. */
+      .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      li:only-child .t { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
       .p { flex: none; font-variant-numeric: tabular-nums; }
       .next { margin-top: 6px; color: #f6a35b; font-weight: 600; }
       /* The next episode, one click away on the site you're already on. */
