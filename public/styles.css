@@ -1705,9 +1705,10 @@ button.history-row { cursor: pointer; }
 .toolbar > .chips.segmented::-webkit-scrollbar { display: none; }
 @media (max-width: 40rem) {
   .library-tools > .search { inline-size: 100%; order: -1; }
-  /* Phones: CSV export is a desktop task, so Group seasons and Sort share one row. */
+  /* Phones: CSV export is a desktop task. Sort keeps room for its longest label ("Fewest episodes
+     left") and takes its own line when Select and Group seasons leave less than that. */
   .library-tools > a[href$=".csv"] { display: none; }
-  .library-tools > select { flex: 1 1 0; min-inline-size: 0; }
+  .library-tools > select { flex: 1 1 13rem; min-inline-size: 0; }
 }
 
 /* Small tables: dates and counts never break mid-value. */
