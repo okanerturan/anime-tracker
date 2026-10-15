@@ -26,14 +26,14 @@ function relTime(d) {
   return `${Math.round(h / 24)} d ago`;
 }
 
-/** The dashboard's top three "continue watching" shows, with Play links that go straight to Crunchyroll. */
+/** The dashboard's top four "continue watching" shows, with Play links that go straight to Crunchyroll. */
 async function loadUpNext(s) {
   const box = $('upnext');
   try {
     const res = await fetch(`${s.trackerUrl}/api/up-next`, { headers: s.trackerKey ? { Authorization: `Bearer ${s.trackerKey}` } : {} });
     if (!res.ok) throw new Error(res.status === 401 ? 'tracker key rejected' : `tracker ${res.status}`);
     const data = await res.json();
-    const items = data.continueWatching.slice(0, 3);
+    const items = data.continueWatching.slice(0, 4);
     box.replaceChildren();
     if (!items.length) { box.append(empty("You're all caught up.")); return; }
     for (const x of items) {
@@ -49,7 +49,12 @@ async function loadUpNext(s) {
       const src = (x.nextEpisodeImage || x.image || '').replace(/^\//, `${s.trackerUrl}/`);
       if (src) fetch(src, { headers: s.trackerKey ? { Authorization: `Bearer ${s.trackerKey}` } : {} }).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
       const text = document.createElement('div');
-      const t = document.createElement('div'); t.className = 't'; t.textContent = x.title;
+      const t = document.createElement('div'); t.className = 't';
+      // "New": the latest episode aired in the last three days.
+      if (x.latestAiredAt && Date.now() - new Date(x.latestAiredAt).getTime() < 3 * 86400000) {
+        const n = document.createElement('span'); n.className = 'new'; n.textContent = 'New'; t.append(n);
+      }
+      t.append(x.title);
       const sub = document.createElement('div'); sub.className = 's'; sub.textContent = `E${x.nextEpisode}${name ? ` · ${name}` : ''} · ${x.remaining} to go`;
       text.append(t, sub);
       const play = document.createElement('span'); play.className = 'play'; play.textContent = x.nextEpisodeUrlIsExact ? '▶ Play' : `Open on ${x.nextEpisodeSite || 'Crunchyroll'}`;
