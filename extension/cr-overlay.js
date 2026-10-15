@@ -41,6 +41,13 @@
     const target = info.nextSeason && !(current && current.nextEpisode) ? info.nextSeason.malId : (current ? current.malId : '');
     root.innerHTML = `<style>
       :host { all: initial; }
+      /* Episode pages: after a few seconds the card folds to its icon so it can't cover the player's
+         controls; hovering or focusing it opens it again. */
+      .card.mini { width: auto; padding: 8px; cursor: pointer; }
+      .card.mini > :not(header) { display: none; }
+      .card.mini header { margin: 0; }
+      .card.mini header > :not(img) { display: none; }
+      .card.mini header img { width: 20px; height: 20px; }
       .card { font: 13px/1.35 system-ui, sans-serif; color: #e8e9ee; background: rgba(20,22,28,.94); border: 1px solid #2f3442; border-radius: 12px;
         padding: 10px 12px; width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,.45); backdrop-filter: blur(8px); }
       header { display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; }
@@ -80,6 +87,17 @@
       } catch { row.textContent = 'Could not save the rating'; }
     }));
     document.documentElement.appendChild(host);
+    if (/\/watch\//.test(location.pathname)) {
+      const card = root.querySelector('.card');
+      let timer = setTimeout(() => card.classList.add('mini'), 6000);
+      const open = () => { clearTimeout(timer); card.classList.remove('mini'); };
+      const fold = () => { clearTimeout(timer); timer = setTimeout(() => card.classList.add('mini'), 1500); };
+      card.addEventListener('mouseenter', open);
+      card.addEventListener('focusin', open);
+      card.addEventListener('mouseleave', fold);
+      card.addEventListener('focusout', fold);
+      card.tabIndex = 0;
+    }
   }
 
   function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
