@@ -109,7 +109,14 @@ const db = {
   pragma: (...args) => current().conn.pragma(...args),
   close: () => { for (const [k, e] of open) { e.conn.close(); open.delete(k); } catalogConn?.close(); },
   /** How many account files are open (tests and the status endpoint). */
-  openCount: () => open.size
+  openCount: () => open.size,
+  /** Close an account's file (before deleting or replacing it); returns its path. */
+  forget: (accountId) => {
+    const key = String(accountId);
+    const e = open.get(key);
+    if (e) { e.conn.close(); open.delete(key); }
+    return fileFor(key);
+  }
 };
 
 /** Hosted mode: the catalog worker's read-write connection to the shared catalog (null in single-user mode). */

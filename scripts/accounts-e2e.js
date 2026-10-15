@@ -15,6 +15,7 @@ const env = { ...process.env, AUTH_MODE: 'accounts', DATA_DIR: tmp, RP_ID: 'loca
 
 // An invite, made the way an operator would (straight against accounts.db).
 const invite = execFileSync(process.execPath, ['-e', "process.stdout.write(require('./server/accounts/invites').create({ note: 'e2e' }))"], { cwd: ROOT, env }).toString();
+const invite2 = execFileSync(process.execPath, ['-e', "process.stdout.write(require('./server/accounts/invites').create({ note: 'e2e second' }))"], { cwd: ROOT, env }).toString();
 
 const HELPERS = `
 window.b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');
@@ -95,6 +96,26 @@ function cdp(url) {
     const fresh = await run("post('/auth/recovery/regenerate')");
     const lastYes = await run(`post('/auth/passkeys/remove', { id: ${JSON.stringify(pkId)} })`);
     check('removes it after new codes', fresh?.recoveryCodes?.length === 10 && lastYes?.ok === true, lastYes?.error);
+    // Export, delete, sign up again, import: everything comes back.
+    const sample = { format: 'anime-tracker-account-export', version: 1, tables: {
+      anime: { columns: ['mal_id', 'title'], rows: [[101, 'Round Trip One'], [102, 'Round Trip Two']] },
+      watchlist: { columns: ['mal_id'], rows: [[101], [102]] },
+      episode_sync: { columns: ['mal_id', 'episode_number', 'watched', 'image_blob'], rows: [[101, 1, 1, 'should-not-import'], [101, 2, 0, null]] },
+      not_a_table: { columns: ['x'], rows: [[1]] } } };
+    const code3 = (await run("post('/auth/recovery/regenerate')"))?.recoveryCodes?.[0];
+    const imported = await run(`post('/auth/account/import', ${JSON.stringify(sample)})`);
+    check('imports an export', imported?.imported?.watchlist === 2 && imported.imported.episode_sync === 2 && !('not_a_table' in imported.imported), JSON.stringify(imported));
+    const exported = await run("fetch('/auth/account/export').then((r) => r.json())");
+    check('exports it back', exported?.tables?.watchlist?.rows?.length === 2 && !exported.tables.episode_sync.columns.includes('image_blob'));
+    const deleted = await run(`post('/auth/account/delete', { code: ${JSON.stringify(code3 || '')} })`);
+    check('deletes the account with a recovery code', deleted?.deleted === true, deleted?.error);
+    check('signed out and the data file is gone', !(await run("fetch('/auth/state').then((r) => r.json())"))?.signedIn && !fs.existsSync(path.join(tmp, 'accounts', '1.db')));
+    const ghost = await run("(async () => { const { flow, options } = await post('/auth/signin/options'); return post('/auth/signin/verify', { flow, response: assertion(await getCred(options)) }); })()");
+    check('its passkey no longer signs in', Boolean(ghost?.error), ghost?.error || 'signed in');
+    const again2 = await run(`(async () => { const { flow, options } = await post('/auth/signup/options', { invite: ${JSON.stringify(invite2)}, name: 'Okan again' }); return post('/auth/signup/verify', { flow, invite: ${JSON.stringify(invite2)}, response: attest(await create(options)) }); })()`);
+    await run(`(window.__exp = ${JSON.stringify(exported)}, 'set')`);
+    const restored = await run("post('/auth/account/import', window.__exp)");
+    check('a new account takes the export back in', again2?.ok && restored?.imported?.watchlist === 2 && restored.imported.anime === 2, JSON.stringify(restored));
     // Wrong recovery codes run into the limit.
     await run("post('/auth/signout')");
     const statuses = await run("(async () => { const out = []; for (let i = 0; i < 12; i += 1) { const r = await fetch('/auth/recover', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'app' }, body: JSON.stringify({ code: 'wrong-guess' }) }); out.push(r.status + ':' + (r.headers.get('retry-after') || '')); } return out; })()");

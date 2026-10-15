@@ -11,6 +11,8 @@ const passkeys = require('./passkeys');
 const invites = require('./invites');
 const recovery = require('./recovery');
 const limits = require('./limits');
+const data = require('./data');
+const { withAccount } = require('../db');
 const { sendJSON, parseBody } = require('../http');
 
 const fail = (status, message, extra = {}) => Object.assign(new Error(message), { status, ...extra });
@@ -168,6 +170,37 @@ const ROUTES = {
     requireClient(req);
     const accountId = signedIn(req, res);
     return sendJSON(res, 200, { recoveryCodes: recovery.regenerate(accountId) });
+  },
+
+  /** Everything that's yours, as a JSON download. */
+  'GET /auth/account/export': (req, res) => {
+    const accountId = signedIn(req, res);
+    const body = JSON.stringify(withAccount(accountId, () => data.exportAccount()));
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store',
+      'Content-Disposition': `attachment; filename="anime-tracker-export-${new Date().toISOString().slice(0, 10)}.json"` });
+    return res.end(body);
+  },
+  /** Load an export into this account (rows already here win). */
+  'POST /auth/account/import': async (req, res) => {
+    requireClient(req);
+    const accountId = signedIn(req, res);
+    const b = await parseBody(req);
+    return sendJSON(res, 200, { imported: withAccount(accountId, () => data.importAccount(b)) });
+  },
+  /** Deleting the account is confirmed with a passkey (step 1 asks the browser) or a recovery code. */
+  'POST /auth/account/delete/options': async (req, res) => { requireClient(req); signedIn(req, res); return sendJSON(res, 200, await passkeys.authenticationOptions()); },
+  'POST /auth/account/delete': async (req, res) => {
+    requireClient(req);
+    const accountId = signedIn(req, res);
+    const b = await parseBody(req);
+    let confirmed = null;
+    if (b.code) { limit('recover', limits.clientIp(req)); confirmed = recovery.use(b.code); }
+    else if (b.flow && b.response) confirmed = await passkeys.finishAuthentication(b.flow, b.response);
+    if (confirmed !== accountId) throw fail(403, 'Confirm with one of this account\'s passkeys or recovery codes.');
+    data.deleteFiles(accountId);
+    adb().prepare('DELETE FROM accounts WHERE id = ?').run(accountId); // sessions, passkeys, codes, tokens go with it
+    res.setHeader('Set-Cookie', sessions.cookie(null));
+    return sendJSON(res, 200, { ok: true, deleted: true });
   },
 
   'POST /auth/signout': (req, res) => { requireClient(req); sessions.end(sessions.fromRequest(req)); res.setHeader('Set-Cookie', sessions.cookie(null)); return sendJSON(res, 200, { ok: true }); },
