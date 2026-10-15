@@ -141,10 +141,14 @@ function showsForSeries(seriesId) {
   const furthestStmt = db.prepare('SELECT MAX(episode_number) AS n FROM episode_sync WHERE mal_id = ? AND watched = 1');
   // The next episode's own Crunchyroll link, so the card on crunchyroll.com can jump straight to it.
   const epUrlStmt = db.prepare("SELECT url FROM episode_sync WHERE mal_id = ? AND episode_number = ? AND url LIKE '%crunchyroll.com/watch/%'");
+  // Out on Crunchyroll can run ahead of AniList's schedule: count an episode as aired once it has a
+  // Crunchyroll watch link or an air date in the past (the same view Up Next takes).
+  const outStmt = db.prepare("SELECT MAX(episode_number) AS n FROM episode_sync WHERE mal_id = ? AND (url LIKE '%crunchyroll.com/watch/%' OR (aired IS NOT NULL AND aired <= ?))");
   const rows = library.getWatchlist('release_asc').filter((x) => ids.has(x.malId));
   // Progress is the furthest episode watched, like Up Next: gaps in old history aren't "unwatched".
   const shows = rows.map((x) => {
-    const aired = x.airedEpisodes ?? x.episodesCount;
+    const out = outStmt.get(x.malId, new Date().toISOString())?.n || 0;
+    const aired = Math.max(x.airedEpisodes ?? x.episodesCount ?? 0, out) || null;
     const furthest = furthestStmt.get(x.malId)?.n || 0;
     const watched = x.progress ?? x.watchedCount;
     const nextEpisode = watched < (aired || 0) ? Math.min(furthest + 1, aired) : null;
