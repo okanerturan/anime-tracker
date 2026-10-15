@@ -322,11 +322,12 @@ test('web push: VAPID token verifies, requests are well-formed, gone subscriptio
     assert.equal(push.quietHours(night), true);
     assert.equal(push.quietHours(noon), false);
     assert.equal((await push.notifyNewEpisodes([{ title: 'X', malId: 3, latestAiredAt: new Date().toISOString() }], [], { now: night })).quiet, true);
-    const r2 = await push.notifyNewEpisodes([{ title: 'Old', malId: 1, latestAiredAt: '2020-01-01T00:00:00Z' }, { title: 'Fresh Show', malId: 2, nextEpisode: 5, latestAiredAt: aired }], [], { now: noon });
+    const r2 = await push.notifyNewEpisodes([{ title: 'Old', malId: 1, latestAiredAt: '2020-01-01T00:00:00Z' }, { title: 'Fresh Show', malId: 2, nextEpisode: 5, nextEpisodeUrl: 'https://www.crunchyroll.com/watch/ABC/ep5', latestAiredAt: aired }], [], { now: noon });
     assert.equal(r2.fresh, 1);
     assert.equal(push.episodeLine({ aired: 8, nextEpisode: 4 }), "Episode 8 is out. You're on episode 4.");
     assert.equal(push.episodeLine({ aired: 5, nextEpisode: 5 }), 'Episode 5 is out.');
     assert.equal(require('../server/state').get('pushLatest').title, 'New episode: Fresh Show');
+    assert.equal(require('../server/state').get('pushLatest').playLabel, 'Play E5');
     const r3 = await push.notifyNewEpisodes([{ title: 'Fresh Show', malId: 2, latestAiredAt: aired }], [], { now: noon });
     assert.equal(r3.fresh, 0, 'the same episode is not announced twice');
     const today = new Date().toISOString().slice(0, 10);

@@ -115,7 +115,9 @@ async function notifyNewEpisodes(items, seasons = [], { now: nowAt = new Date() 
   }
   const names = fresh.slice(0, 3).map((x) => x.title);
   const message = fresh.length === 1
-    ? { title: `New episode: ${fresh[0].title}`, body: episodeLine(fresh[0]), url: `/#/library?anime=${fresh[0].malId}` }
+    ? { title: `New episode: ${fresh[0].title}`, body: episodeLine(fresh[0]), url: `/#/library?anime=${fresh[0].malId}`,
+      // A "Play" button (Android/desktop) straight to your next episode on Crunchyroll.
+      ...(fresh[0].nextEpisodeUrl && /^https:\/\/www\.crunchyroll\.com\//.test(fresh[0].nextEpisodeUrl) ? { playUrl: fresh[0].nextEpisodeUrl, playLabel: `Play E${fresh[0].nextEpisode}` } : {}) }
     : { title: `${fresh.length} new episodes`, body: `${names.join(', ')}${fresh.length > 3 ? ` and ${fresh.length - 3} more` : ''}`, url: '/#/up-next' };
   if (premieres.length) message.body += ` · New season: ${premieres.map((s) => s.title).slice(0, 2).join(', ')}`;
   return { ...(await sendAll(message)), fresh: fresh.length, premieres: premieres.length };
