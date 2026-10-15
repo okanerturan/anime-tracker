@@ -97,20 +97,25 @@ async function syncEpisodes(malId) {
   return { malId, aired, titles, images };
 }
 
+// Hosted mode: an item belongs to the account that queued it and runs inside that account (the
+// queue loop itself would otherwise keep whichever account started it).
 function enqueue(malId) {
-  if (state.queued.has(malId)) return;
-  state.queued.add(malId);
-  state.queue.push(malId);
+  const accountId = require('./db').accountContext.getStore()?.accountId || null;
+  const key = `${accountId || ''}:${malId}`;
+  if (state.queued.has(key)) return;
+  state.queued.add(key);
+  state.queue.push({ malId, accountId, key });
   if (!state.running) runQueue();
 }
 
 async function runQueue() {
   state.running = true;
   while (state.queue.length) {
-    const malId = state.queue.shift();
-    state.queued.delete(malId);
+    const { malId, accountId, key } = state.queue.shift();
+    state.queued.delete(key);
     try {
-      await syncEpisodes(malId);
+      if (accountId) await require('./db').withAccount(accountId, () => syncEpisodes(malId));
+      else await syncEpisodes(malId);
       state.completed += 1;
     } catch (err) {
       state.failed += 1;
@@ -164,7 +169,11 @@ async function refreshCycle() {
     // Seasons that haven't aired can't have watched episodes (old import leftovers).
     try { const r = require('./library').repairUnreleasedWatches(); if (r.episodes) summary.unreleasedRepaired = r; } catch {}
     // Discover's season row: refresh here so a visitor never waits on AniList (the 12 h cache decides).
-    try { await require('./insights').seasonal(); summary.seasonalWarmed = true; } catch (err) { summary.seasonalError = String(err.message || err); }
+    // Not in hosted mode: the list is global and this cycle runs once per account, so an AniList
+    // outage would cost every account a minute of retries; Discover fetches it on demand instead.
+    if (!require('./db').MULTI) {
+      try { await require('./insights').seasonal(); summary.seasonalWarmed = true; } catch (err) { summary.seasonalError = String(err.message || err); }
+    }
     // Phone notifications: episodes that aired since the last cycle, once each.
     try { const up = await require('./insights').upNext(); summary.push = await require('./push').notifyNewEpisodes({ shows: require('./library').getWatchlist('release_desc'), seasons: up.newSeasons }); } catch (err) { summary.pushError = String(err.message || err); }
   } catch (err) {

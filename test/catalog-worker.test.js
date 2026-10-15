@@ -224,3 +224,29 @@ test('a known Crunchyroll series maps its third season by position, with zero se
   assert.equal(catalogDb.prepare("SELECT COUNT(*) n FROM catalog_jobs WHERE type = 'search'").get().n, 0, 'no search');
   assert.equal(withAccount('rv', () => adb.prepare("SELECT source FROM cr_season_map WHERE season_id = 'GREVS3'").get().source), 'cr-series');
 });
+
+test('the scheduled cycle runs for every account, each in its own file, and only once at a time', async () => {
+  reset(); catalogDb.exec("DELETE FROM catalog_lease");
+  const { withAccount, db: adb } = require('../server/db');
+  const scheduler = require('../server/catalog/scheduler');
+  const realFetch = global.fetch; global.fetch = async () => { throw new Error('offline'); };
+  try {
+    // Two accounts, each with an unaired sequel that an old import marked watched (the repair's job),
+    // and a show whose metadata is stale (queued for the worker).
+    catalogDb.prepare("INSERT OR REPLACE INTO media (mal_id, title, status, fetched_at, is_full) VALUES (901, 'Unaired S2', 'NOT_YET_RELEASED', CURRENT_TIMESTAMP, 1), (902, 'Stale Show', 'RELEASING', '2020-01-01 00:00:00', 1)").run();
+    const old = new Date(Date.now() - 400 * 86400e3).toISOString();
+    for (const a of ['k1', 'k2']) withAccount(a, () => {
+      adb.prepare("INSERT OR REPLACE INTO anime (mal_id, title) VALUES (901, 'Unaired S2'), (902, 'Stale Show')").run();
+      adb.prepare('INSERT OR IGNORE INTO watchlist (mal_id) VALUES (901), (902)').run();
+      adb.prepare('INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, watched, watched_at) VALUES (901, 1, 1, ?)').run(old);
+    });
+    const first = await scheduler.runAll({ accountIds: ['k1', 'k2'] });
+    assert.equal(first.ran, 2);
+    for (const a of ['k1', 'k2']) assert.equal(withAccount(a, () => adb.prepare('SELECT watched FROM episode_sync WHERE mal_id = 901').get().watched), 0, `${a} repaired in its own file`);
+    assert.ok(catalogDb.prepare("SELECT COUNT(*) n FROM catalog_jobs WHERE key = 'full:902'").get().n === 1, 'stale metadata queued once for both accounts');
+    const again = await scheduler.runAll({ accountIds: ['k1', 'k2'], now: Date.now() });
+    assert.equal(again.ran, 2, 'the same process can run its next pass');
+    catalogDb.prepare("UPDATE catalog_lease SET holder = 'someone-else', expires_at = ? WHERE name = 'refresh-cycle'").run(Date.now() + 3600e3);
+    assert.equal((await scheduler.runAll({ accountIds: ['k1'] })).skipped, 'lease', 'another holder blocks a second run');
+  } finally { global.fetch = realFetch; }
+});

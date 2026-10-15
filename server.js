@@ -54,6 +54,8 @@ server.listen(PORT, HOST, () => {
   if (process.env.NO_SYNC !== '1' && !auth) asAccount(() => sync.start());
   // Hosted mode: the catalog worker (AniList for everyone, one lease, one budget).
   if (MULTI && process.env.NO_SYNC !== '1') require('./server/catalog/worker').createWorker().start(2000);
+  // Hosted mode: the refresh cycle for every account, every 6 hours (one lease).
+  if (auth && process.env.NO_SYNC !== '1') require('./server/catalog/scheduler').start();
   // Hosted mode: daily account housekeeping (24-month inactivity, abandoned sign-ups).
   if (auth && process.env.NO_SYNC !== '1') {
     const sweep = () => { try { const r = require('./server/accounts/cleanup').sweep(); if (r.inactive || r.abandoned) console.log(`accounts cleanup: ${r.inactive} inactive, ${r.abandoned} abandoned`); } catch (err) { console.error('accounts cleanup failed', err.message); } };

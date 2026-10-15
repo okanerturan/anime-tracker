@@ -46,13 +46,13 @@ const failStmt = catalog.prepare(`UPDATE catalog_jobs SET attempts = attempts + 
   status = CASE WHEN attempts + 1 >= ? THEN 'quarantined' ELSE status END, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE key = ?`);
 
 // ---- lease (5.2) ----
-const leaseStmt = catalog.prepare(`INSERT INTO catalog_lease (name, holder, expires_at) VALUES ('catalog-worker', ?, ?)
+const leaseStmt = catalog.prepare(`INSERT INTO catalog_lease (name, holder, expires_at) VALUES (?, ?, ?)
   ON CONFLICT(name) DO UPDATE SET holder = excluded.holder, expires_at = excluded.expires_at
   WHERE catalog_lease.holder = excluded.holder OR catalog_lease.expires_at < ?`);
-/** Take or renew the worker lease; true when this holder has it. */
-function lease(holder, now = Date.now()) {
-  leaseStmt.run(holder, now + LEASE_MS, now);
-  return catalog.prepare("SELECT holder FROM catalog_lease WHERE name = 'catalog-worker'").get()?.holder === holder;
+/** Take or renew a named lease (default: the worker's); true when this holder has it. */
+function lease(holder, now = Date.now(), name = 'catalog-worker', ms = LEASE_MS) {
+  leaseStmt.run(name, holder, now + ms, now);
+  return catalog.prepare('SELECT holder FROM catalog_lease WHERE name = ?').get(name)?.holder === holder;
 }
 
 // ---- AniList requests (raw: the worker decides about retries) ----
