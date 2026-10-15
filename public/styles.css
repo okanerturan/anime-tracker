@@ -1820,3 +1820,8 @@ body:has(.select-bar:not([hidden])) .toast { inset-block-end: calc(var(--space-m
 .fold-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .fold-btn:hover { color: var(--text); border-color: var(--muted); } }
 a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap target */
+
+/* History rows: a long title gives way, the episode number never does (phones cut it otherwise). */
+.history-title { display: flex; align-items: baseline; gap: 0.4em; min-inline-size: 0; }
+.history-title > b { min-inline-size: 0; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: clip; }
+.history-ep { flex-shrink: 0; white-space: nowrap; color: var(--muted); }

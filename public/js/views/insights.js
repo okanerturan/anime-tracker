@@ -86,7 +86,7 @@ function historySection() {
         list.append(h(p.malId ? 'button' : 'div', { type: p.malId ? 'button' : null, class: 'history-row', onclick: p.malId ? () => openAnime({ malId: p.malId, title: p.title || p.seriesTitle }) : null },
           h('span', { class: 'history-time num' }, new Date(p.datePlayed).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })),
           h('span', { class: 'history-what' },
-            h('span', { class: 'one-line' }, h('b', {}, p.title || p.seriesTitle), ` · E${first}–E${ep(p)}`),
+            h('span', { class: 'history-title' }, h('b', { class: 'one-line' }, p.title || p.seriesTitle), h('span', { class: 'history-ep num' }, `E${first}–E${ep(p)}`)),
             h('span', { class: 'history-sub one-line' }, `${run.length} episodes`)),
           h('span', { class: 'history-pct num is-done' }, '✓')));
         continue;
@@ -95,9 +95,9 @@ function historySection() {
       const row = h(p.malId ? 'button' : 'div', { type: p.malId ? 'button' : null, class: `history-row ${p.percent != null && p.percent < 80 ? 'is-partial' : ''}`, onclick: p.malId ? () => openAnime({ malId: p.malId, title: p.title || p.seriesTitle }) : null },
         h('span', { class: 'history-time num' }, new Date(p.datePlayed).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })),
         h('span', { class: 'history-what' },
-          h('span', { class: 'one-line' }, h('b', {}, p.title || p.seriesTitle), ` · E${p.malEpisode || p.episodeNumber || '?'}`),
+          h('span', { class: 'history-title' }, h('b', { class: 'one-line' }, p.title || p.seriesTitle), h('span', { class: 'history-ep num' }, `E${p.malEpisode || p.episodeNumber || '?'}`)),
           name ? h('span', { class: 'history-sub one-line' }, name) : null),
-        h('span', { class: `history-pct num ${p.percent >= 80 ? 'is-done' : ''}` }, p.percent == null ? '' : p.percent >= 80 ? '✓' : `${p.percent}% watched`));
+        h('span', { class: `history-pct num ${p.percent >= 80 ? 'is-done' : ''}`, 'aria-label': p.percent == null ? null : p.percent >= 80 ? 'finished' : `${p.percent}% watched`, title: p.percent != null && p.percent < 80 ? `${p.percent}% watched` : null }, p.percent == null ? '' : p.percent >= 80 ? '✓' : `${p.percent}%`));
       list.append(row);
     }
     next = page.next;
