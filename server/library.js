@@ -235,9 +235,24 @@ function getDetails(malId) {
     if (['TV', 'TV_SHORT', 'ONA'].includes(s.format) && s.status !== 'NOT_YET_RELEASED') { continueWith = { ...s, inLibrary: Boolean(s.inLibrary), image: images.localUrl(s.cover), cover: undefined }; break; }
     cur = s.malId;
   }
+  // "More like this": AniList's community recommendations for this show, minus anything you've
+  // watched or that belongs to this show's own franchise.
+  const relatedIds = new Set(relations.map((r) => r.malId));
+  const similar = db.prepare(`
+    SELECT r.rec_mal_id AS malId, r.rating, COALESCE(m.title_english, m.title) AS title, m.cover_url AS cover, m.format, m.episodes,
+           m.average_score AS averageScore, m.season_year AS year, m.status,
+           (SELECT 1 FROM watchlist w WHERE w.mal_id = r.rec_mal_id) AS inLibrary,
+           (SELECT COUNT(*) FROM episode_sync e WHERE e.mal_id = r.rec_mal_id AND e.watched = 1) AS watched
+    FROM media_rec r JOIN media m ON m.mal_id = r.rec_mal_id
+    WHERE r.mal_id = ? AND r.rating > 0 AND m.status IN ('FINISHED','RELEASING')
+    ORDER BY r.rating DESC LIMIT 12`).all(malId)
+    .filter((s) => !s.watched && !relatedIds.has(s.malId))
+    .slice(0, 6)
+    .map((s) => ({ ...s, inLibrary: Boolean(s.inLibrary), image: images.localUrl(s.cover), cover: undefined }));
   return {
     partial: !media.is_full,
     relations,
+    similar,
     continueWith,
     // Official streaming services from AniList (Crunchyroll, Netflix, HIDIVE, Prime Video, ...), one per site.
     watchOn: [...new Map(parseJSONField(media.external_links, []).map((l) => [l.site, l])).values()],

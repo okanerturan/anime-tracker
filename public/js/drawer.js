@@ -80,6 +80,7 @@ export async function openAnime(partial) {
   const linksRow = h('div', { class: 'hero-actions' },
     h('a', { class: 'btn', href: `https://myanimelist.net/anime/${item.malId}`, target: '_blank', rel: 'noopener' }, 'MyAnimeList'));
   const relatedSection = h('section', { class: 'section', hidden: true });
+  const similarSection = h('section', { class: 'section', hidden: true });
   const watchRow = h('div', { class: 'hero-actions watch-row' });
   // "Play next" sits above everything once the episode list tells us which episode and where.
   const playRow = h('div', { class: 'hero-actions play-row' });
@@ -109,6 +110,12 @@ export async function openAnime(partial) {
     fill(linksRow,
       ext('MyAnimeList', d.links.myAnimeList, { class: 'btn small ghost' }),
       d.links.aniList ? ext('AniList', d.links.aniList, { class: 'btn small ghost' }) : null);
+    if (d.similar?.length) {
+      similarSection.hidden = false;
+      fill(similarSection,
+        h('div', { class: 'section-head' }, h('h2', {}, 'More like this'), h('span', { class: 'sub' }, 'AniList users who liked this also recommend')),
+        h('div', { class: 'related' }, d.similar.map((r) => relatedCard({ ...r, relationType: null, startDate: r.year ? String(r.year) : null, label: r.averageScore ? `★ ${r.averageScore}` : 'Recommended' }))));
+    }
     if (!d.relations.length) return;
     relatedSection.hidden = false;
     fill(relatedSection,
@@ -117,7 +124,7 @@ export async function openAnime(partial) {
   }).catch(() => {});
 
   function relatedCard(r) {
-    const label = { PREQUEL: 'Previous season', SEQUEL: 'Next season', PARENT: 'Main story', SIDE_STORY: 'Side story', SPIN_OFF: 'Spin-off', ALTERNATIVE: 'Alternative', SUMMARY: 'Recap' }[r.relationType] || r.relationType;
+    const label = r.label || { PREQUEL: 'Previous season', SEQUEL: 'Next season', PARENT: 'Main story', SIDE_STORY: 'Side story', SPIN_OFF: 'Spin-off', ALTERNATIVE: 'Alternative', SUMMARY: 'Recap' }[r.relationType] || r.relationType;
     const done = r.episodes && r.watched >= r.episodes;
     const progressText = r.watched ? (done ? '✓ Watched' : `${r.watched}/${r.episodes ?? '?'} watched`) : (r.inLibrary ? 'Not started' : 'Not in library');
     const open = () => openAnime({ malId: r.malId, title: r.title, image: r.image });
@@ -239,6 +246,7 @@ export async function openAnime(partial) {
           h('div', { class: 'hero-actions' }, ...(item.inLibrary === false ? notInLibraryActions() : [refreshBtn, removeBtn])),
           linksRow)),
       relatedSection,
+      similarSection,
       item.inLibrary === false ? null : h('section', { class: 'section' },
         h('div', { class: 'section-head' }, h('h2', {}, 'Episodes'), summary, h('span', { class: 'sub' }, 'Shift-click a check to mark everything up to it'), markAllBtn),
         epContainer)));
