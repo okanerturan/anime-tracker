@@ -400,11 +400,28 @@ function comingSoonRow(items) {
   };
   return h('section', { class: 'section' },
     h('div', { class: 'section-head' }, h('h2', {}, 'Coming soon'), h('span', { class: 'sub' }, `${plural(items.length, 'announced sequel')} to shows you finished`)),
-    capped(h('div', { class: 'quiet-list' }, items.map((x) => h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
-      h('img', { src: x.image, alt: '', loading: 'lazy' }),
-      h('span', { class: 'week-item-text' },
-        h('span', { class: 'week-item-title one-line' }, x.title),
-        h('span', { class: 'week-item-sub one-line' }, `${when(x.startDate)}${x.after ? ` · after ${x.after}` : ''}`)))))));
+    capped(h('div', { class: 'quiet-list' }, items.map((x) => {
+      // "Remind me" puts it on your list, so its premiere sends a notification ("Episode 1 is out").
+      const remind = x.inLibrary
+        ? h('span', { class: 'soon-on-list', title: 'On your list: you get a notification when it premieres' }, 'On your list')
+        : h('button', { type: 'button', class: 'btn small soon-remind', 'aria-label': `Remind me when ${x.title} starts` }, 'Remind me');
+      if (!x.inLibrary) remind.addEventListener('click', async () => {
+        remind.disabled = true;
+        try {
+          await api.add({ malId: x.malId, title: x.title, totalEpisodes: x.episodes });
+          x.inLibrary = true; bus.emit('library-changed');
+          remind.replaceWith(h('span', { class: 'soon-on-list' }, 'On your list'));
+          toast(`${x.title} is on your list. You'll get a notification when it starts (if notifications are on).`);
+        } catch (err) { remind.disabled = false; toast(err.message); }
+      });
+      return h('div', { class: 'soon-row' },
+        h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
+          h('img', { src: x.image, alt: '', loading: 'lazy' }),
+          h('span', { class: 'week-item-text' },
+            h('span', { class: 'week-item-title one-line' }, x.title),
+            h('span', { class: 'week-item-sub one-line' }, `${when(x.startDate)}${x.after ? ` · after ${x.after}` : ''}`))),
+        remind);
+    }))));
 }
 
 // The container this page last rendered into; Undo handlers redraw it only while it's on screen.
