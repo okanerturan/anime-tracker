@@ -494,6 +494,12 @@ function draw(view, data, cr) {
   const stalledRest = data.stalled.filter((x) => !finishIds.has(x.malId));
   let tonightEl = tonight(data.continueWatching, inProgress) || h('div', { hidden: true });
   tonightEl.dataset.pool = 'all';
+  // Home-screen shortcut "Play tonight's pick" (#/up-next?play=1): go straight to the episode, once.
+  if (/[?&]play=1/.test(location.hash)) {
+    history.replaceState(null, '', '#/up-next');
+    const go = tonightEl.querySelector('a.btn.primary[href^="http"]');
+    if (go) { location.assign(go.href); return; }
+  }
   fill(view,
     tonightEl,
     notifyNudge(),
