@@ -162,11 +162,29 @@ function upNext() {
   comingSoon.sort((a, b) => (a.startDate ? 0 : 1) - (b.startDate ? 0 : 1) || String(a.startDate).localeCompare(String(b.startDate)));
 
   // Finished in the last two weeks and not rated yet: the moment a rating is easiest to give.
-  const recentlyFinished = rows
+  // Seasons of one series finished together (a binge of S1 and S2) are one row and one rating,
+  // saved to each season: the newest season stands for the group.
+  const finished = rows
     .filter((r) => r.watched && !r.rating && r.episodes && r.watched >= r.episodes && r.status === 'FINISHED' && r.last_watched && now - new Date(r.last_watched).getTime() < 14 * DAY)
-    .sort((a, b) => String(b.last_watched).localeCompare(String(a.last_watched)))
-    .slice(0, 6)
-    .map((r) => card(r, { finishedAt: r.last_watched, episodes: r.episodes }));
+    .sort((a, b) => String(b.last_watched).localeCompare(String(a.last_watched)));
+  const ids = new Set(finished.map((r) => r.mal_id));
+  const groupOf = new Map(finished.map((r) => [r.mal_id, r.mal_id]));
+  const root = (x) => { while (groupOf.get(x) !== x) x = groupOf.get(x); return x; };
+  if (finished.length > 1) {
+    for (const e of db.prepare("SELECT mal_id AS a, related_mal_id AS b FROM media_relation WHERE relation_type IN ('SEQUEL','PREQUEL')").all()) {
+      if (!ids.has(e.a) || !ids.has(e.b)) continue;
+      const ra = root(e.a); const rb = root(e.b);
+      if (ra !== rb) groupOf.set(rb, ra);
+    }
+  }
+  const groups = new Map();
+  for (const r of finished) { const g = root(r.mal_id); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(r); }
+  const recentlyFinished = [...groups.values()]
+    .map((list) => {
+      const lead = list.slice().sort((a, b) => String(b.start_date || '').localeCompare(String(a.start_date || '')))[0];
+      return card(lead, { finishedAt: list[0].last_watched, episodes: lead.episodes, seasonIds: list.map((r) => r.mal_id), seasons: list.length });
+    })
+    .slice(0, 6);
   return { continueWatching, airingSoon, newSeasons: newSeasonCards, caughtUpAiring, stalled, onHold, dropped, recentlyFinished, comingSoon };
 }
 

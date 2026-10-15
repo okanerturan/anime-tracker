@@ -331,6 +331,8 @@ const skipRating = (malId) => { try { const s = readSkipped(); s.add(malId); loc
 function rateStrip(allItems, onRated) {
   const skipped = readSkipped();
   const items = allItems.filter((x) => !skipped.has(x.malId));
+  // A row can stand for several seasons of one series (finished together): one rating for all.
+  const idsOf = (x) => x.seasonIds?.length ? x.seasonIds : [x.malId];
   if (!items.length) return null;
   const row = (x) => {
     let el = null;
@@ -338,14 +340,14 @@ function rateStrip(allItems, onRated) {
       const b = h('button', { type: 'button', class: 'star', 'aria-label': `${n} star${n > 1 ? 's' : ''}` }, '★');
       b.addEventListener('click', async () => {
         stars.querySelectorAll('.star').forEach((s, i) => s.setAttribute('aria-pressed', String(i < n)));
-        try { await api.setRating(x.malId, n); toast(`${x.title}: ${n}/5`); el.classList.add('is-done'); setTimeout(() => { el.remove(); onRated?.(); }, 900); }
+        try { for (const id of idsOf(x)) await api.setRating(id, n); toast(`${x.title}${x.seasons > 1 ? ` (${x.seasons} seasons)` : ''}: ${n}/5`); el.classList.add('is-done'); setTimeout(() => { el.remove(); onRated?.(); }, 900); }
         catch (err) { toast(err.message); }
       });
       return b;
     }));
     const skip = h('button', { type: 'button', class: 'icon-btn', 'aria-label': `Skip rating ${x.title}`, title: 'Skip' }, icon('close'));
-    skip.addEventListener('click', () => { skipRating(x.malId); el.remove(); onRated?.(); });
-    el = showRow({ show: x, sub: `Finished ${ago(x.finishedAt)}`, actions: [stars, skip], wrapActions: true });
+    skip.addEventListener('click', () => { idsOf(x).forEach(skipRating); el.remove(); onRated?.(); });
+    el = showRow({ show: x, sub: `${x.seasons > 1 ? `${x.seasons} seasons · ` : ''}Finished ${ago(x.finishedAt)}`, actions: [stars, skip], wrapActions: true });
     return el;
   };
   return h('section', { class: 'section rate-strip' },
