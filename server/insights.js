@@ -515,12 +515,19 @@ async function seasonal({ refresh = false } = {}) {
       id idMal title{romaji english} format status episodes duration genres averageScore popularity coverImage{extraLarge large} siteUrl
       tags{name rank isMediaSpoiler} externalLinks{site url type} relations{edges{relationType node{idMal}}}}}}`;
     const list = [];
-    for (const p of [1, 2]) {
-      const data = await anilist.gql(query, { s: season, y: year, p });
-      list.push(...(data?.Page?.media || []).filter((m) => m.idMal));
+    try {
+      for (const p of [1, 2]) {
+        const data = await anilist.gql(query, { s: season, y: year, p });
+        list.push(...(data?.Page?.media || []).filter((m) => m.idMal));
+      }
+    } catch (err) {
+      // AniList blocked or down: keep showing the last list rather than nothing.
+      if (!cached?.list) throw err;
     }
-    appState.set(key, { list });
-    cached = { list, at: new Date().toISOString() };
+    if (list.length) {
+      appState.set(key, { list });
+      cached = { list, at: new Date().toISOString() };
+    }
   }
   const rows = libraryState();
   const profile = tasteProfile(rows, engagementWeights(rows));

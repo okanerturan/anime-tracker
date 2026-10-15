@@ -166,6 +166,8 @@ async function refreshCycle() {
     // Warm Discover: recompute recommendations now so the page opens without a wait.
     state.phase = 'recommendations';
     try { await require('./insights').recommendations({ refresh: true }); summary.recommendationsWarmed = true; } catch (err) { summary.recommendationsError = String(err.message || err); }
+    // Discover's season row: refresh here so a visitor never waits on AniList (the 12 h cache decides).
+    try { await require('./insights').seasonal(); summary.seasonalWarmed = true; } catch (err) { summary.seasonalError = String(err.message || err); }
     // Phone notifications: episodes that aired since the last cycle, once each.
     try { const up = await require('./insights').upNext(); summary.push = await require('./push').notifyNewEpisodes(up.continueWatching, [...up.newSeasons, ...require('./push').libraryPremieres()]); } catch (err) { summary.pushError = String(err.message || err); }
   } catch (err) {

@@ -338,3 +338,23 @@ test('web push: VAPID token verifies, requests are well-formed, gone subscriptio
     assert.equal((await push.notifyNewEpisodes([], [season], { now: noon })).premieres, 0, 'a premiere is announced once');
   } finally { global.fetch = realFetch; }
 });
+
+test('seasonal: an AniList failure after the cache expires keeps the last list', async () => {
+  const insights = require('../server/insights');
+  const anilist = require('../server/sources/anilist');
+  const state = require('../server/state');
+  const { db } = require('../server/db');
+  const realGql = anilist.gql;
+  const media = (id) => ({ id, idMal: id, title: { romaji: `Show ${id}` }, format: 'TV', status: 'RELEASING', episodes: 12, genres: ['Action'], tags: [], externalLinks: [], relations: { edges: [] }, coverImage: {}, popularity: 100 });
+  try {
+    anilist.gql = async () => ({ Page: { media: [media(900001), media(900002)] } });
+    const first = await insights.seasonal({ refresh: true });
+    assert.ok(first.items.length >= 1);
+    anilist.gql = async () => { throw new Error('AniList blocked'); };
+    const key = db.prepare("SELECT key FROM app_state WHERE key LIKE 'seasonal:%'").get().key;
+    db.prepare("UPDATE app_state SET at = '2000-01-01T00:00:00Z' WHERE key = ?").run(key);
+    const again = await insights.seasonal();
+    assert.equal(again.items.length, first.items.length, 'stale list is served');
+    assert.ok(state.get(key).list.length, 'cache kept');
+  } finally { anilist.gql = realGql; }
+});
