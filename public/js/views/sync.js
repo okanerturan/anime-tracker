@@ -57,6 +57,8 @@ function pushSection() {
   const test = h('button', { type: 'button', class: 'btn small', hidden: true }, 'Send a test');
   const box = h('div', { class: 'panel' },
     h('p', {}, 'Get a notification when a show you follow has a new episode, or a show you watched starts a new season. Checked every three hours; nothing between 23:00 and 08:00, the morning check sends what aired overnight. Works on a phone once the tracker is on your Home Screen, and in any desktop browser.'),
+    // On a computer the extension already notifies; turning this on there too would double every alert.
+    matchMedia('(hover: hover) and (pointer: fine)').matches ? h('p', { class: 'muted' }, 'On a computer with the Crunchyroll extension you already get these from the extension, so turn this on for your phone instead to avoid getting each one twice.') : null,
     h('div', { class: 'hero-actions' }, on, test, off), status);
   const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   const keyBytes = (k) => Uint8Array.from(atob(k.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((k.length + 3) % 4)), (c) => c.charCodeAt(0));
