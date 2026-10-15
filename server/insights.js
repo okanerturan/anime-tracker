@@ -134,12 +134,15 @@ function upNext() {
   onHold.sort((a, b) => a.lastAgeDays - b.lastAgeDays);
   // Coming soon: announced sequels of shows you finished (or nearly), with a premiere date when known.
   const upcoming = db.prepare(`
-    SELECT DISTINCT r.related_mal_id AS mal_id, src.mal_id AS src_id, m.title, m.title_english, m.cover_url AS cover, m.status, m.format,
+    SELECT DISTINCT r.related_mal_id AS mal_id, src.mal_id AS src_id, m.title,
+           -- AniList often has no English title for an unaired sequel yet; your library may (same name as its Library card).
+           COALESCE(NULLIF(m.title_english, ''), NULLIF(own.title_english, '')) AS title_english, m.cover_url AS cover, m.status, m.format,
            m.episodes, m.start_date, m.average_score
     FROM media_relation r
     JOIN watchlist sw ON sw.mal_id = r.mal_id
     JOIN anime src ON src.mal_id = r.mal_id
     JOIN media m ON m.mal_id = r.related_mal_id
+    LEFT JOIN anime own ON own.mal_id = r.related_mal_id
     WHERE r.relation_type = 'SEQUEL' AND m.status = 'NOT_YET_RELEASED'
       AND m.format IN ('TV','TV_SHORT','ONA','MOVIE')
       AND COALESCE(sw.list_status, '') <> 'dropped'
