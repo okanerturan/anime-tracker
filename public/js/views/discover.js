@@ -111,9 +111,12 @@ function searchPanel(initial = '') {
             media({ src: a.image, alt: '', kind: 'poster', badges: [a.crunchyrollUrl
               ? h('a', { class: 'play-overlay', href: a.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${title} on Crunchyroll` }, icon('play'), h('span', {}, 'Crunchyroll'))
               : (a.watchOn?.length ? h('span', { class: 'pill dark badge-bottom', title: `Streaming on ${a.watchOn.join(', ')}` }, a.watchOn[0]) : null)] }),
-            a.inLibrary ? cardLink(title, () => openAnime({ ...a, title, image: a.image }), { href: `https://myanimelist.net/anime/${a.malId}` }) : h('h3', { class: 'card-title clamp-2' }, title),
+            cardLink(title, () => openAnime({ ...a, title, image: a.image }), { href: `https://myanimelist.net/anime/${a.malId}` }),
             h('p', { class: 'card-meta' }, [a.releaseDate?.slice(0, 4), FORMAT_LABEL[a.format] || a.format, a.totalEpisodes ? `${a.totalEpisodes} eps` : null].filter(Boolean).join(' · ')),
-            h('div', { class: 'card-actions' }, addButton(a, a.inLibrary), a.status === 'NOT_YET_RELEASED' ? null : watchedButton(a.malId, title)));
+            // Already yours: one button that opens it. Otherwise Add, plus Seen it once it has aired.
+            a.inLibrary
+              ? h('div', { class: 'card-actions' }, h('button', { type: 'button', class: 'btn small ghost', style: { flex: '1' }, onclick: () => openAnime({ ...a, title, image: a.image }) }, 'In library · Open'))
+              : h('div', { class: `card-actions ${a.status === 'NOT_YET_RELEASED' ? '' : 'card-actions--pair'}` }, addButton(a, false), a.status === 'NOT_YET_RELEASED' ? null : watchedButton(a.malId, title)));
         }));
       } catch (err) { results.replaceChildren(h('div', { class: 'empty' }, err.message)); }
     }, 350);
