@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const Database = require('better-sqlite3');
-const { applySchema } = require('./schema');
+const { applySchema, CATALOG_TABLES } = require('./schema');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data');
@@ -18,6 +18,7 @@ const IMAGE_DIR = path.join(DATA_DIR, 'images');
 const ACCOUNTS_DIR = process.env.ACCOUNTS_DIR || path.join(DATA_DIR, 'accounts');
 const MULTI = process.env.AUTH_MODE === 'accounts';
 const MAX_OPEN = Number(process.env.DB_MAX_OPEN) || 200;
+const CATALOG_FILE = process.env.CATALOG_DB || path.join(DATA_DIR, 'catalog.db');
 fs.mkdirSync(IMAGE_DIR, { recursive: true });
 if (MULTI) fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
 
@@ -34,13 +35,29 @@ function fileFor(key) {
   return path.join(ACCOUNTS_DIR, `${key}.db`);
 }
 
-function connect(file) {
+function connect(file, part = 'all') {
   const conn = new Database(file);
   conn.pragma('journal_mode = WAL');
   conn.pragma('foreign_keys = ON');
   conn.pragma('busy_timeout = 5000');
-  applySchema(conn);
+  applySchema(conn, part);
+  // Hosted mode: the shared catalog is attached, so unqualified `media` (and friends) resolve to
+  // it and the existing joins keep working with nothing copied into the account file.
+  if (part === 'account') conn.prepare('ATTACH DATABASE ? AS catalog').run(CATALOG_FILE);
   return conn;
+}
+
+// The catalog's own writable connection (hosted mode): only the catalog worker uses it.
+const catalogConn = MULTI ? connect(CATALOG_FILE, 'catalog') : null;
+
+// An account connection may read the catalog but never write it (better-sqlite3 here can't attach
+// read-only, so writes are refused when a statement is compiled).
+const WRITE_TARGET = /^\s*(?:WITH\b[\s\S]*?\)\s*)?(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+\w+)?|DELETE\s+FROM)\s+(?:catalog\.)?["`]?(\w+)/i;
+function assertNoCatalogWrite(sql) {
+  const m = sql.match(WRITE_TARGET);
+  if (m && CATALOG_TABLES.has(m[1].toLowerCase())) {
+    throw new Error(`catalog table "${m[1]}" is written only by the catalog worker, not from an account`);
+  }
 }
 
 /** The connection for the current request's account (single-user mode: the one file). */
@@ -53,7 +70,7 @@ function current() {
   }
   let entry = open.get(key);
   if (entry) { open.delete(key); open.set(key, entry); return entry; }
-  entry = { conn: connect(fileFor(key)), stmts: new Map() };
+  entry = { conn: connect(fileFor(key), MULTI ? 'account' : 'all'), stmts: new Map() };
   open.set(key, entry);
   // Close the least recently used files beyond the cap (never one mid-transaction).
   for (const [k, e] of open) {
@@ -71,7 +88,11 @@ class LazyStatement {
   compiled() {
     const entry = current();
     let s = entry.stmts.get(this.sql);
-    if (!s) { s = entry.conn.prepare(this.sql); entry.stmts.set(this.sql, s); }
+    if (!s) {
+      if (MULTI) assertNoCatalogWrite(this.sql);
+      s = entry.conn.prepare(this.sql);
+      entry.stmts.set(this.sql, s);
+    }
     return s;
   }
   run(...args) { return this.compiled().run(...args); }
@@ -84,11 +105,14 @@ const db = {
   prepare: (sql) => new LazyStatement(sql),
   /** Like better-sqlite3's: returns a function that runs `fn` in a transaction on the caller's connection. */
   transaction: (fn) => (...args) => current().conn.transaction(fn)(...args),
-  exec: (sql) => current().conn.exec(sql),
+  exec: (sql) => { if (MULTI) assertNoCatalogWrite(sql); return current().conn.exec(sql); },
   pragma: (...args) => current().conn.pragma(...args),
-  close: () => { for (const [k, e] of open) { e.conn.close(); open.delete(k); } },
+  close: () => { for (const [k, e] of open) { e.conn.close(); open.delete(k); } catalogConn?.close(); },
   /** How many account files are open (tests and the status endpoint). */
   openCount: () => open.size
 };
 
-module.exports = { db, ROOT, DATA_DIR, IMAGE_DIR, ACCOUNTS_DIR, MULTI, withAccount, accountContext };
+/** Hosted mode: the catalog worker's read-write connection to the shared catalog (null in single-user mode). */
+const catalogDb = catalogConn;
+
+module.exports = { db, catalogDb, ROOT, DATA_DIR, IMAGE_DIR, ACCOUNTS_DIR, CATALOG_FILE, MULTI, withAccount, accountContext };

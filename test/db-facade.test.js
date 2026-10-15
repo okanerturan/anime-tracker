@@ -52,3 +52,18 @@ test('no account in context, or an id that is not a plain id, is refused', () =>
 });
 
 test.after(() => { db.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
+
+test('accounts read the shared catalog through the attachment, and never write it', () => {
+  const { catalogDb } = require('../server/db');
+  catalogDb.prepare('INSERT OR REPLACE INTO media (mal_id, title, status) VALUES (?, ?, ?)').run(700, 'Shared Show', 'FINISHED');
+  const tables = withAccount('7', () => db.prepare("SELECT name FROM main.sqlite_master WHERE type = 'table'").all().map((r) => r.name));
+  assert.ok(tables.includes('watchlist') && !tables.includes('media'), 'the account file has no catalog tables');
+  withAccount('7', () => {
+    db.prepare('INSERT INTO anime (mal_id, title) VALUES (?, ?)').run(700, 'Mine');
+    db.prepare('INSERT INTO watchlist (mal_id) VALUES (?)').run(700);
+  });
+  const joined = withAccount('7', () => db.prepare('SELECT m.title FROM watchlist w JOIN media m ON m.mal_id = w.mal_id').get());
+  assert.equal(joined.title, 'Shared Show', 'unqualified media resolves to the catalog');
+  assert.throws(() => withAccount('7', () => db.prepare('UPDATE media SET title = ? WHERE mal_id = ?').run('x', 700)), /catalog worker/);
+  assert.throws(() => withAccount('7', () => db.prepare('INSERT OR REPLACE INTO catalog.media_rec (mal_id, rec_mal_id, rating) VALUES (1, 2, 3)').run()), /catalog worker/);
+});

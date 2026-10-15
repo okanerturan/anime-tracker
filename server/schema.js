@@ -183,12 +183,34 @@ const ADDED_COLUMNS = [
   ['media', 'start_day_known', 'start_day_known INTEGER']
 ];
 
-function applySchema(db) {
-  db.exec(SCHEMA);
+// Hosted mode splits the tables: what is the same for everyone (show metadata, relations,
+// recommendations, the image index, AniList job queues, Crunchyroll season fetch times) lives in
+// one catalog file; everything about a person lives in their account file. Single-user mode keeps
+// all of it in one file, as before.
+const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids']);
+
+/** The table a CREATE TABLE / CREATE INDEX statement is about. */
+function tableOf(statement) {
+  const m = statement.match(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)/i) || statement.match(/\bON\s+(\w+)\s*\(/i);
+  return m ? m[1] : null;
+}
+
+function schemaFor(part) {
+  if (part === 'all') return SCHEMA;
+  return SCHEMA.split(/;\s*\n/).filter((st) => st.trim()).filter((st) => {
+    const t = tableOf(st);
+    return t && (part === 'catalog' ? CATALOG_TABLES.has(t) : !CATALOG_TABLES.has(t));
+  }).join(';\n') + ';';
+}
+
+/** part: 'all' (single-user file), 'account' (an account's file) or 'catalog' (the shared file). */
+function applySchema(db, part = 'all') {
+  db.exec(schemaFor(part));
   for (const [table, column, ddl] of ADDED_COLUMNS) {
+    if (part !== 'all' && (part === 'catalog') !== CATALOG_TABLES.has(table)) continue;
     const cols = db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all().map((r) => r.name);
     if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
   }
 }
 
-module.exports = { SCHEMA, applySchema };
+module.exports = { SCHEMA, CATALOG_TABLES, applySchema, schemaFor };
