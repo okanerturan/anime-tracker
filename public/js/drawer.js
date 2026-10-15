@@ -283,11 +283,14 @@ export async function openAnime(partial) {
           item.inLibrary === false ? null : listControls(),
           h('div', { class: 'hero-actions' }, ...(item.inLibrary === false ? notInLibraryActions() : [refreshBtn, removeBtn])),
           linksRow)),
-      relatedSection,
-      similarSection,
+      // Episodes first: ticking them off is why you open a show; other seasons and lookalikes follow.
       item.inLibrary === false ? null : h('section', { class: 'section' },
-        h('div', { class: 'section-head' }, h('h2', {}, 'Episodes'), summary, h('span', { class: 'sub pointer-only' }, 'Shift-click a check to mark everything up to it'), markAllBtn),
-        epContainer)));
+        h('div', { class: 'section-head' }, h('h2', {}, 'Episodes'), summary,
+          h('span', { class: 'sub pointer-only' }, 'Shift-click a check to mark everything up to it'),
+          h('span', { class: 'sub touch-only' }, 'Hold a check to mark everything up to it'), markAllBtn),
+        epContainer),
+      relatedSection,
+      similarSection));
 
   // While a show is open its name leads the tab title (also when moving to a related season);
   // closing puts the page's title back.
@@ -402,7 +405,18 @@ export async function openAnime(partial) {
       h('div', { class: 'ep-row' },
         h('span', { class: 'name clamp-2', title: name }, name),
         check));
+    // Touch: holding a check for half a second is the phone's Shift-click.
+    let held = false; let holdTimer = null;
+    check.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' || ep.watched) return;
+      held = false;
+      holdTimer = setTimeout(() => { held = true; navigator.vibrate?.(15); check.dispatchEvent(new MouseEvent('click', { shiftKey: true, bubbles: true })); }, 500);
+    });
+    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) check.addEventListener(t, () => clearTimeout(holdTimer));
+    check.addEventListener('contextmenu', (e) => { if (held || holdTimer) e.preventDefault(); });
     check.addEventListener('click', async (e) => {
+      // The tap that ends a hold already marked the run; don't toggle on top of it.
+      if (held && !e.shiftKey) { held = false; return; }
       try {
         if (e.shiftKey && !ep.watched) {
           const r = await api.watchedThrough(item.malId, ep.episodeNumber);
