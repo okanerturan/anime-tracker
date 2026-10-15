@@ -35,6 +35,13 @@
     const rateRow = finished && !current.rating
       ? `<div class="rate"><span>Rate it</span>${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star" data-n="${n}" aria-label="${n} star${n > 1 ? 's' : ''}">★</button>`).join('')}</div>`
       : '';
+    // Started but not finished: hold or drop it from here (or undo a hold/drop).
+    const unfinished = current && current.watched > 0 && current.aired && current.watched < current.aired;
+    const stateLabel = { on_hold: 'On hold', dropped: 'Dropped' }[current?.listStatus];
+    const listRow = unfinished
+      ? (stateLabel ? `<div class="list"><span>${stateLabel}</span><button type="button" class="lnk" data-status="">Make active</button></div>`
+        : `<div class="list"><span>Not for you?</span><button type="button" class="lnk" data-status="on_hold">Hold</button><button type="button" class="lnk" data-status="dropped">Drop</button></div>`)
+      : '';
     const next = current && current.nextEpisode && current.watched < (current.aired || 0) ? `Next: episode ${current.nextEpisode}`
       : info.nextSeason ? `New season out: ${info.nextSeason.title}`
         : (current && current.status === 'RELEASING' ? 'Caught up · airing' : 'All caught up');
@@ -59,6 +66,9 @@
       .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .p { flex: none; font-variant-numeric: tabular-nums; }
       .next { margin-top: 6px; color: #f6a35b; font-weight: 600; }
+      .list { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: #a7abb9; }
+      .lnk { background: none; border: 0; padding: 0; color: #f6a35b; font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+      .lnk:focus-visible { outline: 2px solid #f6a35b; outline-offset: 2px; border-radius: 3px; }
       .rate { display: flex; align-items: center; gap: 2px; margin-top: 6px; color: #a7abb9; }
       .rate span { margin-right: 4px; }
       .star { background: none; border: 0; padding: 0 1px; font-size: 18px; line-height: 1; color: #4a4f5e; cursor: pointer; }
@@ -74,9 +84,20 @@
       <ul>${rows}</ul>
       <div class="next">${esc(next)}</div>
       ${rateRow}
+      ${listRow}
       <a href="${esc(info.trackerUrl)}/#/library?anime=${target}" target="_blank" rel="noopener">Open in tracker</a>
     </div>`;
     root.querySelector('header button').addEventListener('click', () => { dismissedFor = seriesId; remove(); });
+    root.querySelectorAll('.lnk').forEach((b) => b.addEventListener('click', async () => {
+      const status = b.dataset.status || null;
+      const row = root.querySelector('.list');
+      try {
+        const r = await chrome.runtime.sendMessage({ type: 'list-status', malId: current.malId, status });
+        if (!r || !r.ok) { row.textContent = 'Could not save that'; return; }
+        current.listStatus = status;
+        row.textContent = status === 'dropped' ? 'Dropped. It leaves Up Next.' : status === 'on_hold' ? 'On hold. It leaves Up Next until you watch it again.' : 'Active again.';
+      } catch { row.textContent = 'Could not save that'; }
+    }));
     root.querySelectorAll('.star').forEach((b) => b.addEventListener('click', async () => {
       const n = Number(b.dataset.n);
       const row = root.querySelector('.rate');

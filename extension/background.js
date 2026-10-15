@@ -192,6 +192,15 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         const res = await fetch(`${c.trackerUrl}/api/anime/rating`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'extension', ...authHeaders(c.trackerKey || '') }, body: JSON.stringify({ malId, rating }) });
         reply({ ok: res.ok });
       } catch { reply({ ok: false }); }
+    } else if (msg.type === 'list-status') {
+      // Hold / Drop / back to active from the card on crunchyroll.com.
+      const malId = Number(msg.malId); const status = msg.status ?? null;
+      if (!Number.isInteger(malId) || malId <= 0 || ![null, 'on_hold', 'dropped'].includes(status)) { reply({ ok: false }); return; }
+      try {
+        const c = await get();
+        const res = await fetch(`${c.trackerUrl}/api/anime/list-status`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'extension', ...authHeaders(c.trackerKey || '') }, body: JSON.stringify({ malId, status }) });
+        reply({ ok: res.ok });
+      } catch { reply({ ok: false }); }
     } else if (msg.type === 'set-overlay') {
       await set({ overlay: Boolean(msg.on) });
       reply({ ok: true });

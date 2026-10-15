@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Anime Tracker: Crunchyroll Sync",
-  "version": "1.10.3",
+  "version": "1.11.0",
   "description": "Keeps your local anime tracker up to date with your Crunchyroll watch history.",
   "permissions": [
     "alarms",
