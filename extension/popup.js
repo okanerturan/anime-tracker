@@ -59,11 +59,38 @@ async function loadUpNext(s) {
       text.append(t, sub);
       const play = document.createElement('span'); play.className = 'play'; play.textContent = x.nextEpisodeUrlIsExact ? '▶ Play' : `Open on ${x.nextEpisodeSite || 'Crunchyroll'}`;
       a.append(img, text, play);
-      box.append(a);
+      // ✓ beside the row (a link can't hold a button): watched it elsewhere, tick it off from here.
+      const tick = document.createElement('button');
+      tick.className = 'tick'; tick.type = 'button'; tick.textContent = '✓';
+      tick.title = `Mark E${x.nextEpisode} watched`; tick.setAttribute('aria-label', `Mark episode ${x.nextEpisode} of ${x.title} watched`);
+      tick.onclick = () => markWatched(s, x, sub, tick);
+      const pair = document.createElement('div'); pair.className = 'pair';
+      pair.append(a, tick);
+      box.append(pair);
     }
   } catch (err) {
     box.replaceChildren(empty(/key/.test(err.message) ? 'Set the tracker key under Settings.' : `Can't reach the tracker (${err.message}).`));
   }
+}
+
+/** Tick the next episode off (Undo for a few seconds), then reload the list. */
+async function markWatched(s, x, sub, tick) {
+  const post = (path, body) => fetch(`${s.trackerUrl}${path}`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'extension', ...(s.trackerKey ? { Authorization: `Bearer ${s.trackerKey}` } : {}) },
+    body: JSON.stringify(body) }).then(async (r) => { if (!r.ok) throw new Error(`tracker ${r.status}`); return r.json(); });
+  tick.disabled = true;
+  try {
+    const r = await post('/api/episode/watched-through', { malId: x.malId, episodeNumber: x.nextEpisode });
+    sub.textContent = `E${x.nextEpisode} marked watched · `;
+    const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'linkish'; undo.textContent = 'Undo';
+    undo.onclick = async () => {
+      undo.disabled = true;
+      try { await post('/api/episode/unmark', { malId: x.malId, episodes: r.episodes || [x.nextEpisode] }); } catch {}
+      loadUpNext(s);
+    };
+    sub.append(undo);
+    setTimeout(() => { if (!undo.disabled) loadUpNext(s); }, 6000);
+  } catch (err) { tick.disabled = false; sub.textContent = `Couldn't mark it: ${err.message}`; }
 }
 
 function empty(text) { const d = document.createElement('div'); d.className = 'empty'; d.textContent = text; return d; }
