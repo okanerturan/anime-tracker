@@ -235,6 +235,24 @@ const routes = {
     if (!body.episodeId) return sendJSON(res, 400, { error: 'episodeId required' });
     return sendJSON(res, 200, crunchyroll.dismissPlay(String(body.episodeId), Boolean(body.undo)));
   },
+  // Web Push (installed app on phones): key, subscribe, unsubscribe, test, and the latest message text.
+  'GET /api/push/key': async (req, res) => { const push = require('./push'); sendJSON(res, 200, { publicKey: (await push.keys()).publicKey, devices: push.subscriptions().length }); },
+  'POST /api/push/subscribe': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    const origin = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : '');
+    return sendJSON(res, 200, require('./push').subscribe(body.subscription, origin));
+  },
+  'POST /api/push/unsubscribe': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    return sendJSON(res, 200, require('./push').unsubscribe(String(body.endpoint || '')));
+  },
+  'POST /api/push/test': async (req, res) => {
+    requireClientHeader(req);
+    return sendJSON(res, 200, await require('./push').sendAll({ title: 'Anime Tracker', body: 'Notifications work on this device. New episodes will show up here.', url: '/#/up-next' }));
+  },
+  'GET /api/push/latest': (req, res) => sendJSON(res, 200, require('./state').get('pushLatest') || { title: 'Anime Tracker', body: 'Something new is waiting in Up Next.', url: '/#/up-next' }),
   'GET /api/calendar': (req, res) => sendJSON(res, 200, { path: `/calendar/${require('./calendar').token()}.ics` }),
   'POST /api/calendar/reset': async (req, res) => {
     requireClientHeader(req);

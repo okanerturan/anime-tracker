@@ -2,7 +2,7 @@
 // picked up on the next load and the app still opens on a train. Images are cache-first (their
 // URLs are content-addressed and immutable). API calls always go to the network; the pages keep
 // their own last-known snapshots in localStorage.
-const CACHE = 'anime-tracker-shell-v2';
+const CACHE = 'anime-tracker-shell-v3';
 const SHELL = ['/', '/index.html', '/styles.css', '/manifest.webmanifest', '/favicon.svg',
   '/js/main.js', '/js/api.js', '/js/ui.js', '/js/bus.js', '/js/drawer.js', '/js/anilist-relay.js', '/js/quickopen.js',
   '/js/views/upnext.js', '/js/views/library.js', '/js/views/discover.js', '/js/views/insights.js', '/js/views/sync.js',
@@ -37,4 +37,23 @@ self.addEventListener('fetch', (e) => {
     if (res.ok && res.type === 'basic') caches.open(CACHE).then((c) => c.put(e.request, res.clone()));
     return res;
   }).catch(async () => (await caches.match(e.request)) || (await caches.match('/index.html')) || Response.error()));
+});
+
+// Web Push: the push is only a wake-up; the text comes from the tracker (signed-in cookie).
+self.addEventListener('push', (e) => {
+  e.waitUntil((async () => {
+    let m = { title: 'Anime Tracker', body: 'Something new is waiting in Up Next.', url: '/#/up-next' };
+    try { const r = await fetch('/api/push/latest', { credentials: 'same-origin', cache: 'no-store' }); if (r.ok) m = await r.json(); } catch {}
+    await self.registration.showNotification(m.title, { body: m.body, icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', data: { url: m.url || '/#/up-next' }, tag: 'anime-tracker' });
+  })());
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || '/#/up-next', self.location.origin).href;
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const win = wins.find((w) => new URL(w.url).origin === self.location.origin);
+    if (win) { await win.focus(); return win.navigate(url).catch(() => {}); }
+    return self.clients.openWindow(url);
+  })());
 });

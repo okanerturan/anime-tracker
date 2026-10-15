@@ -49,6 +49,48 @@ function capList(listEl, limit = 8) {
   return [listEl, more];
 }
 
+/** Phone notifications through Web Push (for the installed app, or any browser without the extension). */
+function pushSection() {
+  const status = h('p', { class: 'muted', role: 'status' });
+  const on = h('button', { type: 'button', class: 'btn small primary' }, 'Turn on notifications on this device');
+  const off = h('button', { type: 'button', class: 'btn small ghost', hidden: true }, 'Turn off');
+  const test = h('button', { type: 'button', class: 'btn small', hidden: true }, 'Send a test');
+  const box = h('div', { class: 'panel' },
+    h('p', {}, 'Get a notification when a show you follow has a new episode, checked every three hours. Works on a phone once the tracker is on your Home Screen, and in any desktop browser.'),
+    h('div', { class: 'hero-actions' }, on, test, off), status);
+  const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const keyBytes = (k) => Uint8Array.from(atob(k.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((k.length + 3) % 4)), (c) => c.charCodeAt(0));
+  const paint = (sub) => { on.hidden = Boolean(sub); off.hidden = test.hidden = !sub; status.textContent = sub ? 'Notifications are on for this device.' : ''; };
+  if (!supported) {
+    on.hidden = true;
+    status.textContent = /iPhone|iPad/.test(navigator.userAgent) ? 'On iPhone or iPad, first add the tracker to your Home Screen (Share → Add to Home Screen), then open it from there and turn notifications on.' : 'This browser cannot receive web notifications.';
+  } else {
+    navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription()).then(paint).catch(() => {});
+    on.addEventListener('click', async () => {
+      on.disabled = true;
+      try {
+        if ((await Notification.requestPermission()) !== 'granted') { status.textContent = 'Notifications are blocked for this site. Allow them in the browser settings, then try again.'; on.disabled = false; return; }
+        const reg = await navigator.serviceWorker.ready;
+        const { publicKey } = await api.pushKey();
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
+        await api.pushSubscribe(sub.toJSON());
+        paint(sub);
+      } catch (err) { status.textContent = `Could not turn notifications on: ${err.message}`; }
+      on.disabled = false;
+    });
+    off.addEventListener('click', async () => {
+      try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) { await api.pushUnsubscribe(sub.endpoint); await sub.unsubscribe(); } paint(null); status.textContent = 'Notifications are off for this device.'; }
+      catch (err) { status.textContent = err.message; }
+    });
+    test.addEventListener('click', async () => {
+      try { const r = await api.pushTest(); status.textContent = r.sent ? 'Test sent. It should arrive in a few seconds.' : 'The push service did not accept the test. Turn notifications off and on again.'; }
+      catch (err) { status.textContent = err.message; }
+    });
+  }
+  return h('section', { class: 'section', id: 'notifications' },
+    h('div', { class: 'section-head' }, h('h2', {}, 'Notifications'), h('span', { class: 'sub' }, 'New episodes, on your phone or this browser')), box);
+}
+
 /** Airing calendar: a secret feed URL any calendar app can subscribe to. */
 function calendarSection() {
   const field = h('input', { type: 'text', class: 'search mono', readonly: true, 'aria-label': 'Calendar feed address', value: 'Loading…' });
@@ -244,6 +286,7 @@ export async function render(view) {
         return row;
       })))) : null,
     calendarSection(),
+    pushSection(),
     h('details', { class: 'collapse section', id: 'import', open: (stats.library || 0) < 20 || /[?&]import=1/.test(location.hash) ? '' : null },
       h('summary', {}, h('div', { class: 'section-head' },
         h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Import from elsewhere'),

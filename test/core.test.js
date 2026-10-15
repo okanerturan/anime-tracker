@@ -287,3 +287,40 @@ test('continue-with skips seasons you finished, and the series time left adds la
   assert.equal(d.continueWith.malId, 882, 'S2 is finished, so S3 is next');
   assert.deepEqual(d.seriesLeft, { seasons: 1, episodes: 3, minutes: 72 });
 });
+
+test('web push: VAPID token verifies, requests are well-formed, gone subscriptions are dropped', async () => {
+  const push = require('../server/push');
+  const { publicKey } = await push.keys();
+  assert.equal((await push.keys()).publicKey, publicKey, 'keys are made once');
+  assert.equal(push.fromB64url(publicKey).length, 65, 'uncompressed P-256 point');
+  push.subscribe({ endpoint: 'https://push.example.com/alive' }, 'https://tracker.example.com');
+  push.subscribe({ endpoint: 'https://push.example.com/gone' }, 'https://tracker.example.com');
+  const seen = [];
+  const realFetch = global.fetch;
+  global.fetch = async (url, opts) => { seen.push({ url, opts }); return new Response(null, { status: url.endsWith('/gone') ? 410 : 201 }); };
+  try {
+    const r = await push.sendAll({ title: 't', body: 'b', url: '/#/up-next' });
+    assert.equal(r.sent, 1);
+    assert.deepEqual(push.subscriptions().map((s) => s.endpoint), ['https://push.example.com/alive'], 'the 410 one is removed');
+    const auth = seen[0].opts.headers.Authorization;
+    const [, jwt, k] = auth.match(/^vapid t=([^,]+), k=(.+)$/);
+    assert.equal(k, publicKey);
+    assert.equal(seen[0].opts.headers.TTL, '86400');
+    const [h64, p64, s64] = jwt.split('.');
+    const claims = JSON.parse(new TextDecoder().decode(push.fromB64url(p64)));
+    assert.equal(claims.aud, 'https://push.example.com');
+    assert.equal(claims.sub, 'https://tracker.example.com');
+    const key = await crypto.subtle.importKey('raw', push.fromB64url(publicKey), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, push.fromB64url(s64), new TextEncoder().encode(`${h64}.${p64}`));
+    assert.ok(ok, 'ES256 signature verifies with the public key');
+    // New-episode detection: only episodes that aired since the last check.
+    const hourAgo = new Date(Date.now() - 3600e3).toISOString();
+    require('../server/state').set('pushChecked', { checkedAt: hourAgo });
+    const aired = new Date(Date.now() - 600e3).toISOString();
+    const r2 = await push.notifyNewEpisodes([{ title: 'Old', malId: 1, latestAiredAt: '2020-01-01T00:00:00Z' }, { title: 'Fresh Show', malId: 2, nextEpisode: 5, latestAiredAt: aired }]);
+    assert.equal(r2.fresh, 1);
+    assert.equal(require('../server/state').get('pushLatest').title, 'New episode: Fresh Show');
+    const r3 = await push.notifyNewEpisodes([{ title: 'Fresh Show', malId: 2, latestAiredAt: aired }]);
+    assert.equal(r3.fresh, 0, 'the same episode is not announced twice');
+  } finally { global.fetch = realFetch; }
+});
