@@ -116,6 +116,16 @@ async function notifyNewEpisodes(cfg) {
     if (seen && (!seen[x.malId] || at > seen[x.malId]) && Date.now() - at < 3 * 86400000) fresh.push(x);
     next[x.malId] = Math.max(at, next[x.malId] || 0);
   }
+  // Premieres: a season from "Coming soon" that started airing in the last 7 days, once per season.
+  const premieres = [];
+  for (const x of data.newSeasons || []) {
+    if (x.status !== 'RELEASING' || !x.startDate) continue;
+    const at = new Date(x.startDate).getTime();
+    if (Number.isNaN(at) || Date.now() - at > 7 * 86400000 || at > Date.now()) continue;
+    const key = `s${x.malId}`;
+    if (seen && !seen[key]) premieres.push(x);
+    next[key] = at;
+  }
   await set({ notified: next });
   // Icon badge: shows with an episode out in the last 7 days that you haven't watched yet.
   const week = (data.continueWatching || []).filter((x) => x.latestAiredAt && Date.now() - new Date(x.latestAiredAt).getTime() < 7 * 86400000).length;
@@ -125,6 +135,12 @@ async function notifyNewEpisodes(cfg) {
     await chrome.action.setTitle({ title: week ? `Anime Tracker: ${week} show${week === 1 ? '' : 's'} with a new episode this week` : 'Anime Tracker' });
   } catch {}
   if (!notify) return;
+  for (const x of premieres.slice(0, 3)) {
+    chrome.notifications.create(`ep|${x.malId}|${x.crunchyrollUrl || `${cfg.trackerUrl}/#/up-next?anime=${x.malId}`}`, {
+      type: 'basic', iconUrl: 'icons/icon-128.png', title: 'New season started',
+      message: `${x.title}${x.after ? ` (after ${x.after})` : ''} is airing now`, priority: 0
+    });
+  }
   for (const x of fresh.slice(0, 3)) {
     chrome.notifications.create(`ep|${x.malId}|${x.nextEpisodeUrl || `${cfg.trackerUrl}/#/up-next`}`, {
       type: 'basic', iconUrl: 'icons/icon-128.png', title: 'New episode out',
