@@ -4,7 +4,6 @@
 // requests stay within a global budget of 30 a minute; full fetches go 25 ids per request; a job
 // that fails 3 times is quarantined with its error; a block or sustained failure pauses catalog
 // updates (the app keeps serving what it has) and retries every 6 hours.
-const crypto = require('crypto');
 const { catalog } = require('../db');
 const state = require('../state');
 
@@ -60,7 +59,10 @@ async function anilistRequest(query, variables) {
  * A worker. `request(query, vars)` → { status, retryAfter, data, errors } (a fake in tests);
  * `store(list)` saves full media (anilist.storeFull by default). Call tick() every 2 seconds.
  */
-function createWorker({ holder = `w-${crypto.randomBytes(4).toString('hex')}`, request = anilistRequest, store = null, fullQuery = null, now = () => Date.now() } = {}) {
+// (Web Crypto for the holder name: this file is also bundled into the Cloudflare build.)
+const randomHex = () => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join('');
+
+function createWorker({ holder = `w-${randomHex()}`, request = anilistRequest, store = null, fullQuery = null, now = () => Date.now() } = {}) {
   const sent = []; // request times in the last minute (5.3)
   let waitUntil = 0;
   const anilist = () => require('../sources/anilist');

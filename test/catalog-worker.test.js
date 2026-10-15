@@ -111,3 +111,28 @@ test('in hosted mode, asking for show details queues jobs instead of calling Ani
     assert.deepEqual(catalogDb.prepare("SELECT key FROM catalog_jobs ORDER BY key").all().map((x) => x.key), ['full:11', 'full:12']);
   } finally { global.fetch = realFetch; }
 });
+
+test('a 4,000-play first sync needs no network and finishes in under 5 seconds', async () => {
+  reset();
+  const { withAccount } = require('../server/db');
+  const crunchyroll = require('../server/crunchyroll');
+  const realFetch = global.fetch; let called = 0;
+  global.fetch = async () => { called += 1; throw new Error('network is off for this test'); };
+  try {
+    const plays = [];
+    for (let s = 0; s < 80; s += 1) for (let e = 1; e <= 50; e += 1) {
+      plays.push({ id: `p-${s}-${e}`, episodeId: `E${s}x${e}`, seasonId: `GSEASON${s}`, seriesTitle: `Unknown Show ${s}`, seasonTitle: `Unknown Show ${s}`,
+        episodeNumber: e, datePlayed: new Date(Date.now() - (s * 50 + e) * 60e3).toISOString(), fullyWatched: true, playhead: 1400, durationS: 1440 });
+    }
+    const t0 = Date.now(); let deferred = 0;
+    await withAccount('20', async () => {
+      for (let i = 0; i < plays.length; i += 500) deferred += (await crunchyroll.ingest(plays.slice(i, i + 500))).deferred || 0;
+    });
+    const ms = Date.now() - t0;
+    assert.equal(called, 0, 'no network during ingest');
+    assert.ok(ms < 5000, `took ${ms} ms`);
+    assert.equal(withAccount('20', () => require('../server/db').db.prepare('SELECT COUNT(*) n FROM cr_history').get().n), 4000, 'every play stored');
+    assert.equal(catalogDb.prepare("SELECT COUNT(*) n FROM catalog_jobs WHERE type = 'search'").get().n, 80, 'one search job per unknown season');
+    assert.ok(deferred > 0, 'their plays wait for the search');
+  } finally { global.fetch = realFetch; }
+});

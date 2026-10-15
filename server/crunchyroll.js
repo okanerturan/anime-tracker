@@ -191,6 +191,13 @@ async function ingest(rawRows, { source = 'extension' } = {}) {
     const anyWatched = seasonRows.some((r) => isWatchedPlay({ fullyWatched: r.fully_watched, playhead: r.playhead, durationS: r.duration_s }));
     if (!anyRuleStmt.get(seasonKey) && anyWatched && !seasonRows.every((r) => r.mal_id)) {
       let rule = ruleFromTitles(seasonRows, index);
+      // Hosted mode (D10): ingest never waits on the network. An unknown season becomes a search job
+      // for the catalog worker; its plays stay pending until the season is resolved.
+      if (!rule && require('./db').MULTI) {
+        require('./catalog/worker').enqueue('search', { query: `${sample.series_title} ${sample.season_title || ''}`.trim(), seasonKey }, { recency: 1 });
+        summary.deferred = (summary.deferred || 0) + seasonRows.length;
+        continue;
+      }
       if (!rule) {
         const minEp = Math.min(...seasonRows.map((r) => r.episode_number).filter((n) => n != null), Infinity);
         try { rule = await ruleFromAniList(sample, Number.isFinite(minEp) ? minEp : 1); }

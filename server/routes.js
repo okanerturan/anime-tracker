@@ -201,6 +201,8 @@ const routes = {
     const body = await parseBody(req);
     const rows = Array.isArray(body) ? body : body.rows;
     if (!Array.isArray(rows)) return sendJSON(res, 400, { error: 'rows array required' });
+    // Hosted mode takes history in batches of 500 plays (the extension sends a first sync in pieces).
+    if (require('./db').MULTI && rows.length > 500) return sendJSON(res, 413, { error: 'Send at most 500 plays per request.', maxRows: 500 });
     return sendJSON(res, 200, await crunchyroll.ingest(rows, { source: body.source === 'manual' ? 'manual' : 'extension' }));
   },
   'POST /api/crunchyroll/episodes': async (req, res) => {
