@@ -11,3 +11,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Cloudflare bundle builds
+        run: node worker/build.mjs
