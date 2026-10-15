@@ -1801,6 +1801,8 @@ body:has(.select-bar:not([hidden])) .toast { inset-block-end: calc(var(--space-m
 .section.is-folded > .section-head { opacity: 0.7; }
 .fold-btn { margin-inline-start: auto; background: none; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: inherit; font-size: var(--step--2); padding: 0.2em 0.7em; cursor: pointer; }
 .section-head > .carousel-nav + .fold-btn, .section-head > .push-end + .fold-btn { margin-inline-start: var(--space-xs); }
+.section-tools { display: flex; align-items: center; gap: var(--space-xs); margin-inline-start: auto; align-self: center; }
+.section-tools > .fold-btn { margin-inline-start: 0; }
 .fold-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .fold-btn:hover { color: var(--text); border-color: var(--muted); } }
 a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap target */

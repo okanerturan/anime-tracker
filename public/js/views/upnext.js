@@ -551,7 +551,11 @@ function addFoldButtons(view) {
       try { localStorage.setItem(FOLD_KEY, JSON.stringify(folded)); } catch {}
       paint();
     });
-    head.append(btn);
+    // With carousel arrows, Hide joins them in one group, so on a phone they wrap together instead
+    // of leaving Hide alone on a line of its own.
+    const nav = head.querySelector(':scope > .carousel-nav');
+    if (nav) { const tools = h('div', { class: 'section-tools' }); nav.replaceWith(tools); tools.append(nav, btn); }
+    else head.append(btn);
     paint();
   }
 }
