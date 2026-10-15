@@ -101,7 +101,8 @@ export async function openAnime(partial) {
     renderPlay();
     offerSequel();
     // Episodes drawn before the show's Crunchyroll link was known: redraw so those tiles open it too.
-    if (episodesLoaded && epContainer.querySelector('.ep-row > span.name')) load().catch(() => {});
+    if (episodesLoaded && d.links?.crunchyroll && !d.links.crunchyrollIsSearch
+      && epContainer.querySelector('.ep-tile:not(.ep-upcoming) .ep-row > span.name')) load().catch(() => {});
     // Shows known only as someone's sequel or recommendation lack full metadata; fetch it (through the
     // browser relay when AniList blocks the server) and reopen once it has arrived.
     if (d.partial && !partial._refetched) {
@@ -330,8 +331,12 @@ export async function openAnime(partial) {
     playRow.append(btn);
   }
 
+  // Responses can overlap (a check's reload and the details-triggered one): only the newest paints.
+  let loadSeq = 0;
   async function load() {
+    const mine = ++loadSeq;
     const data = await api.episodes(item.malId);
+    if (mine !== loadSeq) return;
     const eps = data.seasons.flatMap((s) => s.episodes);
     const furthest = eps.reduce((m, e) => (e.watched && e.episodeNumber > m ? e.episodeNumber : m), 0);
     const next = eps.find((e) => e.episodeNumber === furthest + 1) || eps.find((e) => !e.watched);

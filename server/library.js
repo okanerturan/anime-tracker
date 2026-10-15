@@ -394,9 +394,14 @@ function unmarkEpisodes(malId, episodes) {
 function repairUnreleasedWatches() {
   // Also: a finished show can't have a watched episode numbered past its total (old bulk-mark
   // leftovers like "E21 of 12"; new overflow is rolled into the sequel by resolveOverflow on ingest).
+  // Only on metadata fetched in the last 3 days (a stale status must not unmark real watches), only
+  // plays over a month old, and never past-the-total episodes of a show with a sequel: those belong
+  // to the sequel (resolveOverflow), so they're left for a remap instead of being thrown away.
   const rows = db.prepare(`SELECT e.mal_id, e.episode_number FROM episode_sync e JOIN media m ON m.mal_id = e.mal_id
-    WHERE e.watched = 1 AND e.watched_at < ? AND (m.status = 'NOT_YET_RELEASED'
-      OR (m.status = 'FINISHED' AND m.episodes > 0 AND e.episode_number > m.episodes))`).all(new Date(Date.now() - 7 * 86400e3).toISOString());
+    WHERE e.watched = 1 AND e.watched_at < ? AND m.fetched_at > datetime('now', '-3 days') AND (m.status = 'NOT_YET_RELEASED'
+      OR (m.status = 'FINISHED' AND m.episodes > 0 AND e.episode_number > m.episodes
+          AND NOT EXISTS (SELECT 1 FROM media_relation r WHERE r.mal_id = e.mal_id AND r.relation_type = 'SEQUEL')))`)
+    .all(new Date(Date.now() - 30 * 86400e3).toISOString());
   const byShow = new Map();
   for (const r of rows) byShow.set(r.mal_id, [...(byShow.get(r.mal_id) || []), r.episode_number]);
   let changed = 0;

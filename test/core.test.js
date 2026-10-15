@@ -378,11 +378,17 @@ test('unreleased seasons: old copied plays are unmarked, recent ones and release
   const recent = new Date(Date.now() - 86400e3).toISOString();
   const mark = (id, n, at) => db.prepare(`INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, watched, watched_at) VALUES (?, ?, 1, ?)`).run(id, n, at);
   mark(960, 1, old); mark(960, 2, old); mark(960, 3, recent); mark(961, 1, old);
+  db.prepare("UPDATE media SET fetched_at = CURRENT_TIMESTAMP WHERE mal_id IN (960, 961)").run();
   const r = library.repairUnreleasedWatches();
   assert.equal(r.episodes, 2);
   const w = (id, n) => db.prepare('SELECT watched FROM episode_sync WHERE mal_id = ? AND episode_number = ?').get(id, n).watched;
   assert.equal(w(960, 1), 0);
   assert.equal(w(960, 3), 1, 'a play from yesterday waits (AniList status may lag)');
+  // Stale metadata: nothing is touched.
+  mark(960, 1, old); db.prepare("UPDATE media SET fetched_at = '2020-01-01 00:00:00' WHERE mal_id = 960").run();
+  assert.equal(library.repairUnreleasedWatches().episodes, 0, 'stale status is not trusted');
+  db.prepare("UPDATE media SET fetched_at = CURRENT_TIMESTAMP WHERE mal_id = 960").run();
+  library.repairUnreleasedWatches();
   assert.equal(w(961, 1), 1, 'released shows are untouched');
   assert.equal(library.repairUnreleasedWatches().episodes, 0, 'idempotent');
   // Past the total of a finished show: E21 of a 12-episode season.
@@ -390,6 +396,10 @@ test('unreleased seasons: old copied plays are unmarked, recent ones and release
   assert.equal(library.repairUnreleasedWatches().episodes, 1);
   assert.equal(w(961, 21), 0);
   assert.equal(w(961, 12), 1);
+  // Past the total with a sequel: left for the sequel, not unmarked.
+  mark(961, 21, old); relate(961, 962, 'SEQUEL');
+  assert.equal(library.repairUnreleasedWatches().episodes, 0, 'overflow with a sequel is kept');
+  assert.equal(w(961, 21), 1);
 });
 
 test('odd progress: Leave as is stops flagging a show, Undo flags it again', () => {
@@ -418,4 +428,13 @@ test('season episode lists: a Crunchyroll watch link replaces a MyAnimeList link
   assert.equal(url(1), 'https://www.crunchyroll.com/watch/NEW1');
   assert.equal(url(2), 'https://myanimelist.net/anime/980/x/episode/2', 'no id: the old link stays');
   assert.equal(url(3), 'https://www.crunchyroll.com/watch/KEEP3/x', 'an existing watch link is kept');
+});
+
+test('ingest: a recent play counts on a show still cached as not yet released (premiere lag)', () => {
+  addShow(990, 'Fresh Premiere', { status: 'NOT_YET_RELEASED', start_date: null });
+  rule('GFRESH1', 990);
+  const now = new Date().toISOString();
+  crunchyroll.ingest([{ id: 'p-fresh-1', episodeId: 'EPF1', seasonId: 'GFRESH1', seriesTitle: 'Fresh Premiere', seasonTitle: 'Fresh Premiere', episodeNumber: 1, datePlayed: now, fullyWatched: true, playhead: 1400, durationS: 1440 }]);
+  const row = db.prepare('SELECT watched FROM episode_sync WHERE mal_id = 990 AND episode_number = 1').get();
+  assert.equal(row?.watched, 1);
 });

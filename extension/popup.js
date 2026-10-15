@@ -85,8 +85,8 @@ async function markWatched(s, x, sub, tick) {
     const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'linkish'; undo.textContent = 'Undo';
     undo.onclick = async () => {
       undo.disabled = true;
-      try { await post('/api/episode/unmark', { malId: x.malId, episodes: r.episodes || [x.nextEpisode] }); } catch {}
-      loadUpNext(s);
+      try { await post('/api/episode/unmark', { malId: x.malId, episodes: r.episodes || [x.nextEpisode] }); loadUpNext(s); }
+      catch (err) { undo.disabled = false; sub.firstChild.textContent = `Undo failed (${err.message}) · `; }
     };
     sub.append(undo);
     setTimeout(() => { if (!undo.disabled) loadUpNext(s); }, 6000);
