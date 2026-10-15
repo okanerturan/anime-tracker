@@ -12,6 +12,7 @@ const invites = require('./invites');
 const recovery = require('./recovery');
 const limits = require('./limits');
 const data = require('./data');
+const devices = require('./devices');
 const { withAccount } = require('../db');
 const { sendJSON, parseBody } = require('../http');
 
@@ -204,6 +205,30 @@ const ROUTES = {
     adb().prepare('DELETE FROM accounts WHERE id = ?').run(accountId); // sessions, passkeys, codes, tokens go with it
     res.setHeader('Set-Cookie', sessions.cookie(null));
     return sendJSON(res, 200, { ok: true, deleted: true });
+  },
+
+  /** Connect page: a token for this browser's extension (handed to it directly), or a pairing code. */
+  'POST /auth/device/connect': async (req, res) => {
+    requireClient(req);
+    const accountId = signedIn(req, res);
+    const b = await parseBody(req);
+    return sendJSON(res, 200, { token: devices.mint(accountId, deviceName(req, b.name)) });
+  },
+  'POST /auth/device/pairing-code': (req, res) => { requireClient(req); return sendJSON(res, 200, { code: devices.pairingCode(signedIn(req, res)), minutes: 10 }); },
+  /** The extension trades a pairing code for its token (no session: the code is the proof). */
+  'POST /auth/device/pair': async (req, res) => {
+    requireClient(req);
+    limit('recover', limits.clientIp(req));
+    const b = await parseBody(req);
+    return sendJSON(res, 200, { token: devices.redeem(b.code, b.name) });
+  },
+  'GET /auth/devices': (req, res) => sendJSON(res, 200, { devices: devices.list(signedIn(req, res)), max: devices.MAX_DEVICES }),
+  'POST /auth/devices/revoke': async (req, res) => {
+    requireClient(req);
+    const accountId = signedIn(req, res);
+    const b = await parseBody(req);
+    devices.revoke(accountId, b.id);
+    return sendJSON(res, 200, { ok: true });
   },
 
   'POST /auth/signout': (req, res) => { requireClient(req); sessions.end(sessions.fromRequest(req)); res.setHeader('Set-Cookie', sessions.cookie(null)); return sendJSON(res, 200, { ok: true }); },

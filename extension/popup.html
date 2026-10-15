@@ -27,6 +27,7 @@
   .tick { width: 34px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted); font: inherit; font-size: 15px; cursor: pointer; }
   @media (hover: hover) and (pointer: fine) { .tick:hover { color: #4ade80; border-color: #2f6b47; } }
   .tick:disabled { opacity: 0.5; cursor: default; }
+  .pair-row { display: flex; gap: 6px; } .pair-row input { flex: 1; min-width: 0; }
   .linkish { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-weight: 700; cursor: pointer; }
   .play { background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 5px 10px; font-weight: 700; font-size: 12px; white-space: nowrap; }
   @media (hover: hover) and (pointer: fine) { .item:hover { border-color: #444a5c; } .item:hover .play { filter: brightness(1.08); } }
@@ -71,6 +72,8 @@
     <section>
       <label>Tracker URL <input id="url"></label>
       <label>Tracker key <input id="key" type="password" autocomplete="off" placeholder="only for the hosted tracker"></label>
+      <label>Pairing code <span class="pair-row"><input id="pair" autocomplete="one-time-code" placeholder="XXXX-XXXX from the Connect page" spellcheck="false"><button id="pairGo" class="secondary" type="button">Connect</button></span></label>
+      <div class="row" id="pairResult"></div>
       <label class="check-row"><input type="checkbox" id="notify"> Notify me when a show I'm watching has a new episode</label>
       <label class="check-row"><input type="checkbox" id="overlay"> Show my progress card on Crunchyroll show pages</label>
       <div class="actions"><button id="full" class="secondary">Full resync</button></div>

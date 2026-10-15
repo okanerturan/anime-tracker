@@ -11,9 +11,10 @@ import * as discover from './views/discover.js';
 import * as insights from './views/insights.js';
 import * as sync from './views/sync.js';
 import * as account from './views/account.js';
+import * as connect from './views/connect.js';
 
-const VIEWS = { 'up-next': upnext, library, discover, insights, sync, account };
-const VIEW_NAMES = { 'up-next': 'Up Next', library: 'Library', discover: 'Discover', insights: 'Insights', sync: 'Sync', account: 'Account' };
+const VIEWS = { 'up-next': upnext, library, discover, insights, sync, account, connect };
+const VIEW_NAMES = { 'up-next': 'Up Next', library: 'Library', discover: 'Discover', insights: 'Insights', sync: 'Sync', account: 'Account', connect: 'Connect' };
 const view = document.getElementById('view');
 
 async function route({ refresh = false } = {}) {

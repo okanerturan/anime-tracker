@@ -155,4 +155,24 @@ test('cleanup: 24 months idle and passkey-less sign-ups older than a day are rem
   assert.ok(r.inactive >= 1 && r.abandoned >= 1);
 });
 
+test('devices: hashed tokens, a 10-browser limit, pairing codes once within 10 minutes, revoke', () => {
+  const devices = require('../server/accounts/devices');
+  const id = newAccount('Device owner');
+  const token = devices.mint(id, 'Chrome on Mac');
+  assert.match(token, /^trk_/);
+  assert.equal(store.adb().prepare('SELECT COUNT(*) n FROM device_tokens WHERE token_hash = ?').get(token).n, 0, 'only the hash is stored');
+  for (let i = 0; i < 9; i += 1) devices.mint(id, `Browser ${i}`);
+  assert.throws(() => devices.mint(id, 'Eleventh'), /Disconnect one first/);
+  devices.revoke(id, devices.list(id)[0].id);
+  assert.ok(devices.mint(id, 'Room again'));
+  const t0 = Date.now();
+  const code = devices.pairingCode(id, { now: t0 });
+  assert.match(code, /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  devices.revoke(id, devices.list(id)[0].id);
+  assert.match(devices.redeem(code.toLowerCase(), 'Paired'), /^trk_/, 'case and dash don\'t matter');
+  assert.throws(() => devices.redeem(code, 'Again'), /isn.t valid/, 'single use');
+  const late = devices.pairingCode(id, { now: t0 - 11 * 60e3 });
+  assert.throws(() => devices.redeem(late, 'Late'), /isn.t valid/, 'expires after 10 minutes');
+});
+
 test.after(() => { store.close(); db.close(); fs.rmSync(tmp, { recursive: true, force: true }); });

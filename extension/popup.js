@@ -107,4 +107,17 @@ $('url').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-tracker-url',
 $('overlay').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-overlay', on: e.target.checked }, refresh);
 $('notify').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-notify', on: e.target.checked }, refresh);
 $('key').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-tracker-key', key: e.target.value }, refresh);
+// Pairing code from the tracker's Connect page: trade it for this browser's sync token.
+$('pairGo').onclick = async () => {
+  const out = $('pairResult');
+  out.textContent = 'Connecting…';
+  chrome.runtime.sendMessage({ type: 'get-state' }, async (s) => {
+    try {
+      const res = await fetch(`${s.trackerUrl}/auth/device/pair`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'extension' }, body: JSON.stringify({ code: $('pair').value, name: 'Chrome extension' }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `tracker ${res.status}`);
+      chrome.runtime.sendMessage({ type: 'set-tracker-key', key: j.token }, () => { out.textContent = 'Connected. Syncing now.'; $('pair').value = ''; chrome.runtime.sendMessage({ type: 'sync-now' }); refresh(); });
+    } catch (err) { out.textContent = err.message; }
+  });
+};
 refresh();

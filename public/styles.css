@@ -1943,3 +1943,5 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 .privacy h2 { margin: var(--space-s) 0 0; font-size: var(--step-0); }
 .privacy ul { margin: 0; padding-inline-start: 1.2em; display: grid; gap: var(--space-2xs); }
 .privacy a { color: var(--accent-text); }
+.connect-panel { display: grid; gap: var(--space-s); }
+.pair-code { font-size: var(--step-1); letter-spacing: 0.08em; }

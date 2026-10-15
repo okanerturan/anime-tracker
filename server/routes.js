@@ -337,4 +337,4 @@ async function handle(req, res, url) {
   return true;
 }
 
-module.exports = { handle, csvCell };
+module.exports = { handle, csvCell, routeKeys: () => Object.keys(routes) };

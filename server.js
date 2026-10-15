@@ -30,6 +30,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/')) {
       const who = auth.authenticate(req, res);
       if (!who) return sendJSON(res, 401, { error: 'Sign in first.', signIn: '/signin.html' });
+      // An extension's token reaches only what the extension uses.
+      if (who.via === 'device' && !require('./server/accounts/devices').deviceMayUse(req.method, url.pathname)) return sendJSON(res, 403, { error: 'Not available to the extension.' });
       // Storage quota from the account file's size: warn past the soft limit; past the hard one only
       // reads and syncing new plays go through.
       const lvl = quota.level(db.fileOf(who.accountId));

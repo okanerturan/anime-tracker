@@ -172,6 +172,15 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       reply(await syncNow({ full: Boolean(msg.full), reason: msg.full ? 'full' : 'manual' }));
     } else if (msg.type === 'get-state') {
       reply(await get());
+    } else if (msg.type === 'connect-tracker') {
+      // From tracker-bridge.js on the tracker's own page: the address must be the page's own origin.
+      const origin = sender.url ? new URL(sender.url).origin : null;
+      if (!origin || origin !== msg.url || !/^trk_/.test(String(msg.token || ''))) { reply({ ok: false, error: 'not from the tracker page' }); return; }
+      await set({ trackerUrl: origin, trackerKey: msg.token, lastError: null });
+      trackerKey = msg.token;
+      reply({ ok: true });
+      syncNow().catch(() => {});
+      return;
     } else if (msg.type === 'set-tracker-url') {
       await set({ trackerUrl: String(msg.url || DEFAULTS.trackerUrl).replace(/\/+$/, '') });
       reply({ ok: true });

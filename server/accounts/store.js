@@ -53,6 +53,12 @@ CREATE TABLE IF NOT EXISTS device_tokens (
   revoked_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_device_tokens_account ON device_tokens(account_id);
+CREATE TABLE IF NOT EXISTS pairing_codes (
+  code_hash TEXT PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL,
+  used_at TEXT
+);
 CREATE TABLE IF NOT EXISTS invites (
   code_hash TEXT PRIMARY KEY,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),

@@ -116,6 +116,24 @@ function cdp(url) {
     await run(`(window.__exp = ${JSON.stringify(exported)}, 'set')`);
     const restored = await run("post('/auth/account/import', window.__exp)");
     check('a new account takes the export back in', again2?.ok && restored?.imported?.watchlist === 2 && restored.imported.anime === 2, JSON.stringify(restored));
+    // Extension token: reaches only the extension's routes; revoked, its next sync gets 401.
+    const conn = await run("post('/auth/device/connect', { name: 'Chrome extension' })");
+    const token = conn?.token;
+    check('mints an extension token for the signed-in account', /^trk_/.test(token || ''), conn?.error);
+    const keys = JSON.parse(execFileSync(process.execPath, ['-e', "process.stdout.write(JSON.stringify(require('./server/routes').routeKeys()))"], { cwd: ROOT, env }).toString());
+    const allowed = new Set(JSON.parse(execFileSync(process.execPath, ['-e', "process.stdout.write(JSON.stringify([...require('./server/accounts/devices').DEVICE_ROUTES]))"], { cwd: ROOT, env }).toString()));
+    const wrong = [];
+    for (const k of keys.filter((x) => / \/api\//.test(x))) {
+      const [method, p2] = k.split(' ');
+      const r = await fetch(`${ORIGIN}${p2}`, { method, headers: { Authorization: `Bearer ${token}`, 'X-Tracker-Client': 'extension', 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined });
+      if (allowed.has(k) ? r.status === 403 : r.status !== 403) wrong.push(`${k}=${r.status}`);
+    }
+    check(`a device token gets 403 on every route outside the extension's ${allowed.size}`, wrong.length === 0, wrong.slice(0, 5).join(' '));
+    const devs = await run("fetch('/auth/devices').then((r) => r.json())");
+    check('lists the connected browser with its last sync', devs?.devices?.length === 1 && devs.devices[0].lastSyncAt, JSON.stringify(devs?.devices?.[0]));
+    await run(`post('/auth/devices/revoke', { id: ${JSON.stringify(devs?.devices?.[0]?.id ?? 0)} })`);
+    const after = await fetch(`${ORIGIN}/api/crunchyroll/status`, { headers: { Authorization: `Bearer ${token}` } });
+    check('a revoked token\'s next sync gets 401', after.status === 401);
     // Wrong recovery codes run into the limit.
     await run("post('/auth/signout')");
     const statuses = await run("(async () => { const out = []; for (let i = 0; i < 12; i += 1) { const r = await fetch('/auth/recover', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'app' }, body: JSON.stringify({ code: 'wrong-guess' }) }); out.push(r.status + ':' + (r.headers.get('retry-after') || '')); } return out; })()");

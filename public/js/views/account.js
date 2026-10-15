@@ -18,6 +18,13 @@ export async function render(view) {
   if (!state.signedIn) { location.href = `/signin.html?next=${encodeURIComponent('#/account')}`; return; }
   const draw = async () => {
     const pk = await fetch('/auth/passkeys').then((r) => r.json());
+    const dv = await fetch('/auth/devices').then((r) => r.json()).catch(() => ({ devices: [] }));
+    // Connected browsers (extension tokens): last sync, and disconnect at once.
+    const deviceRows = dv.devices.map((d) => {
+      const off = h('button', { type: 'button', class: 'btn small ghost btn-danger-quiet' }, 'Disconnect');
+      off.addEventListener('click', async () => { try { await authPost('/auth/devices/revoke', { id: d.id }); toast(`${d.name} disconnected`); draw(); } catch (err) { toast(err.message); } });
+      return h('div', { class: 'account-row' }, h('span', {}, d.name), h('span', { class: 'muted' }, `connected ${when(d.connectedAt)} · last sync ${when(d.lastSyncAt)}`), off);
+    });
     // Passkeys: one row per device, rename in place, remove (the last one needs fresh codes first).
     const rows = pk.passkeys.map((p) => {
       const name = h('input', { class: 'account-name', value: p.name || '', 'aria-label': 'Passkey name', maxlength: '60', placeholder: 'Unnamed passkey' });
@@ -68,6 +75,9 @@ export async function render(view) {
       section('Account', state.account?.name ? `Signed in as ${state.account.name}` : 'Signed in',
         h('div', { class: 'panel' }, h('div', { class: 'hero-actions' }, signOut, everywhere))),
       section('Passkeys', 'The devices you sign in with', h('div', { class: 'panel account-list' }, ...rows, h('div', { class: 'hero-actions' }, add))),
+      section('Connected browsers', `${dv.devices.length} of ${dv.max || 10}`, h('div', { class: 'panel account-list' },
+        ...(deviceRows.length ? deviceRows : [h('p', { class: 'muted' }, 'No extension connected yet.')]),
+        h('div', { class: 'hero-actions' }, h('a', { class: 'btn small', href: '#/connect' }, 'Connect an extension')))),
       section('Recovery codes', `${pk.recoveryCodesLeft} of 10 left`, h('div', { class: 'panel' },
         h('p', { class: 'muted' }, 'If you lose every passkey, a recovery code gets you back in. Making new ones cancels the old set.'),
         h('div', { class: 'hero-actions' }, regen), codesOut)),

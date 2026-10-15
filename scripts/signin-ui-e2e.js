@@ -27,12 +27,18 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   let log = ''; server.stdout.on('data', (d) => { log += d; }); server.stderr.on('data', (d) => { log += d; });
   for (let i = 0; i < 40 && !/running/.test(log); i += 1) await wait(250);
   const chrome = spawn(process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    ['--headless=new', `--user-data-dir=${path.join(tmp, 'chrome')}`, '--remote-debugging-port=9336', '--no-first-run', '--window-size=1200,900', 'about:blank'], { stdio: 'ignore' });
+    ['--headless=new', `--user-data-dir=${path.join(tmp, 'chrome')}`, '--remote-debugging-port=9336', '--no-first-run', '--window-size=1200,900',
+      // Lets the test load the real extension from this repo over the DevTools protocol (Chrome
+      // ignores --load-extension); then the Connect page's handoff is tested end to end.
+      '--enable-unsafe-extension-debugging', 'about:blank'], { stdio: 'ignore' });
   let ok = true;
   const check = (label, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${label}${detail ? ` (${detail})` : ''}`); if (!cond) ok = false; };
   try {
     let page = null;
     for (let i = 0; i < 40 && !page; i += 1) { await wait(250); try { page = (await (await fetch('http://127.0.0.1:9336/json/list')).json()).find((t) => t.type === 'page'); } catch {} }
+    const browser = cdp((await (await fetch('http://127.0.0.1:9336/json/version')).json()).webSocketDebuggerUrl); await browser.ready;
+    const loaded = await browser.send('Extensions.loadUnpacked', { path: path.join(ROOT, 'extension') });
+    if (loaded.error) console.log(`note: extension not loaded (${loaded.error.message})`);
     const p = cdp(page.webSocketDebuggerUrl); await p.ready;
     await p.send('WebAuthn.enable');
     await p.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true } });
@@ -54,10 +60,20 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     check('lands in the app, signed in', (await run('location.hash')) === '#/up-next' && (await run("fetch('/api/up-next').then((r) => r.status)")) === 200);
     await shot('3-app');
 
+    // Connect: the extension's bridge script takes the token; the extension then syncs with it.
+    await go(`${ORIGIN}/#/connect`); await wait(1000);
+    check('the Connect page sees the installed extension', /is installed in this browser/.test(await run('document.body.innerText')), (await run('document.body.innerText')).slice(0, 200));
+    await run("[...document.querySelectorAll('button')].find((b) => /Connect this browser/.test(b.textContent))?.click(); 'ok'");
+    await wait(3000);
+    check('hands the token to the extension', /Connected\. The extension is syncing/.test(await run('document.body.innerText')), (await run('document.body.innerText')).slice(-200));
+    await wait(2500);
+    const devs = await run("fetch('/auth/devices').then((r) => r.json())");
+    check('the extension syncs with it on its own', devs?.devices?.length === 1 && Boolean(devs.devices[0].lastSyncAt), JSON.stringify(devs?.devices));
+    await shot('5b-connect');
     // Account page: header button, rename a passkey, new recovery codes, export.
     check('the header shows an account button', (await run("document.querySelector('.account-btn')?.textContent")) === 'O');
     await go(`${ORIGIN}/#/account`); await wait(1000);
-    check('account page lists the passkey', (await run("document.querySelectorAll('.account-row').length")) === 1);
+    check('account page lists the passkey and the connected browser', (await run("document.querySelectorAll('.account-row input').length")) === 1 && /Chrome extension/.test(await run('document.body.innerText')));
     await run("const i = document.querySelector('.account-row input'); i.value = 'Work laptop'; i.dispatchEvent(new Event('change')); 'ok'");
     await wait(600);
     check('renames it', (await run("fetch('/auth/passkeys').then((r) => r.json()).then((j) => j.passkeys[0].name)")) === 'Work laptop');
