@@ -438,3 +438,20 @@ test('ingest: a recent play counts on a show still cached as not yet released (p
   const row = db.prepare('SELECT watched FROM episode_sync WHERE mal_id = 990 AND episode_number = 1').get();
   assert.equal(row?.watched, 1);
 });
+
+test('Just finished: seasons of one series finished together are one row; a separate show keeps its own', async () => {
+  const recent = new Date(Date.now() - 2 * 86400000).toISOString();
+  addShow(9101, 'Binge Show', { start_date: '2024-01-01' });
+  addShow(9102, 'Binge Show Season 2', { start_date: '2025-01-01' });
+  addShow(9103, 'Unrelated Show', { start_date: '2023-01-01' });
+  relate(9101, 9102, 'SEQUEL');
+  const ep = db.prepare('INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, watched, watched_at) VALUES (?, ?, 1, ?)');
+  for (const id of [9101, 9102, 9103]) for (let n = 1; n <= 12; n += 1) ep.run(id, n, recent);
+  const rows = (await insights.upNext()).recentlyFinished.filter((x) => [9101, 9102, 9103].includes(x.malId));
+  const binge = rows.find((x) => x.seasons === 2);
+  assert.ok(binge, JSON.stringify(rows.map((x) => [x.malId, x.seasons])));
+  assert.equal(binge.malId, 9102, 'the newest season stands for the group');
+  assert.deepEqual([...binge.seasonIds].sort(), [9101, 9102]);
+  assert.equal(rows.find((x) => x.malId === 9103)?.seasons, 1, 'an unrelated show stays on its own');
+  assert.equal(rows.length, 2);
+});
