@@ -47,3 +47,29 @@ request without that secret, except kamal-proxy's `GET /up`.
 With `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_BUCKET` set, the hub puts each
 image into R2 once under `img/<sha1(url)>` (the key the front Worker serves) and remembers it in the
 catalog's `image_cache` as `r2:<key>`. The key needs write access to that one bucket only.
+
+## Backups and restore
+
+Nightly at about 03:00 (`TIMEZONE`), the app snapshots `accounts.db`, `catalog.db` and every account
+file that changed since its last upload (`VACUUM INTO`, gzip) to the `hub-backups` bucket under
+`anime-tracker/YYYY-MM-DD/`. Each day has a `manifest.json` naming the newest copy of every file, so one
+day's manifest restores everything. Days older than 30 are deleted; a copy still needed is copied
+forward first, so an account unchanged for months keeps a backup. Hetzner's daily server backups stay
+on as the second layer.
+
+- Settings: `R2_ACCOUNT_ID`, `R2_BACKUP_ACCESS_KEY_ID`, `R2_BACKUP_SECRET_ACCESS_KEY` (a key that can
+  only reach `hub-backups`), optional `R2_BACKUP_BUCKET`.
+- Last good run: `/data/last-snapshot.json` (`lastSuccessAt`); `hub-check` alerts past 26 hours.
+- A run in progress holds `/data/snapshot.lock`; a lock older than 2 hours is taken over.
+
+Restore (and the quarterly drill), always into a scratch directory first:
+
+```sh
+bin/kamal app exec 'node scripts/restore.js --to /data/restore-drill --day 2026-10-14 --account 12'
+# prints row counts for accounts.db, catalog.db and account 12: compare with the live files
+```
+
+To put one account back: `READ_ONLY on` (or stop the app), copy
+`/data/restore-drill/accounts/<id>.db` over `/data/accounts/<id>.db` and delete its `-wal`/`-shm`,
+then `READ_ONLY off`. No other account is touched. `--all` restores every account (whole-box rebuild:
+`kamal setup` on the new box, restore with `--all` into `/data`, start).
