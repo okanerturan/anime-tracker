@@ -85,7 +85,9 @@ export function progress(fraction, { hideWhenEmpty = false } = {}) {
 let toastTimer = null;
 /** A short message; with `action` ({ label, onClick }) it carries one button, e.g. Undo. */
 export function toast(text, action = null) {
-  const el = document.getElementById('toast');
+  // Recreate the element if it was removed with a panel that redrew while hosting it.
+  let el = document.getElementById('toast');
+  if (!el) { el = h('div', { id: 'toast', class: 'toast', popover: 'manual', role: 'status' }); document.body.append(el); }
   // A modal panel makes the rest of the page unclickable, so while one is open the message lives
   // inside it; otherwise an Undo shown over the panel could be seen but not pressed.
   const host = document.querySelector('dialog[open]') || document.body;

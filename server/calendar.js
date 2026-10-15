@@ -25,16 +25,16 @@ function checkToken(candidate) {
   return diff === 0;
 }
 
-const esc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+const esc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 const stamp = (ms) => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 /** Lines longer than 75 octets are folded with CRLF + space (RFC 5545). */
 function fold(line) {
-  const out = []; let rest = line;
-  while (bytes(rest) > 75) {
-    let cut = 75; while (bytes(rest.slice(0, cut)) > 75) cut -= 1;
-    out.push(rest.slice(0, cut)); rest = ` ${rest.slice(cut)}`;
+  // Cut on code points (never inside an emoji's surrogate pair), at most 75 octets per line.
+  const out = []; let cur = '';
+  for (const ch of line) {
+    if (bytes(cur + ch) > 75) { out.push(cur); cur = ` ${ch}`; } else cur += ch;
   }
-  out.push(rest);
+  out.push(cur);
   return out.join('\r\n');
 }
 
@@ -60,9 +60,11 @@ function feed() {
     }
   }
   // Premieres: announced shows in your library and announced sequels of your shows, as all-day events.
-  // AniList month-only dates are stored as the 1st, so only dates with a real day are included.
+  // AniList month-only dates are stored as the 1st: include a date only when AniList gave the day
+  // (rows fetched before that was recorded fall back to "not the 1st").
   const premieres = db.prepare(`SELECT DISTINCT m.mal_id AS malId, COALESCE(m.title_english, m.title) AS title, m.start_date AS date FROM media m
-    WHERE m.status = 'NOT_YET_RELEASED' AND length(m.start_date) = 10 AND m.start_date NOT LIKE '%-01'
+    WHERE m.status = 'NOT_YET_RELEASED' AND length(m.start_date) = 10
+      AND (m.start_day_known = 1 OR (m.start_day_known IS NULL AND m.start_date NOT LIKE '%-01'))
       AND (m.mal_id IN (SELECT mal_id FROM watchlist WHERE list_status IS NULL)
         OR m.mal_id IN (SELECT r.related_mal_id FROM media_relation r JOIN watchlist w ON w.mal_id = r.mal_id WHERE r.relation_type = 'SEQUEL' AND w.list_status IS NULL))`).all();
   const day = (iso) => iso.replace(/-/g, '');
@@ -78,4 +80,4 @@ function feed() {
   return `${lines.join('\r\n')}\r\n`;
 }
 
-module.exports = { token, checkToken, feed };
+module.exports = { token, checkToken, feed, esc, fold };

@@ -108,7 +108,7 @@ function card(x, inSeries = 1) {
     tick.disabled = true;
     try {
       const r = await api.watchedThrough(x.malId, x.nextEpisode); bus.emit('library-changed'); redrawIfShown();
-      toast(`E${x.nextEpisode} of ${title} marked watched`, { label: 'Undo', onClick: async () => { try { await api.unmark(x.malId, r.episodes || [x.nextEpisode]); bus.emit('library-changed'); redrawIfShown(); } catch (err) { toast(err.message); } } });
+      toast(`E${x.nextEpisode} of ${title} marked watched`, { label: 'Undo', onClick: async () => { try { await api.unmark(x.malId, r.episodes || [x.nextEpisode]); await api.restoreListStatus(x.malId, r.previousListStatus); bus.emit('library-changed'); redrawIfShown(); } catch (err) { toast(err.message); } } });
     }
     catch (err) { tick.disabled = false; toast(err.message); }
   });

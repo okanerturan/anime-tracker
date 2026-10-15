@@ -110,15 +110,15 @@ const FULL_FIELDS = `${NODE_FIELDS} bannerImage siteUrl description(asHtml:false
 
 const upsertMediaStmt = db.prepare(`
 INSERT INTO media (mal_id, anilist_id, title, title_english, format, status, episodes, duration, season_year,
-  start_date, genres, tags, average_score, popularity, cover_url, banner_url, color, site_url,
+  start_date, start_day_known, genres, tags, average_score, popularity, cover_url, banner_url, color, site_url,
   next_airing_episode, next_airing_at, streaming_episodes, external_links, description, synonyms, is_full, fetched_at)
 VALUES (@mal_id, @anilist_id, @title, @title_english, @format, @status, @episodes, @duration, @season_year,
-  @start_date, @genres, @tags, @average_score, @popularity, @cover_url, @banner_url, @color, @site_url,
+  @start_date, @start_day_known, @genres, @tags, @average_score, @popularity, @cover_url, @banner_url, @color, @site_url,
   @next_airing_episode, @next_airing_at, @streaming_episodes, @external_links, @description, @synonyms, @is_full, CURRENT_TIMESTAMP)
 ON CONFLICT(mal_id) DO UPDATE SET
   anilist_id=excluded.anilist_id, title=excluded.title, title_english=excluded.title_english,
   format=excluded.format, status=excluded.status, episodes=excluded.episodes, duration=excluded.duration,
-  season_year=excluded.season_year, start_date=excluded.start_date, genres=excluded.genres,
+  season_year=excluded.season_year, start_date=excluded.start_date, start_day_known=excluded.start_day_known, genres=excluded.genres,
   tags=COALESCE(excluded.tags, media.tags), average_score=excluded.average_score, popularity=excluded.popularity,
   cover_url=excluded.cover_url, banner_url=COALESCE(excluded.banner_url, media.banner_url),
   color=excluded.color, site_url=COALESCE(excluded.site_url, media.site_url),
@@ -149,6 +149,7 @@ function mediaRow(m, isFull) {
     duration: m.duration ?? null,
     season_year: m.seasonYear ?? null,
     start_date: dateFromParts(m.startDate),
+    start_day_known: m.startDate?.year ? (m.startDate.day ? 1 : 0) : null,
     genres: JSON.stringify(m.genres || []),
     tags: isFull ? JSON.stringify((m.tags || []).filter((t) => !t.isMediaSpoiler).map((t) => ({ name: t.name, rank: t.rank }))) : null,
     average_score: m.averageScore ?? null,

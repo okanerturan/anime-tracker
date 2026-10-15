@@ -105,7 +105,7 @@ function epCard(item, mode, onChange) {
       const r = await api.watchedThrough(item.malId, through);
       onChange?.(tick.closest('.card'));
       // Undo reverts exactly the episodes this tick changed (it may have filled gaps before E<n>).
-      const undo = { label: 'Undo', onClick: async () => { try { await api.unmark(item.malId, r.episodes || [through]); bus.emit('library-changed'); redrawIfShown(); } catch (err) { toast(err.message); } } };
+      const undo = { label: 'Undo', onClick: async () => { try { await api.unmark(item.malId, r.episodes || [through]); await api.restoreListStatus(item.malId, r.previousListStatus); bus.emit('library-changed'); redrawIfShown(); } catch (err) { toast(err.message); } } };
       toast(through === item.nextEpisode ? `E${item.nextEpisode} of ${item.title} marked watched` : `${item.title}: marked watched through E${through}`, undo);
     } catch (err) { tick.disabled = false; toast(err.message); }
   });

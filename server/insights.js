@@ -371,6 +371,7 @@ function study() {
     const d = new Date(p.date_played);
     const mins = (p.duration_s || 1440) / 60;
     minutes += mins;
+    if (p.mal_id > 0 && !showIds.has(p.series_title)) showIds.set(p.series_title, p.mal_id);
     if (bulkTimes.has(d.getTime())) {
       bulk += 1;
       const y0 = local(d).year;
@@ -474,7 +475,7 @@ function study() {
         // What the year leaned into: genres with a clearly bigger share of that year's shows than of
         // all your shows (each show counts once, however many episodes).
         leanedInto: (() => {
-          const share = (titles) => { const c = new Map(); let n = 0; for (const t of titles) { n += 1; for (const g of titleGenres.get(t) || []) c.set(g, (c.get(g) || 0) + 1); } return { c, n: Math.max(1, n) }; };
+          const share = (titles) => { const c = new Map(); let n = 0; for (const t of titles) { const gs = titleGenres.get(t) || []; if (!gs.length) continue; n += 1; for (const g of gs) c.set(g, (c.get(g) || 0) + 1); } return { c, n: Math.max(1, n) }; };
           const yr = share(byYear[y].perShow.keys()); const all = share(titleGenres.keys());
           if (yr.n < 5) return [];
           return [...yr.c.entries()].map(([g, k]) => [g, k / yr.n - (all.c.get(g) || 0) / all.n]).filter(([, d]) => d >= 0.08)

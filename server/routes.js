@@ -64,8 +64,10 @@ const routes = {
     requireClientHeader(req);
     const body = await parseBody(req);
     if (!num(body.malId) || !num(body.episodeNumber)) return sendJSON(res, 400, { error: 'malId and episodeNumber required' });
-    if (body.watched) library.reactivate([num(body.malId)]);
-    return sendJSON(res, 200, library.setWatched(num(body.malId), num(body.episodeNumber), Boolean(body.watched)));
+    // previousListStatus lets an Undo put a held/dropped show back the way it was.
+    const previousListStatus = library.listStatusOf(num(body.malId));
+    if (body.watched && !body.keepListStatus) library.reactivate([num(body.malId)]);
+    return sendJSON(res, 200, { ...library.setWatched(num(body.malId), num(body.episodeNumber), Boolean(body.watched)), previousListStatus });
   },
   'POST /api/anime/list-status': async (req, res) => {
     requireClientHeader(req);
@@ -116,8 +118,9 @@ const routes = {
     requireClientHeader(req);
     const body = await parseBody(req);
     if (!num(body.malId) || !num(body.episodeNumber)) return sendJSON(res, 400, { error: 'malId and episodeNumber required' });
+    const previousListStatus = library.listStatusOf(num(body.malId));
     library.reactivate([num(body.malId)]);
-    return sendJSON(res, 200, library.markWatchedThrough(num(body.malId), num(body.episodeNumber)));
+    return sendJSON(res, 200, { ...library.markWatchedThrough(num(body.malId), num(body.episodeNumber)), previousListStatus });
   },
 
   'GET /api/search': async (req, res, url) => {

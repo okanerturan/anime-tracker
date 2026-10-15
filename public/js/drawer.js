@@ -228,8 +228,8 @@ export async function openAnime(partial) {
       e.preventDefault();
       const ep = nextEp.episodeNumber;
       try {
-        await api.toggleWatched(item.malId, ep, true); await load(); bus.emit('library-changed');
-        toast(`E${ep} marked watched`, { label: 'Undo', onClick: async () => { try { await api.toggleWatched(item.malId, ep, false); if (dialog().open) await load(); bus.emit('library-changed'); } catch (err) { toast(err.message); } } });
+        const r = await api.toggleWatched(item.malId, ep, true); await load(); bus.emit('library-changed');
+        toast(`E${ep} marked watched`, { label: 'Undo', onClick: async () => { try { await api.toggleWatched(item.malId, ep, false); await api.restoreListStatus(item.malId, r.previousListStatus); if (dialog().open) await load(); bus.emit('library-changed'); } catch (err) { toast(err.message); } } });
       } catch (err) { toast(err.message); }
     }
   };
@@ -237,7 +237,7 @@ export async function openAnime(partial) {
   /** Undo for bulk ticks: unmark exactly the episodes that call changed, then redraw. */
   function undoMarks(r) {
     return { label: 'Undo', onClick: async () => {
-      try { await api.unmark(item.malId, r.episodes || []); if (dialog().open) await load(); bus.emit('library-changed'); } catch (err) { toast(err.message); }
+      try { await api.unmark(item.malId, r.episodes || []); await api.restoreListStatus(item.malId, r.previousListStatus); if (dialog().open) await load(); bus.emit('library-changed'); } catch (err) { toast(err.message); }
     } };
   }
 
@@ -255,6 +255,9 @@ export async function openAnime(partial) {
   const closeBtn = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close' }, icon('close'));
   closeBtn.addEventListener('click', closeDrawer);
 
+  // The message bar may be living in this panel (see toast()); keep it before the panel redraws.
+  const toastEl = document.getElementById('toast');
+  if (toastEl && dialog().contains(toastEl)) document.body.append(toastEl);
   dialog().replaceChildren(
     h('div', { class: 'drawer-top' },
       h('span', { class: 'title one-line', id: 'drawer-title' }, item.title),
@@ -367,7 +370,8 @@ export async function openAnime(partial) {
   let nextEp = null;
   /** Play next: the exact episode when its URL is known, else the show's Crunchyroll page once details arrive. */
   function renderPlay() {
-    if (!episodesLoaded || !nextEp) return;
+    if (!episodesLoaded) return;
+    if (!nextEp) { fill(playRow); return; } // all watched: no Play (so P can't replay the last one)
     const nextName = !/^Episode \d+$/.test(nextEp.title || '') ? cleanEpisodeTitle(nextEp.title) : '';
     // Fallbacks: the show's Crunchyroll page, else the first service AniList lists (Netflix, HIDIVE, ...).
     const crSeries = details && !details.links.crunchyrollIsSearch ? { url: details.links.crunchyroll, site: 'Crunchyroll' } : null;

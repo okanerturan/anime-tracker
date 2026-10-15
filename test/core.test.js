@@ -263,3 +263,13 @@ test('a library show knows its released sequel until you start watching it', () 
   db.prepare(`INSERT INTO episode_sync (mal_id, episode_number, season, title, url, watched, updated_at) VALUES (871, 1, 1, '', '', 1, CURRENT_TIMESTAMP)`).run();
   assert.equal(seq(), null);
 });
+
+test('calendar text is escaped and folded per RFC 5545 without splitting characters', () => {
+  const { esc, fold } = require('../server/calendar');
+  assert.equal(esc('Steins;Gate, part 1'), 'Steins\\;Gate\\, part 1');
+  const bytes = (s) => new TextEncoder().encode(s).length;
+  const out = fold(`SUMMARY:${'a'.repeat(64)}😀 and more text to fold`);
+  for (const line of out.split('\r\n')) assert.ok(bytes(line) <= 75);
+  assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(out), 'no broken surrogate pair');
+  assert.equal(out.replace(/\r\n /g, ''), `SUMMARY:${'a'.repeat(64)}😀 and more text to fold`);
+});

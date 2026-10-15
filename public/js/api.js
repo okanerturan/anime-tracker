@@ -37,7 +37,9 @@ export const api = {
   details: (malId) => request(`/api/anime/details?malId=${malId}`),
   anime: (malId, refresh) => request(`/api/anime?malId=${malId}${refresh ? '&refresh=1' : ''}`),
   episodes: (malId) => request(`/api/thumbnails?malId=${malId}`),
-  toggleWatched: (malId, episodeNumber, watched) => post('/api/episode/toggle-watched', { malId, episodeNumber, watched }),
+  toggleWatched: (malId, episodeNumber, watched, opts = {}) => post('/api/episode/toggle-watched', { malId, episodeNumber, watched, ...opts }),
+  // Undo helper: put back the hold/drop state an action cleared (no-op when there was none).
+  restoreListStatus: (malId, status) => (status ? post('/api/anime/list-status', { malId, status }) : Promise.resolve()),
   watchedElsewhere: (malId) => post('/api/anime/watched-elsewhere', { malId }),
   setListStatus: (malId, status) => post('/api/anime/list-status', { malId, status }),
   setListStatusBatch: (malIds, status) => post('/api/anime/list-status-batch', { malIds, status }),

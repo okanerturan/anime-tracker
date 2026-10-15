@@ -178,7 +178,9 @@ const ADDED_COLUMNS = [
   ['media', 'cr_checked_at', 'cr_checked_at TEXT'],
   ['media', 'description', 'description TEXT'],
   // Alternate titles from AniList (JSON array, short Latin-alphabet ones only: "JJK", "AoT").
-  ['media', 'synonyms', 'synonyms TEXT']
+  ['media', 'synonyms', 'synonyms TEXT'],
+  // 1 when AniList gave the start day (month-only dates are stored as the 1st), 0 when it didn't.
+  ['media', 'start_day_known', 'start_day_known INTEGER']
 ];
 
 function applySchema(db) {

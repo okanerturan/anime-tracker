@@ -95,14 +95,19 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
   `).all();
   const nextStmt = db.prepare(`SELECT episode_number AS n, url FROM episode_sync WHERE mal_id = ? AND episode_number > COALESCE((SELECT MAX(episode_number) FROM episode_sync WHERE mal_id = ? AND watched = 1), 0) ORDER BY episode_number LIMIT 1`);
   // Released sequels you haven't watched any of, so a finished show can say "Sequel out".
-  const sequels = new Map();
-  for (const r of db.prepare(`SELECT r.mal_id AS id, s.mal_id AS sid, COALESCE(s.title_english, s.title) AS title, s.status FROM media_relation r
-      JOIN media s ON s.mal_id = r.related_mal_id
-      WHERE r.relation_type = 'SEQUEL' AND s.status IN ('FINISHED','RELEASING') AND s.format IN ('TV','TV_SHORT','ONA','MOVIE')
-        AND NOT EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = s.mal_id AND e.watched = 1)
-      ORDER BY s.start_date`).all()) {
-    if (!sequels.has(r.id)) sequels.set(r.id, { malId: r.sid, title: r.title, airing: r.status === 'RELEASING' });
+  // If any sequel of a show has been watched, you've moved on: no hint (a side movie isn't "next").
+  // Otherwise prefer a TV/ONA season over a movie, earliest first.
+  const sequels = new Map(); const movedOn = new Set();
+  for (const r of db.prepare(`SELECT r.mal_id AS id, s.mal_id AS sid, COALESCE(s.title_english, s.title) AS title, s.status, s.format,
+        EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = s.mal_id AND e.watched = 1) AS seen
+      FROM media_relation r JOIN media s ON s.mal_id = r.related_mal_id
+      WHERE r.relation_type = 'SEQUEL'
+      ORDER BY CASE WHEN s.format = 'MOVIE' THEN 1 ELSE 0 END, s.start_date`).all()) {
+    if (r.seen) { movedOn.add(r.id); continue; }
+    if (sequels.has(r.id) || !['FINISHED', 'RELEASING'].includes(r.status) || !['TV', 'TV_SHORT', 'ONA', 'MOVIE'].includes(r.format)) continue;
+    sequels.set(r.id, { malId: r.sid, title: r.title, airing: r.status === 'RELEASING' });
   }
+  for (const id of movedOn) sequels.delete(id);
   // Series grouping: seasons in your library linked as sequel/prequel share one id (the lowest MAL id).
   const parent = new Map(rows.map((r) => [r.malId, r.malId]));
   const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
@@ -367,6 +372,8 @@ function setRating(malId, rating) {
 }
 
 /** Watching a held or dropped show again makes it active. */
+function listStatusOf(malId) { return db.prepare('SELECT list_status FROM watchlist WHERE mal_id = ?').get(malId)?.list_status || null; }
+
 function reactivate(malIds) {
   const stmt = db.prepare('UPDATE watchlist SET list_status = NULL WHERE mal_id = ? AND list_status IS NOT NULL');
   let n = 0;
@@ -450,6 +457,7 @@ function importMalList(entries) {
 
 module.exports = {
   unmarkEpisodes,
+  listStatusOf,
   importMalList,
   suspiciousProgress,
   progressOf,

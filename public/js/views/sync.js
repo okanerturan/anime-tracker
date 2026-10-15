@@ -204,14 +204,14 @@ export async function render(view) {
           all.disabled = stray.disabled = true;
           try {
             const r = await api.watchedThrough(x.malId, x.aired); row.hidden = true; bus.emit('library-changed');
-            toast(`${x.title}: all ${x.aired} marked watched`, { label: 'Undo', onClick: async () => { try { await api.unmark(x.malId, r.episodes || []); restore(); } catch (err) { toast(err.message); } } });
+            toast(`${x.title}: all ${x.aired} marked watched`, { label: 'Undo', onClick: async () => { try { await api.unmark(x.malId, r.episodes || []); await api.restoreListStatus(x.malId, r.previousListStatus); restore(); } catch (err) { toast(err.message); } } });
           } catch (err) { all.disabled = stray.disabled = false; toast(err.message); }
         });
         stray.addEventListener('click', async () => {
           all.disabled = stray.disabled = true;
           try {
             await api.toggleWatched(x.malId, x.aired, false); row.hidden = true; bus.emit('library-changed');
-            toast(`${x.title}: E${x.aired} unmarked`, { label: 'Undo', onClick: async () => { try { await api.toggleWatched(x.malId, x.aired, true); restore(); } catch (err) { toast(err.message); } } });
+            toast(`${x.title}: E${x.aired} unmarked`, { label: 'Undo', onClick: async () => { try { await api.toggleWatched(x.malId, x.aired, true, { keepListStatus: true }); restore(); } catch (err) { toast(err.message); } } });
           } catch (err) { all.disabled = stray.disabled = false; toast(err.message); }
         });
         return row;
