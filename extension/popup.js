@@ -12,6 +12,7 @@ function render(s) {
   $('url').value = s.trackerUrl;
   $('key').value = s.trackerKey || '';
   $('notify').checked = s.notifyNew !== false;
+  $('overlay').checked = s.overlay !== false;
   $('open').href = `${s.trackerUrl}/#/up-next`;
   loadUpNext(s);
 }
@@ -71,6 +72,7 @@ async function sync(full) {
 $('sync').onclick = () => sync(false);
 $('full').onclick = () => sync(true);
 $('url').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-tracker-url', url: e.target.value }, refresh);
+$('overlay').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-overlay', on: e.target.checked }, refresh);
 $('notify').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-notify', on: e.target.checked }, refresh);
 $('key').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-tracker-key', key: e.target.value }, refresh);
 refresh();

@@ -130,4 +130,31 @@ function applyResults(results) {
   return { found, missing };
 }
 
-module.exports = { seriesFor, notOnCrunchyroll, searchQuery, wanted, applyResults };
+/** Library shows that belong to a Crunchyroll series (by history, mapping, search or AniList link), oldest season first. */
+function showsForSeries(seriesId) {
+  if (!/^[A-Z0-9]{6,16}$/i.test(seriesId || '')) return { shows: [], nextSeason: null };
+  const ids = new Set();
+  for (const r of db.prepare(`SELECT DISTINCT mal_id FROM cr_history WHERE series_id = ? AND mal_id > 0
+      UNION SELECT DISTINCT r.mal_id FROM cr_season_map r JOIN cr_history h ON h.season_id = r.season_id WHERE h.series_id = ? AND r.mal_id > 0
+      UNION SELECT mal_id FROM media WHERE cr_series_id = ? OR external_links LIKE ?`).all(seriesId, seriesId, seriesId, `%/series/${seriesId}%`)) ids.add(r.mal_id);
+  const library = require('./library');
+  const furthestStmt = db.prepare('SELECT MAX(episode_number) AS n FROM episode_sync WHERE mal_id = ? AND watched = 1');
+  const rows = library.getWatchlist('release_asc').filter((x) => ids.has(x.malId));
+  // Progress is the furthest episode watched, like Up Next: gaps in old history aren't "unwatched".
+  const shows = rows.map((x) => {
+    const aired = x.airedEpisodes ?? x.episodesCount;
+    const furthest = furthestStmt.get(x.malId)?.n || 0;
+    return { malId: x.malId, title: x.titleEnglish || x.title, watched: Math.min(furthest, aired ?? furthest), aired, total: x.totalEpisodes,
+      nextEpisode: furthest < (aired || 0) ? furthest + 1 : null, rating: x.rating, listStatus: x.listStatus, status: x.status };
+  });
+  // Everything watched: is there a released next season you haven't started?
+  let nextSeason = null;
+  const last = shows[shows.length - 1];
+  if (last && last.aired && last.watched >= last.aired) {
+    const next = library.getDetails(last.malId).continueWith;
+    if (next && !(next.watched > 0)) nextSeason = { malId: next.malId, title: next.title, inLibrary: next.inLibrary };
+  }
+  return { shows, nextSeason };
+}
+
+module.exports = { seriesFor, notOnCrunchyroll, searchQuery, wanted, applyResults, showsForSeries };

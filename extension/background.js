@@ -1,7 +1,7 @@
 // Service worker: syncs every 30 minutes (and whenever you open Crunchyroll).
 importScripts('crunchyroll-api.js', 'anilist-relay.js'); /* global crunchyrollSync, runAniListRelay */
 
-const DEFAULTS = { trackerUrl: 'http://localhost:8080', trackerKey: '', clientId: null, lastSync: null, lastResult: null, lastError: null, notifyNew: true, notified: null };
+const DEFAULTS = { trackerUrl: 'http://localhost:8080', trackerKey: '', clientId: null, lastSync: null, lastResult: null, lastError: null, notifyNew: true, notified: null, overlay: true };
 const get = () => chrome.storage.local.get(DEFAULTS);
 const set = (v) => chrome.storage.local.set(v);
 
@@ -174,6 +174,17 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       reply(await get());
     } else if (msg.type === 'set-tracker-url') {
       await set({ trackerUrl: String(msg.url || DEFAULTS.trackerUrl).replace(/\/+$/, '') });
+      reply({ ok: true });
+    } else if (msg.type === 'series-info') {
+      // For the card on crunchyroll.com: which of your shows belong to this series, and your progress.
+      try {
+        const c = await get();
+        if (c.overlay === false) { reply(null); return; }
+        const res = await fetch(`${c.trackerUrl}/api/crunchyroll/series-info?seriesId=${encodeURIComponent(msg.seriesId)}`, { headers: authHeaders(c.trackerKey || '') });
+        reply(res.ok ? { ...(await res.json()), trackerUrl: c.trackerUrl } : null);
+      } catch { reply(null); }
+    } else if (msg.type === 'set-overlay') {
+      await set({ overlay: Boolean(msg.on) });
       reply({ ok: true });
     } else if (msg.type === 'set-notify') {
       await set({ notifyNew: Boolean(msg.on) });

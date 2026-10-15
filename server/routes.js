@@ -158,6 +158,8 @@ const routes = {
     if (result.found) insights.invalidate();
     return sendJSON(res, 200, result);
   },
+  // For the extension's card on crunchyroll.com series pages.
+  'GET /api/crunchyroll/series-info': (req, res, url) => sendJSON(res, 200, require('./crlinks').showsForSeries(String(url.searchParams.get('seriesId') || ''))),
   'POST /api/crunchyroll/dismiss-play': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);

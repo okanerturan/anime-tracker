@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Anime Tracker: Crunchyroll Sync",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Keeps your local anime tracker up to date with your Crunchyroll watch history.",
   "permissions": [
     "alarms",
@@ -38,6 +38,15 @@
         "page-bridge.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.crunchyroll.com/*"
+      ],
+      "js": [
+        "cr-overlay.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "action": {
@@ -54,5 +63,15 @@
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/icon-32.png"
+      ],
+      "matches": [
+        "https://www.crunchyroll.com/*"
+      ]
+    }
+  ]
 }
