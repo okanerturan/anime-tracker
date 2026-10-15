@@ -9,6 +9,12 @@ const anilist = require('./sources/anilist');
 const { sendJSON, parseBody } = require('./http');
 
 const num = (v) => Number(v) || 0;
+/** One CSV cell: quoted when needed, and prefixed with ' when it would start a spreadsheet formula. */
+function csvCell(v) {
+  let s = v == null ? '' : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
 
 // Requests that change data from outside the app (the extension) must carry this header.
 // Browsers can't add custom headers cross-origin without a CORS preflight, which we never approve,
@@ -89,6 +95,15 @@ const routes = {
     sync.enqueue(malId); // fill in titles + thumbnails in the background
     return sendJSON(res, 200, result);
   },
+  'POST /api/episode/unmark': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    if (!num(body.malId) || !Array.isArray(body.episodes)) return sendJSON(res, 400, { error: 'malId and episodes required' });
+    const r = library.unmarkEpisodes(num(body.malId), body.episodes.slice(0, 2000));
+    if (body.removeFromLibrary) library.removeFromLibrary(num(body.malId));
+    insights.invalidate();
+    return sendJSON(res, 200, r);
+  },
   'POST /api/episode/watched-through': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);
@@ -138,7 +153,7 @@ const routes = {
   // The whole history as CSV for spreadsheets: one row per episode, newest first.
   'GET /api/history.csv': (req, res) => {
     const { items } = insights.history({ limit: 100000 });
-    const cell = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const cell = csvCell;
     const lines = [['date_played', 'show', 'crunchyroll_series', 'season', 'episode', 'episode_title', 'percent_watched', 'myanimelist_id'].join(',')];
     for (const p of items) lines.push([p.datePlayed, p.title || p.seriesTitle, p.seriesTitle, p.seasonTitle, p.malEpisode || p.episodeNumber, p.episodeTitle, p.percent, p.malId > 0 ? p.malId : ''].map(cell).join(','));
     res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="crunchyroll-history-${new Date().toISOString().slice(0, 10)}.csv"`, 'Cache-Control': 'no-store' });
@@ -146,7 +161,7 @@ const routes = {
   },
   // The library as CSV: one row per show with your progress, status and rating.
   'GET /api/library.csv': (req, res) => {
-    const cell = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const cell = csvCell;
     const status = (x) => {
       const aired = x.airedEpisodes ?? x.episodesCount; const done = x.progress ?? x.watchedCount;
       if (x.listStatus === 'dropped') return 'dropped';
@@ -262,4 +277,4 @@ async function handle(req, res, url) {
   return true;
 }
 
-module.exports = { handle };
+module.exports = { handle, csvCell };

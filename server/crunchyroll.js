@@ -345,6 +345,19 @@ function status() {
 /** Manually fix a season mapping and re-apply its rows. */
 async function remapSeason(seasonId, malId, offset = 0) {
   const sample = db.prepare('SELECT series_title, season_title FROM cr_history WHERE season_id = ? LIMIT 1').get(seasonId) || {};
+  // Undo what the old mapping did: unmark episodes of the previously mapped show(s) that only this
+  // season's plays marked, and drop such a show from the library if nothing else of it remains.
+  const old = db.prepare(`SELECT DISTINCT mal_id, mal_episode FROM cr_history WHERE season_id = ? AND mal_id > 0 AND mal_id <> ?`).all(seasonId, malId);
+  const otherPlay = db.prepare('SELECT 1 FROM cr_history WHERE mal_id = ? AND mal_episode = ? AND season_id <> ? LIMIT 1');
+  const byShow = new Map();
+  for (const r of old) { if (!otherPlay.get(r.mal_id, r.mal_episode, seasonId)) { if (!byShow.has(r.mal_id)) byShow.set(r.mal_id, []); byShow.get(r.mal_id).push(r.mal_episode); } }
+  for (const [oldId, eps] of byShow) {
+    library.unmarkEpisodes(oldId, eps);
+    const stillUsed = db.prepare('SELECT 1 FROM cr_history WHERE mal_id = ? AND season_id <> ? LIMIT 1').get(oldId, seasonId)
+      || db.prepare('SELECT 1 FROM episode_sync WHERE mal_id = ? AND watched = 1 LIMIT 1').get(oldId)
+      || db.prepare('SELECT 1 FROM watchlist WHERE mal_id = ? AND (rating IS NOT NULL OR list_status IS NOT NULL)').get(oldId);
+    if (!stillUsed) library.removeFromLibrary(oldId);
+  }
   db.prepare('DELETE FROM cr_season_map WHERE season_id = ?').run(seasonId);
   insertRuleStmt.run(seasonId, 0, 100000, malId, offset, 'manual', sample.series_title || null, sample.season_title || null, 0);
   db.prepare('UPDATE cr_history SET mal_id = NULL, mal_episode = NULL, map_source = NULL, applied = 0 WHERE season_id = ?').run(seasonId);

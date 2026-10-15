@@ -66,7 +66,7 @@ function progressState(x) {
   // Unfinished = started, episodes waiting, and no activity for months (same rule as Up Next's "Paused a while ago").
   const ageDays = x.lastWatchedAt ? (Date.now() - new Date(x.lastWatchedAt).getTime()) / DAY : 9999;
   const progress = aired ? (x.progress ?? x.watchedCount) / aired : 0;
-  if (ageDays > 120 && !(progress >= 0.5 && ageDays <= 365)) return { key: 'unfinished', label: `${left} left · ${ago(x.lastWatchedAt)}`, left };
+  if (ageDays > 120 && !(progress >= 0.5 && ageDays <= 365)) return { key: 'unfinished', label: `${left} left${x.lastWatchedAt ? ` · ${ago(x.lastWatchedAt)}` : ''}`, left };
   // Almost done = close to the end of the season, judged by its announced length, not by aired episodes.
   const seasonLeft = x.totalEpisodes ? Math.max(0, x.totalEpisodes - (x.progress ?? x.watchedCount)) : null;
   if (seasonLeft != null && seasonLeft <= 3 && left <= 3) return { key: 'almost', label: `Almost done · ${seasonLeft} left`, left };
@@ -89,8 +89,8 @@ function card(x) {
   if (tick) tick.addEventListener('click', async () => {
     tick.disabled = true;
     try {
-      await api.watchedThrough(x.malId, x.nextEpisode); bus.emit('library-changed'); render(document.getElementById('view'));
-      toast(`E${x.nextEpisode} of ${title} marked watched`, { label: 'Undo', onClick: async () => { try { await api.toggleWatched(x.malId, x.nextEpisode, false); bus.emit('library-changed'); render(document.getElementById('view')); } catch (err) { toast(err.message); } } });
+      const r = await api.watchedThrough(x.malId, x.nextEpisode); bus.emit('library-changed'); redrawIfShown();
+      toast(`E${x.nextEpisode} of ${title} marked watched`, { label: 'Undo', onClick: async () => { try { await api.unmark(x.malId, r.episodes || [x.nextEpisode]); bus.emit('library-changed'); redrawIfShown(); } catch (err) { toast(err.message); } } });
     }
     catch (err) { tick.disabled = false; toast(err.message); }
   });
@@ -116,9 +116,9 @@ function triage(x, title) {
         await api.setListStatus(x.malId, status);
         x.listStatus = status;
         bus.emit('library-changed');
-        render(document.getElementById('view'));
+        redrawIfShown();
         toast(status === 'dropped' ? `Dropped ${title}` : `${title} is on hold`, { label: 'Undo', onClick: async () => {
-          try { await api.setListStatus(x.malId, null); x.listStatus = null; bus.emit('library-changed'); render(document.getElementById('view')); } catch (err) { toast(err.message); }
+          try { await api.setListStatus(x.malId, null); x.listStatus = null; bus.emit('library-changed'); redrawIfShown(); } catch (err) { toast(err.message); }
         } });
       } catch (err) { b.disabled = false; toast(err.message); }
     });
@@ -127,7 +127,13 @@ function triage(x, title) {
   return h('div', { class: 'card-actions card-actions--pair' }, act('Hold', 'on_hold', 'btn small'), act('Drop', 'dropped', 'btn small ghost'));
 }
 
+// The container this page last rendered into; async redraws only touch it while it's on screen.
+let mounted = null;
+const redrawIfShown = () => { if (mounted?.isConnected) render(mounted); };
+const serverSortOf = (sort) => (['left_asc', 'rating_desc'].includes(sort) ? 'activity_desc' : sort);
+
 export async function render(view) {
+  mounted = view;
   // Deep link: #/library?filter=unfinished&sort=left_asc
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   if (params.get('filter') && FILTERS.some(([k]) => k === params.get('filter'))) state.filter = params.get('filter');
@@ -138,7 +144,12 @@ export async function render(view) {
     if (snap) {
       // Paint the snapshot now; swap in the fresh list when it arrives.
       state.items = snap;
-      api.watchlist(serverSort).then((fresh) => { writeSnap(serverSort, fresh); state.items = fresh; if (location.hash.startsWith('#/library')) render(view); }).catch(() => {});
+      api.watchlist(serverSort).then((fresh) => {
+        writeSnap(serverSort, fresh);
+        if (serverSortOf(state.sort) !== serverSort) return; // the sort changed meanwhile; that change fetched its own list
+        state.items = fresh;
+        if (view.isConnected) render(view);
+      }).catch(() => {});
     } else {
       view.replaceChildren(h('div', { class: 'skeleton' }));
       state.items = await api.watchlist(serverSort);
@@ -195,7 +206,9 @@ export async function render(view) {
     remember();
     // "Fewest left" is ordered here from the activity list; every other sort comes from the server.
     const serverSort = ['left_asc', 'rating_desc'].includes(state.sort) ? 'activity_desc' : state.sort;
-    state.items = await api.watchlist(serverSort);
+    const fresh = await api.watchlist(serverSort);
+    if (serverSortOf(state.sort) !== serverSort) return; // changed again while this one loaded
+    state.items = fresh;
     draw();
   });
   // Unfinished view: one button to shelve everything untouched for a year.
@@ -210,7 +223,7 @@ export async function render(view) {
       await api.setListStatusBatch(ids, 'on_hold');
       for (const x of state.items) if (ids.includes(x.malId)) x.listStatus = 'on_hold';
       // Redraw whatever Library is on screen now (the first paint may have been replaced by fresher data).
-      const redraw = () => { writeSnap(['left_asc', 'rating_desc'].includes(state.sort) ? 'activity_desc' : state.sort, state.items); render(document.getElementById('view')); };
+      const redraw = () => { writeSnap(['left_asc', 'rating_desc'].includes(state.sort) ? 'activity_desc' : state.sort, state.items); redrawIfShown(); };
       redraw();
       toast(`${ids.length} shows put on hold`, { label: 'Undo', onClick: async () => {
         try { await api.setListStatusBatch(ids, null); for (const x of state.items) if (ids.includes(x.malId)) x.listStatus = null; redraw(); } catch (err) { toast(err.message); }

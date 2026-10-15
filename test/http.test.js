@@ -83,10 +83,26 @@ test('the library exports as a CSV download', async () => {
   assert.match(await res.text(), /^﻿?title,english_title,format,/);
 });
 
-test('seasonal answers with a season even when AniList is unreachable from the server', async () => {
+test('seasonal scores the cached season and leaves out sequels of unwatched shows', async () => {
+  // Prime the 12-hour cache so the test never reaches AniList.
+  const m = new Date().getUTCMonth();
+  const season = ['WINTER', 'SPRING', 'SUMMER', 'FALL'][Math.floor(m / 3)];
+  const show = (idMal, title, extra = {}) => ({ id: idMal, idMal, title: { english: title }, format: 'TV', status: 'RELEASING', episodes: 12, genres: ['Action'], averageScore: 70, tags: [], externalLinks: [], relations: { edges: [] }, ...extra });
+  require('../server/state').set(`seasonal:${season}:${new Date().getUTCFullYear()}`, { list: [
+    show(9001, 'Fresh Show'),
+    show(9002, 'Sequel Of Something', { relations: { edges: [{ relationType: 'PREQUEL', node: { idMal: 8000 } }] } })
+  ] });
   const res = await get('/api/seasonal');
-  // Offline in tests: either a 5xx with a message or an empty list, never a crash or hang.
-  assert.ok([200, 500, 503].includes(res.status));
+  assert.equal(res.status, 200);
   const body = await res.json();
-  assert.ok(body.items || body.error);
+  assert.equal(body.season, season);
+  assert.deepEqual(body.items.map((x) => x.title), ['Fresh Show']);
+  assert.ok(body.items[0].match >= 0 && body.items[0].match <= 100);
+});
+
+test('CSV cells cannot start a spreadsheet formula', async () => {
+  const { csvCell } = require('../server/routes');
+  assert.equal(csvCell('=HYPERLINK("x")'), `"'=HYPERLINK(""x"")"`);
+  assert.equal(csvCell('-Prologue-'), "'-Prologue-");
+  assert.equal(csvCell('Plain'), 'Plain');
 });

@@ -8,8 +8,12 @@
   function currentSeriesId() {
     const m = location.pathname.match(SERIES_RE);
     if (m) return m[1];
-    // Watch pages link back to their series.
-    const a = document.querySelector('a[href*="/series/"]');
+    // Episode pages link back to their series. Only there: on the home page or browse pages the
+    // first series link is just whichever carousel show happens to load first.
+    if (!/\/watch\//.test(location.pathname)) return null;
+    const a = document.querySelector('.show-title-link[href*="/series/"], [data-t="show-title-link"][href*="/series/"]')
+      || document.querySelector('.current-media-parent-ref a[href*="/series/"], .erc-current-media-info a[href*="/series/"]')
+      || document.querySelector('a[href*="/series/"]');
     return a ? (a.getAttribute('href').match(SERIES_RE) || [])[1] : null;
   }
 

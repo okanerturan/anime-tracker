@@ -186,3 +186,35 @@ test('a MyAnimeList export imports progress, ratings and list states without low
   assert.equal(lib.find((x) => x.malId === 802).listStatus, 'dropped');
   assert.equal(library.isInLibrary(803), false);
 });
+
+test('importing with a list date keeps that date; without one the date stays unknown', () => {
+  library.importMalList([
+    { malId: 810, title: 'Dated', episodes: 2, watched: 2, status: 'completed', watchedAt: '2024-03-09' },
+    { malId: 811, title: 'Undated', episodes: 2, watched: 2, status: 'completed', watchedAt: '0000-00-00' }
+  ]);
+  const at = (id) => db.prepare('SELECT MAX(watched_at) AS a FROM episode_sync WHERE mal_id = ? AND watched = 1').get(id).a;
+  assert.equal(at(810), '2024-03-09T12:00:00Z');
+  assert.equal(at(811), null);
+});
+
+test('watched-through reports the episodes it changed so Undo reverts exactly those', () => {
+  library.addToLibrary({ malId: 820, title: 'Gappy', totalEpisodes: 6 });
+  const ins = db.prepare(`INSERT INTO episode_sync (mal_id, episode_number, season, title, url, watched, updated_at) VALUES (?, ?, 1, '', '', ?, CURRENT_TIMESTAMP)`);
+  for (let n = 1; n <= 6; n += 1) ins.run(820, n, n === 1 || n === 3 ? 1 : 0);
+  const r = library.markWatchedThrough(820, 4);
+  assert.deepEqual(r.episodes, [2, 4]);
+  library.unmarkEpisodes(820, r.episodes);
+  assert.deepEqual(watched(820), [1, 3]);
+});
+
+test('fixing a mis-guessed season clears what the wrong show got from it', async () => {
+  addShow(830, 'Wrong Guess', { start_date: '2020-01-01', episodes: 12 });
+  addShow(831, 'Right Show', { start_date: '2020-01-01', episodes: 12 });
+  rule('GS830', 830);
+  await crunchyroll.ingest([1, 2, 3].map((ep) => play({ id: `R${ep}`, season: 'GS830', ep })), { source: 'test' });
+  assert.deepEqual(watched(830), [1, 2, 3]);
+  await crunchyroll.remapSeason('GS830', 831, 0);
+  assert.deepEqual(watched(831), [1, 2, 3]);
+  assert.deepEqual(watched(830), [], 'the wrong show keeps nothing from that season');
+  assert.equal(library.isInLibrary(830), false, 'and leaves the library when nothing else of it remains');
+});

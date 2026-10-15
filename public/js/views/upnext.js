@@ -72,11 +72,11 @@ function epCard(item, mode, onChange) {
     // Shift: caught up elsewhere, mark everything that has aired.
     const through = e.shiftKey && item.aired ? item.aired : item.nextEpisode;
     try {
-      await api.watchedThrough(item.malId, through);
+      const r = await api.watchedThrough(item.malId, through);
       onChange?.(tick.closest('.card'));
-      if (through === item.nextEpisode) {
-        toast(`E${item.nextEpisode} of ${item.title} marked watched`, { label: 'Undo', onClick: async () => { try { await api.toggleWatched(item.malId, item.nextEpisode, false); bus.emit('library-changed'); refresh(document.getElementById('view')); } catch (err) { toast(err.message); } } });
-      } else toast(`${item.title}: marked watched through E${through}`);
+      // Undo reverts exactly the episodes this tick changed (it may have filled gaps before E<n>).
+      const undo = { label: 'Undo', onClick: async () => { try { await api.unmark(item.malId, r.episodes || [through]); bus.emit('library-changed'); redrawIfShown(); } catch (err) { toast(err.message); } } };
+      toast(through === item.nextEpisode ? `E${item.nextEpisode} of ${item.title} marked watched` : `${item.title}: marked watched through E${through}`, undo);
     } catch (err) { tick.disabled = false; toast(err.message); }
   });
   // Stalled and held shows get quick actions so the shelf can be cleaned up without opening each one.
@@ -89,7 +89,7 @@ function epCard(item, mode, onChange) {
         await api.setListStatus(item.malId, status);
         onChange?.(b.closest('.card'));
         toast(status === 'dropped' ? `Dropped ${item.title}` : status ? `${item.title} is on hold` : `${item.title} is back in Continue watching`,
-          { label: 'Undo', onClick: async () => { try { await api.setListStatus(item.malId, was); bus.emit('library-changed'); refresh(document.getElementById('view')); } catch (err) { toast(err.message); } } });
+          { label: 'Undo', onClick: async () => { try { await api.setListStatus(item.malId, was); bus.emit('library-changed'); redrawIfShown(); } catch (err) { toast(err.message); } } });
       }
       catch (err) { b.disabled = false; toast(err.message); }
     });
@@ -340,7 +340,12 @@ function comingSoonRow(items) {
         h('span', { class: 'week-item-sub one-line' }, `${when(x.startDate)}${x.after ? ` · after ${x.after}` : ''}`)))))));
 }
 
+// The container this page last rendered into; Undo handlers redraw it only while it's on screen.
+let mounted = null;
+const redrawIfShown = () => { if (mounted?.isConnected) refresh(mounted); };
+
 export async function render(view) {
+  mounted = view;
   const snap = readSnapshot();
   if (snap) draw(view, snap.data, snap.cr); else view.replaceChildren(h('div', { class: 'skeleton' }));
   await refresh(view);

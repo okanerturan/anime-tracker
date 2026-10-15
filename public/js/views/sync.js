@@ -2,6 +2,9 @@ import { api } from '../api.js';
 import { bus } from '../bus.js';
 import { h, section, ago, toast, FORMAT_LABEL } from '../ui.js';
 
+/** AniList's {year, month, day} as YYYY-MM-DD, or null when any part is missing. */
+const fuzzyDate = (d) => (d && d.year && d.month && d.day ? `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}` : null);
+
 const ANILIST_STATUS = { COMPLETED: 'completed', CURRENT: 'watching', REPEATING: 'watching', PAUSED: 'onhold', DROPPED: 'dropped', PLANNING: 'plan' };
 
 /** Read a public AniList list straight from AniList in the browser, then use the same import as MAL. */
@@ -14,13 +17,14 @@ function aniListImport() {
     if (!user) { name.focus(); return; }
     go.disabled = true; status.textContent = 'Reading your AniList list…';
     try {
-      const query = `query($u:String){MediaListCollection(userName:$u,type:ANIME){lists{entries{status progress score(format:POINT_10_DECIMAL) media{idMal episodes title{romaji english}}}}}}`;
+      const query = `query($u:String){MediaListCollection(userName:$u,type:ANIME){lists{entries{status progress score(format:POINT_10_DECIMAL) updatedAt completedAt{year month day} startedAt{year month day} media{idMal episodes title{romaji english}}}}}}`;
       const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ query, variables: { u: user } }) });
       const json = await res.json();
       if (json.errors) throw new Error(/not found|Private/i.test(json.errors[0].message) ? 'That user was not found, or their list is private.' : json.errors[0].message);
       const entries = (json.data?.MediaListCollection?.lists || []).flatMap((l) => l.entries).filter((e) => e.media?.idMal).map((e) => ({
         malId: e.media.idMal, title: e.media.title.english || e.media.title.romaji, episodes: e.media.episodes,
-        watched: e.status === 'COMPLETED' && e.media.episodes ? e.media.episodes : e.progress, score: e.score || 0, status: ANILIST_STATUS[e.status] || null
+        watched: e.status === 'COMPLETED' && e.media.episodes ? e.media.episodes : e.progress, score: e.score || 0, status: ANILIST_STATUS[e.status] || null,
+        watchedAt: fuzzyDate(e.completedAt) || (e.updatedAt ? new Date(e.updatedAt * 1000).toISOString().slice(0, 10) : null) || fuzzyDate(e.startedAt)
       }));
       if (!entries.length) { status.textContent = 'That list has no anime with a MyAnimeList id.'; go.disabled = false; return; }
       status.textContent = `Importing ${entries.length} shows…`;
@@ -63,7 +67,8 @@ function malInput() {
       const pick = (n, tag) => n.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
       const entries = [...doc.getElementsByTagName('anime')].map((n) => ({
         malId: Number(pick(n, 'series_animedb_id')), title: pick(n, 'series_title'), episodes: Number(pick(n, 'series_episodes')) || null,
-        watched: Number(pick(n, 'my_watched_episodes')) || 0, score: Number(pick(n, 'my_score')) || 0, status: MAL_STATUS[pick(n, 'my_status')] || null
+        watched: Number(pick(n, 'my_watched_episodes')) || 0, score: Number(pick(n, 'my_score')) || 0, status: MAL_STATUS[pick(n, 'my_status')] || null,
+        watchedAt: [pick(n, 'my_finish_date'), pick(n, 'my_start_date')].find((d) => d && !/^0000|-00/.test(d)) || null
       })).filter((e) => e.malId);
       if (!entries.length) { status.textContent = 'No anime found in that file. Is it a MyAnimeList anime list export?'; return; }
       status.textContent = `Importing ${entries.length} shows…`;

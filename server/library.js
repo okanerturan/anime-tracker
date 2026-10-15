@@ -137,6 +137,7 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
 function markWatchedElsewhere(malId) {
   const m = db.prepare('SELECT * FROM media WHERE mal_id = ?').get(malId);
   if (!m) throw Object.assign(new Error('unknown show'), { status: 404 });
+  const wasInLibrary = isInLibrary(malId);
   // An unreleased show has nothing to mark; adding it with zero episodes only leaves an empty entry.
   if (m.status === 'NOT_YET_RELEASED' || airedCount(m) === 0) throw Object.assign(new Error(`${m.title_english || m.title} hasn't aired yet`), { status: 400 });
   if (!isInLibrary(malId)) {
@@ -146,7 +147,7 @@ function markWatchedElsewhere(malId) {
   const insert = db.prepare(`INSERT OR IGNORE INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, updated_at)
     VALUES (?, ?, 1, ?, '', NULL, 0, CURRENT_TIMESTAMP)`);
   db.transaction(() => { for (let n = 1; n <= aired; n += 1) insert.run(malId, n, `Episode ${n}`); })();
-  return { malId, aired, ...markWatchedThrough(malId, aired) };
+  return { malId, aired, addedToLibrary: !wasInLibrary, ...markWatchedThrough(malId, aired) };
 }
 
 function getAnime(malId) {
@@ -295,11 +296,25 @@ function setWatched(malId, episodeNumber, watched) {
 }
 
 /** Mark every aired episode up to and including `episodeNumber` as watched. */
-function markWatchedThrough(malId, episodeNumber) {
-  const at = new Date().toISOString();
+/**
+ * Mark every episode up to `episodeNumber` watched. Returns which episodes actually changed, so an
+ * Undo can revert exactly those. `at` is the watch date (ISO string), `null` when unknown (imports
+ * without a date), or omitted for "now".
+ */
+function markWatchedThrough(malId, episodeNumber, at = new Date().toISOString()) {
+  const episodes = db.prepare('SELECT episode_number AS n FROM episode_sync WHERE mal_id = ? AND episode_number <= ? AND watched = 0 ORDER BY 1')
+    .all(malId, episodeNumber).map((r) => r.n);
   const info = db.prepare(`UPDATE episode_sync SET watched = 1, watched_at = COALESCE(watched_at, ?), updated_at = CURRENT_TIMESTAMP
     WHERE mal_id = ? AND episode_number <= ? AND watched = 0`).run(at, malId, episodeNumber);
-  return { ok: true, changed: info.changes };
+  return { ok: true, changed: info.changes, episodes };
+}
+
+/** Unmark specific episodes (the other half of an Undo). */
+function unmarkEpisodes(malId, episodes) {
+  const stmt = db.prepare('UPDATE episode_sync SET watched = 0, watched_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?');
+  let changed = 0;
+  db.transaction(() => { for (const n of episodes || []) changed += stmt.run(malId, Number(n)).changes || 0; })();
+  return { ok: true, changed };
 }
 
 const LIST_STATUSES = [null, 'on_hold', 'dropped'];
@@ -388,7 +403,10 @@ function importMalList(entries) {
       if (!isInLibrary(malId)) { addToLibrary({ malId, title: e.title, titleEnglish: '', totalEpisodes: Number(e.episodes) || null }); summary.added += 1; }
       if (watched) {
         for (let n = 1; n <= watched; n += 1) insertEp.run(malId, n, `Episode ${n}`);
-        summary.episodesMarked += markWatchedThrough(malId, watched).changed || 0;
+        // The list's own finish/start date when it has one; otherwise no date at all, so imported
+        // shows don't look "watched today" in Up Next, the rating strip or recommendation recency.
+        const at = /^(19|20)\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])/.test(e.watchedAt || '') ? `${e.watchedAt.slice(0, 10)}T12:00:00Z` : null;
+        summary.episodesMarked += markWatchedThrough(malId, watched, at).changed || 0;
       }
       const score = Number(e.score) || 0;
       if (score > 0 && ratingStmt.run(Math.max(1, Math.min(5, Math.round(score / 2))), malId).changes) summary.rated += 1;
@@ -400,6 +418,7 @@ function importMalList(entries) {
 }
 
 module.exports = {
+  unmarkEpisodes,
   importMalList,
   suspiciousProgress,
   progressOf,

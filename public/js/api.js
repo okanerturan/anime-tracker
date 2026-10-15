@@ -30,6 +30,8 @@ export const api = {
   setListStatusBatch: (malIds, status) => post('/api/anime/list-status-batch', { malIds, status }),
   setRating: (malId, rating) => post('/api/anime/rating', { malId, rating }),
   watchedThrough: (malId, episodeNumber) => post('/api/episode/watched-through', { malId, episodeNumber }),
+  // Undo for watchedThrough / watchedElsewhere: unmark exactly the episodes those calls changed.
+  unmark: (malId, episodes, removeFromLibrary = false) => post('/api/episode/unmark', { malId, episodes, removeFromLibrary }),
   syncAnime: (malId) => post('/api/sync-episodes', { malId }),
   add: (anime) => post('/api/watchlist/add', { anime }),
   remove: (malId) => post('/api/watchlist/remove', { malId }),

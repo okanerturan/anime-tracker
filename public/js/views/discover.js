@@ -23,7 +23,8 @@ function watchedButton(malId, title, onDone) {
       bus.emit('library-changed');
       onDone?.();
       toast(`Marked ${title} as watched (${r.aired} episodes)`, { label: 'Undo', onClick: async () => {
-        try { await api.remove(malId); bus.emit('library-changed'); bus.emit('recommendations-changed'); toast(`Removed ${title} again`); } catch (err) { toast(err.message); }
+        // Unmark exactly what this click marked; remove the show only if this click added it.
+        try { await api.unmark(malId, r.episodes || [], r.addedToLibrary); bus.emit('library-changed'); bus.emit('recommendations-changed'); toast(r.addedToLibrary ? `Removed ${title} again` : `${title} is back to where it was`); } catch (err) { toast(err.message); }
       } });
     } catch (err) { btn.disabled = false; toast(err.message); }
   });
@@ -119,7 +120,8 @@ function searchPanel(initial = '') {
   return [h('div', { class: 'toolbar' }, input), results];
 }
 
-bus.on('recommendations-changed', () => { const view = document.getElementById('view'); if (location.hash.startsWith('#/discover')) render(view); });
+let mounted = null;
+bus.on('recommendations-changed', () => { if (mounted?.isConnected) render(mounted); });
 
 /** This season's airing anime that fit your taste, as a carousel at the top of Discover. */
 async function seasonalSection() {
@@ -132,6 +134,7 @@ async function seasonalSection() {
 }
 
 export async function render(view) {
+  mounted = view;
   view.replaceChildren(h('div', { class: 'skeleton' }));
   const seasonalPromise = seasonalSection();
   const data = await api.recommendations();
@@ -153,9 +156,11 @@ export async function render(view) {
     catch (err) { toast(err.message); }
     refresh.disabled = false; refresh.textContent = 'Recompute';
   });
-  const seasonalEl = await seasonalPromise;
+  // This season's row fills in when it arrives (its first fetch of the day can take a few seconds).
+  const seasonalSlot = h('div', { class: 'view-slot' });
+  seasonalPromise.then((el) => { if (el) seasonalSlot.replaceChildren(el); });
   view.replaceChildren(...[
-    seasonalEl,
+    seasonalSlot,
     section('Your taste', 'Weighted by how much of each show you watched, how recently, and your star ratings',
       h('div', { class: 'taste' },
         h('div', { class: 'taste-group' },

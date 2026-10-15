@@ -20,13 +20,17 @@ async function route() {
     if (a.dataset.view === name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
   closeDrawer();
+  // Each navigation renders into its own container. A page whose data arrives after you've moved
+  // on draws into a container that is no longer on screen, never over the page you're looking at.
+  const slot = h('div', { class: 'view-slot' });
+  view.replaceChildren(slot);
   try {
-    await mod.render(view);
+    await mod.render(slot);
     // Deep link: #/<view>?anime=<malId> opens that show's detail panel.
     const anime = new URLSearchParams(location.hash.split('?')[1] || '').get('anime');
     if (anime) openAnime({ malId: Number(anime) });
   } catch (err) {
-    view.replaceChildren(h('div', { class: 'empty' }, `Couldn't load: ${err.message}`));
+    if (slot.isConnected) slot.replaceChildren(h('div', { class: 'empty' }, `Couldn't load: ${err.message}`));
   }
 }
 

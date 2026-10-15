@@ -306,9 +306,9 @@ html:has(dialog:modal) { overflow: hidden; }
   padding-block: var(--space-l) var(--space-section);
 }
 
-:is(.content-grid, .full-width) > * { grid-column: content; }
-:is(.content-grid, .full-width) > .breakout { grid-column: breakout; }
-:is(.content-grid, .full-width) > .full-width {
+:is(.content-grid, .full-width, .view-slot) > * { grid-column: content; }
+:is(.content-grid, .full-width, .view-slot) > .breakout { grid-column: breakout; }
+:is(.content-grid, .full-width, .view-slot) > .full-width {
   grid-column: full-width;
   display: grid;
   grid-template-columns: inherit;
@@ -1664,3 +1664,7 @@ button.history-row { cursor: pointer; }
 .library-tools { display: flex; gap: var(--space-xs); align-items: center; }
 .import-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--space-s); }
 .import-grid > p { grid-column: 1 / -1; }
+
+/* One per navigation (see route() in main.js). It has no box of its own, so its children sit in
+   the page grid; it passes the grid's columns down for .full-width children that inherit them. */
+.view-slot { display: contents; grid-template-columns: inherit; }
