@@ -79,3 +79,16 @@ test('an AniList answer lands in the shared catalog, and the synopsis in the acc
   assert.equal(withAccount('8', () => db.prepare('SELECT synopsis FROM anime WHERE mal_id = 800').get().synopsis), 'A shared synopsis.');
   assert.equal(withAccount('7', () => db.prepare('SELECT title FROM media WHERE mal_id = 800').get()?.title), 'Asked For', 'every account sees it');
 });
+
+test('global settings are shared by every account; personal ones are not', () => {
+  const state = require('../server/state');
+  withAccount('9', () => { state.set('pushKeys', { publicKey: 'shared-key' }); state.set('seasonal:FALL:2026', { list: [1, 2] }); state.set('calendar', { token: 'nine' }); });
+  withAccount('10', () => state.set('calendar', { token: 'ten' }));
+  assert.equal(withAccount('10', () => state.get('pushKeys')?.publicKey), 'shared-key');
+  assert.deepEqual(withAccount('10', () => state.get('seasonal:FALL:2026')?.list), [1, 2]);
+  assert.equal(withAccount('9', () => state.get('calendar')?.token), 'nine');
+  assert.equal(withAccount('10', () => state.get('calendar')?.token), 'ten');
+  // The background cycle has no account at all and can still read and write global settings.
+  state.set('refreshCycle', { ok: true });
+  assert.equal(state.get('refreshCycle')?.ok, true);
+});

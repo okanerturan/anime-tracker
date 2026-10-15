@@ -140,6 +140,13 @@ CREATE TABLE IF NOT EXISTS app_state (
   value TEXT,
   at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Settings that are the same for everyone (hosted mode keeps them in the catalog; see state.js).
+CREATE TABLE IF NOT EXISTS catalog_state (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 -- AniList relay: requests the server couldn't make (AniList blocks some hosting networks, e.g. Cloudflare)
 -- wait here until the browser extension or the open web app runs them and posts the answers back.
 CREATE TABLE IF NOT EXISTS anilist_relay (
@@ -187,7 +194,7 @@ const ADDED_COLUMNS = [
 // recommendations, the image index, AniList job queues, Crunchyroll season fetch times) lives in
 // one catalog file; everything about a person lives in their account file. Single-user mode keeps
 // all of it in one file, as before.
-const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids']);
+const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state']);
 
 /** The table a CREATE TABLE / CREATE INDEX statement is about. */
 function tableOf(statement) {
