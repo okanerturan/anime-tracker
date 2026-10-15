@@ -144,8 +144,9 @@ function showsForSeries(seriesId) {
   const shows = rows.map((x) => {
     const aired = x.airedEpisodes ?? x.episodesCount;
     const furthest = furthestStmt.get(x.malId)?.n || 0;
-    return { malId: x.malId, title: x.titleEnglish || x.title, watched: Math.min(furthest, aired ?? furthest), aired, total: x.totalEpisodes,
-      nextEpisode: furthest < (aired || 0) ? furthest + 1 : null, rating: x.rating, listStatus: x.listStatus, status: x.status };
+    const watched = x.progress ?? x.watchedCount;
+    return { malId: x.malId, title: x.titleEnglish || x.title, watched, aired, total: x.totalEpisodes,
+      nextEpisode: watched < (aired || 0) ? Math.min(furthest + 1, aired) : null, rating: x.rating, listStatus: x.listStatus, status: x.status };
   });
   // Everything watched: is there a released next season you haven't started?
   let nextSeason = null;

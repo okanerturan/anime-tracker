@@ -52,11 +52,11 @@ function matches(x) {
 /** One visual state per show: completed, caught up (airing), almost done, watching, not started, upcoming. */
 function progressState(x) {
   const aired = x.airedEpisodes ?? x.episodesCount;
-  const left = aired ? Math.max(0, aired - x.watchedCount) : x.unwatchedCount;
+  const left = aired ? Math.max(0, aired - (x.progress ?? x.watchedCount)) : x.unwatchedCount;
   if (x.listStatus === 'dropped') return { key: 'dropped', label: 'Dropped', left };
   if (x.listStatus === 'on_hold') return { key: 'on-hold', label: 'On hold', left };
   if (x.status === 'NOT_YET_RELEASED') return { key: 'upcoming', label: 'Upcoming', left };
-  if (!x.watchedCount) return { key: 'not-started', label: aired ? `${aired} eps` : 'Not started', left };
+  if (!(x.progress ?? x.watchedCount)) return { key: 'not-started', label: aired ? `${aired} eps` : 'Not started', left };
   if (!left) {
     if (x.status !== 'RELEASING') return { key: 'completed', label: '✓ Completed', left };
     const at = x.nextAiringAt ? x.nextAiringAt * (x.nextAiringAt < 1e12 ? 1000 : 1) : null;
@@ -65,10 +65,10 @@ function progressState(x) {
   }
   // Unfinished = started, episodes waiting, and no activity for months (same rule as Up Next's "Paused a while ago").
   const ageDays = x.lastWatchedAt ? (Date.now() - new Date(x.lastWatchedAt).getTime()) / DAY : 9999;
-  const progress = aired ? x.watchedCount / aired : 0;
+  const progress = aired ? (x.progress ?? x.watchedCount) / aired : 0;
   if (ageDays > 120 && !(progress >= 0.5 && ageDays <= 365)) return { key: 'unfinished', label: `${left} left · ${ago(x.lastWatchedAt)}`, left };
   // Almost done = close to the end of the season, judged by its announced length, not by aired episodes.
-  const seasonLeft = x.totalEpisodes ? Math.max(0, x.totalEpisodes - x.watchedCount) : null;
+  const seasonLeft = x.totalEpisodes ? Math.max(0, x.totalEpisodes - (x.progress ?? x.watchedCount)) : null;
   if (seasonLeft != null && seasonLeft <= 3 && left <= 3) return { key: 'almost', label: `Almost done · ${seasonLeft} left`, left };
   return { key: 'watching', label: `${left} new`, left };
 }
@@ -96,13 +96,13 @@ function card(x) {
   });
   return h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''}` },
     media({ src: x.imageUrl, alt: '', kind: 'poster', badges: [h('div', { class: 'badge-end' }, badge), play, tick] }),
-    progress(aired ? Math.min(x.watchedCount, aired) / aired : 0),
+    progress(aired ? Math.min((x.progress ?? x.watchedCount), aired) / aired : 0),
     cardLink(title, () => openAnime({ ...x, title, image: x.imageUrl }), { href: `https://myanimelist.net/anime/${x.malId}` }),
     h('div', { class: 'card-meta' },
       statusPill(x.status),
       h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
       x.rating ? h('span', { class: 'num rating', title: `Your rating: ${x.rating}/5` }, `★${x.rating}`) : null,
-      h('span', { class: 'num push-end' }, `${x.watchedCount}/${aired ?? '?'}`)),
+      h('span', { class: 'num push-end' }, `${(x.progress ?? x.watchedCount)}/${aired ?? '?'}`)),
     state.filter === 'unfinished' ? triage(x, title) : null);
 }
 

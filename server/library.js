@@ -53,6 +53,11 @@ const ORDER = {
 };
 
 /** The library list. Synopses are left out unless asked for: the grid never shows them and they are half the payload. */
+function progressOf(watched, furthest, aired) {
+  if (!aired || !furthest) return watched;
+  return furthest >= aired && watched >= 0.75 * aired ? aired : watched;
+}
+
 function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
   const crlinks = require('./crlinks');
   const rows = db.prepare(`
@@ -64,6 +69,7 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
            m.next_airing_episode AS nextAiringEpisode, m.next_airing_at AS nextAiringAt, m.episodes AS mediaEpisodes, m.external_links, m.duration AS episodeMinutes,
            COUNT(e.episode_number) AS episodesCount,
            COALESCE(SUM(e.watched = 1), 0) AS watchedCount,
+           MAX(CASE WHEN e.watched = 1 THEN e.episode_number END) AS furthest,
            COALESCE(SUM(e.image_blob IS NOT NULL), 0) AS imageCount,
            MAX(CASE WHEN e.watched = 1 THEN e.watched_at END) AS last_watched_at,
            w.added_at AS addedAt, w.list_status AS listStatus, w.rating
@@ -110,6 +116,9 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
       airedEpisodes: aired,
       episodesCount: r.episodesCount,
       watchedCount: r.watchedCount,
+      // Progress for badges and filters: a finished show with a few gaps in old history counts as
+      // finished (finale watched and at least 75% of episodes), otherwise the plain count.
+      progress: progressOf(r.watchedCount, r.furthest, aired),
       unwatchedCount: Math.max(0, r.episodesCount - r.watchedCount),
       imageCount: r.imageCount,
       episodeThumbCoverage: r.episodesCount ? Math.round((1000 * r.imageCount) / r.episodesCount) / 10 : 0,
@@ -342,6 +351,7 @@ function resolveOverflow(malId, episodeNumber) {
 }
 
 module.exports = {
+  progressOf,
   resolveOverflow,
   upsertAnime, addToLibrary, removeFromLibrary, isInLibrary, airedCount,
   getWatchlist, getAnime, getEpisodes, getDetails, markWatchedElsewhere, getAllEpisodes, setWatched, markWatchedThrough, setListStatus, setRating, reactivate, getEpisodeImage, episodeImageUrl

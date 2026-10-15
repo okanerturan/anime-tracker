@@ -133,20 +133,28 @@ test('while AniList blocks the server, requests are queued for the browser relay
 });
 
 test('a Crunchyroll series page maps to your seasons, with furthest-episode progress and the next season', async () => {
-  addShow(600, 'Series S1', { episodes: 3, start_date: '2020-01-01' });
+  addShow(600, 'Series S1', { episodes: 4, start_date: '2020-01-01' });
   addShow(601, 'Series S2', { episodes: 2, start_date: '2021-01-01' });
   media({ mal_id: 602, title: 'Series S3', episodes: 12, start_date: '2026-01-01' });
   relate(600, 601, 'SEQUEL'); relate(601, 602, 'SEQUEL');
   rule('GS600', 600); rule('GS601', 601);
-  // Episode 2 of S1 is missing from history, but episode 3 was watched: progress is 3/3.
+  // Episode 3 of S1 is missing from history, but the finale and 3 of 4 episodes were watched: 4/4.
   await crunchyroll.ingest([
     play({ id: 'X1', series: 'GSERIES600', season: 'GS600', ep: 1, at: '2026-10-01T10:00:00Z' }),
-    play({ id: 'X3', series: 'GSERIES600', season: 'GS600', ep: 3, at: '2026-10-01T11:00:00Z' }),
+    play({ id: 'X2', series: 'GSERIES600', season: 'GS600', ep: 2, at: '2026-10-01T10:30:00Z' }),
+    play({ id: 'X4', series: 'GSERIES600', season: 'GS600', ep: 4, at: '2026-10-01T11:00:00Z' }),
     play({ id: 'Y1', series: 'GSERIES600', season: 'GS601', ep: 1, at: '2026-10-02T10:00:00Z' }),
     play({ id: 'Y2', series: 'GSERIES600', season: 'GS601', ep: 2, at: '2026-10-02T11:00:00Z' })
   ], { source: 'test' });
   const info = crlinks.showsForSeries('GSERIES600');
-  assert.deepEqual(info.shows.map((s) => [s.malId, s.watched, s.aired]), [[600, 3, 3], [601, 2, 2]]);
+  assert.deepEqual(info.shows.map((s) => [s.malId, s.watched, s.aired]), [[600, 4, 4], [601, 2, 2]]);
   assert.equal(info.nextSeason.malId, 602);
   assert.deepEqual(crlinks.showsForSeries('bad id!'), { shows: [], nextSeason: null });
+});
+
+test('progress forgives history gaps only when the finale and most episodes were watched', () => {
+  assert.equal(library.progressOf(18, 24, 24), 24); // finished, a few gaps
+  assert.equal(library.progressOf(8, 12, 12), 8);   // finale ticked but only 8 of 12: keep the count
+  assert.equal(library.progressOf(1, 20, 20), 1);   // only the last episode: probably noise
+  assert.equal(library.progressOf(5, 5, 12), 5);    // still watching
 });
