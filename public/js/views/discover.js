@@ -139,7 +139,14 @@ function becauseRows(items, onHide) {
     const picks = items.filter((r) => !used.has(r.malId) && (r.becauseShows || []).some((b) => b.malId === malId)).slice(0, 10);
     picks.forEach((r) => used.add(r.malId));
     if (picks.length < 4) return null;
-    const cards = picks.map((r) => { const card = recCard({ ...r, note: null }, () => { card.remove(); onHide(r); }); return card; });
+    // The heading already names the seed, so the card's line says something new: the other shows that
+    // point to it ("Also from Frieren, 86"), else its genres.
+    const cards = picks.map((r) => {
+      const others = (r.becauseShows || []).filter((b) => b.malId !== malId).slice(0, 2).map((b) => b.title);
+      const note = others.length ? `Also from ${others.join(', ')}` : (r.genres || []).slice(0, 3).join(' · ') || null;
+      const card = recCard({ ...r, note }, () => { card.remove(); onHide(r); });
+      return card;
+    });
     return carousel(`Because you watched ${seed.title}`, null, cards, '');
   }).filter(Boolean);
 }
