@@ -70,7 +70,6 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
            COUNT(e.episode_number) AS episodesCount,
            COALESCE(SUM(e.watched = 1), 0) AS watchedCount,
            MAX(CASE WHEN e.watched = 1 THEN e.episode_number END) AS furthest,
-           COALESCE(SUM(e.image_blob IS NOT NULL), 0) AS imageCount,
            MAX(CASE WHEN e.watched = 1 THEN e.watched_at END) AS last_watched_at,
            w.added_at AS addedAt, w.list_status AS listStatus, w.rating
     FROM watchlist w
@@ -120,8 +119,6 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
       // finished (finale watched and at least 75% of episodes), otherwise the plain count.
       progress: progressOf(r.watchedCount, r.furthest, aired),
       unwatchedCount: Math.max(0, r.episodesCount - r.watchedCount),
-      imageCount: r.imageCount,
-      episodeThumbCoverage: r.episodesCount ? Math.round((1000 * r.imageCount) / r.episodesCount) / 10 : 0,
       lastWatchedAt: r.last_watched_at,
       addedAt: r.addedAt,
       listStatus: r.listStatus || null,

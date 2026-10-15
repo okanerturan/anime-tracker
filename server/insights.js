@@ -331,9 +331,29 @@ function study() {
   const tz = (typeof process !== 'undefined' && process.env && process.env.TIMEZONE) || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23', weekday: 'short' });
   const WD = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  const local = (d) => {
+  const exactLocal = (d) => {
     const p = Object.fromEntries(fmt.formatToParts(d).map((x) => [x.type, x.value]));
     return { year: Number(p.year), month: p.month, day: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) % 24, weekday: WD[p.weekday] };
+  };
+  // formatToParts is slow and runs for every play, so find the timezone offset once per UTC day
+  // and do plain arithmetic. On a daylight-saving change day the offsets at the day's two ends
+  // differ, and those plays take the exact (slow) path.
+  const offFmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' });
+  const offsetAt = (ms) => {
+    const p = Object.fromEntries(offFmt.formatToParts(ms).map((x) => [x.type, x.value]));
+    return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute)) - Math.floor(ms / 60000) * 60000;
+  };
+  const dayOffsets = new Map();
+  const pad = (n) => String(n).padStart(2, '0');
+  const local = (d) => {
+    const ms = d.getTime();
+    const dayStart = Math.floor(ms / 86400000) * 86400000;
+    let o = dayOffsets.get(dayStart);
+    if (o === undefined) { const a = offsetAt(dayStart); o = a === offsetAt(dayStart + 86399999) ? a : null; dayOffsets.set(dayStart, o); }
+    if (o === null) return exactLocal(d);
+    const t = new Date(ms + o);
+    const y = t.getUTCFullYear(); const m = pad(t.getUTCMonth() + 1);
+    return { year: y, month: m, day: `${y}-${m}-${pad(t.getUTCDate())}`, hour: t.getUTCHours(), weekday: t.getUTCDay() };
   };
   const byYear = {}; const byWeekday = Array(7).fill(0); const byHour = Array(24).fill(0); const byMonth = {};
   let minutes = 0;

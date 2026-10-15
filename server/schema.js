@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS episode_sync (
   FOREIGN KEY(mal_id) REFERENCES anime(mal_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_episode_sync_mal ON episode_sync(mal_id);
+-- Covers the per-show progress summary (Library, Up Next) without touching rows that hold thumbnails.
+CREATE INDEX IF NOT EXISTS idx_episode_sync_progress ON episode_sync(mal_id, watched, episode_number, watched_at);
+-- Counting stored thumbnails without reading the rows that hold them.
+CREATE INDEX IF NOT EXISTS idx_episode_sync_has_image ON episode_sync(mal_id) WHERE image_blob IS NOT NULL;
 
 -- AniList metadata for any title we know about (library, relations, recommendations)
 CREATE TABLE IF NOT EXISTS media (
@@ -110,6 +114,8 @@ CREATE TABLE IF NOT EXISTS cr_history (
 );
 CREATE INDEX IF NOT EXISTS idx_cr_history_season ON cr_history(season_id);
 CREATE INDEX IF NOT EXISTS idx_cr_history_played ON cr_history(date_played);
+-- Per-show lookups (Crunchyroll links, sampled shows) run hundreds of times per page.
+CREATE INDEX IF NOT EXISTS idx_cr_history_mal ON cr_history(mal_id);
 -- Rules mapping a Crunchyroll season (and episode range) to a MAL entry
 CREATE TABLE IF NOT EXISTS cr_season_map (
   season_id TEXT NOT NULL,
@@ -123,6 +129,7 @@ CREATE TABLE IF NOT EXISTS cr_season_map (
   needs_review INTEGER DEFAULT 0,
   PRIMARY KEY(season_id, ep_from)
 );
+CREATE INDEX IF NOT EXISTS idx_cr_season_map_mal ON cr_season_map(mal_id);
 CREATE TABLE IF NOT EXISTS cr_season_fetch (
   season_id TEXT PRIMARY KEY,
   fetched_at TEXT DEFAULT CURRENT_TIMESTAMP
