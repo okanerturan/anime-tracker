@@ -39,9 +39,13 @@ async function updateStatus() {
     el.title = at ? `Last Crunchyroll sync: ${at.toLocaleString()}` : '';
     fill(el, h('span', { class: `sync-dot ${fresh ? 'is-fresh' : at ? 'is-stale' : ''}`, 'aria-hidden': 'true' }),
       at ? `Synced ${relTime(at.getTime())}` : 'Not synced yet');
+    // The Sync tab's badge counts everything there that needs a decision: guessed mappings and odd progress.
+    const odd = await api.suspicious().catch(() => []);
+    const attention = cr.needsReview.length + odd.length;
     const badge = document.getElementById('sync-badge');
-    badge.hidden = !cr.needsReview.length;
-    badge.textContent = cr.needsReview.length;
+    badge.hidden = !attention;
+    badge.textContent = attention;
+    badge.title = `${cr.needsReview.length} to review · ${odd.length} with odd progress`;
   } catch {}
 }
 
