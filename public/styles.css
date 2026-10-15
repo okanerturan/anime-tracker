@@ -1732,3 +1732,8 @@ table.simple .num-col { text-align: end; }
    drawn into the grid gap so the card itself keeps its place in the grid. */
 .card.is-stack { box-shadow: 0.3rem -0.3rem 0 -1px var(--surface), 0.3rem -0.3rem 0 0 var(--line), 0.6rem -0.6rem 0 -2px var(--surface), 0.6rem -0.6rem 0 -1px var(--line); }
 .group-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* "Since Tuesday: new episodes of …" under tonight's pick. */
+.since-line { margin-block-start: calc(-1 * var(--space-s)); color: var(--muted); font-size: var(--step--1); }
+.since-line b { color: var(--text); font-weight: 600; }
+.since-line .link-btn { color: var(--text); text-decoration: underline; text-decoration-color: color-mix(in oklch, var(--accent) 60%, transparent); text-underline-offset: 0.2em; }

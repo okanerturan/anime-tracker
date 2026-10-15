@@ -12,11 +12,41 @@ function timeFor(n, minutes) {
 }
 
 // "New since your last visit": a per-browser timestamp, nothing the server needs to know.
-const LAST_VISIT_KEY = 'upnext:lastVisit';
+// "New since your last visit": opens within 30 minutes of each other count as one visit, so a reload
+// keeps today's badges, and the next visit compares against the start of this one.
+const VISIT_KEY = 'upnext:visit';
 let lastVisit = 0;
-try { lastVisit = Number(localStorage.getItem(LAST_VISIT_KEY)) || 0; } catch {}
-function stampVisit() { try { localStorage.setItem(LAST_VISIT_KEY, String(Date.now())); } catch {} }
+try {
+  const v = JSON.parse(localStorage.getItem(VISIT_KEY) || 'null') || {};
+  const now = Date.now();
+  if (!v.start || now - v.start > 30 * 60000) { lastVisit = v.start || 0; localStorage.setItem(VISIT_KEY, JSON.stringify({ start: now, previous: lastVisit })); }
+  else lastVisit = v.previous || 0;
+} catch {}
 const isNewSinceVisit = (iso) => Boolean(iso && lastVisit && new Date(iso).getTime() > lastVisit);
+
+/** One line under tonight's pick: what arrived since the previous visit. */
+function sinceLine(data) {
+  if (!lastVisit) return null;
+  const eps = data.continueWatching.filter((x) => isNewSinceVisit(x.latestAiredAt));
+  const seasons = (data.newSeasons || []).filter((x) => x.startDate && new Date(x.startDate).getTime() > lastVisit);
+  if (!eps.length && !seasons.length) return null;
+  const days = (Date.now() - lastVisit) / 86400000;
+  const when = days < 1 ? 'Since earlier today' : days < 7 ? `Since ${new Date(lastVisit).toLocaleDateString(undefined, { weekday: 'long' })}`
+    : `Since ${new Date(lastVisit).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  const names = (list) => {
+    // Long light-novel titles read better cut at the colon: "Magic Repo Man", not the whole sentence.
+    const short = (t) => (t.length > 32 && /[:：]/.test(t) ? t.split(/\s*[:：]\s*/)[0] : t);
+    const shown = list.slice(0, 3).map((x) => h('button', { type: 'button', class: 'link-btn', title: x.title, onclick: () => openAnime(x) }, short(x.title)));
+    const parts = shown.flatMap((b, i) => (i === 0 ? [b] : [i === shown.length - 1 && list.length <= 3 ? ' and ' : ', ', b]));
+    return list.length > 3 ? [...parts, ` and ${list.length - 3} more`] : parts;
+  };
+  const line = h('p', { class: 'since-line' }, h('b', {}, `${when}: `),
+    eps.length ? ['new episodes of ', ...names(eps)] : null,
+    eps.length && seasons.length ? '; ' : null,
+    seasons.length ? [seasons.length === 1 ? 'a new season: ' : 'new seasons: ', ...names(seasons)] : null);
+  if (!/[.!?]$/.test(line.textContent.trim())) line.append('.');
+  return line;
+}
 
 /** After jumping to Crunchyroll, say what happens next so the user doesn't come back to tick boxes. */
 function playToast(ep) { toast(ep ? `Opening episode ${ep} on Crunchyroll. It's marked watched after your next sync.` : 'Opening Crunchyroll'); }
@@ -381,7 +411,6 @@ function draw(view, data, cr) {
   // screen: redraw the live view instead so the change shows.
   const rerender = (cardEl) => { if (cardEl && document.contains(cardEl)) cardEl.remove(); else refresh(view); };
   // After the shelves are drawn, remember this visit so the next one can flag what aired in between.
-  setTimeout(stampVisit, 1500);
   const collapsible = (title, sub, items, mode, link = null) => h('details', { class: 'collapse section' },
     h('summary', {}, h('div', { class: 'section-head' },
       h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), title),
@@ -424,6 +453,7 @@ function draw(view, data, cr) {
   const stalledRest = data.stalled.filter((x) => !finishIds.has(x.malId));
   fill(view,
     tonight(data.continueWatching, inProgress),
+    sinceLine(data),
     finishable.length ? carousel('Finish what you started', `${plural(finishable.length, 'show')} one or two episodes from the end`,
       finishable.map((x) => epCard(x, 'stalled', rerender)), '') : null,
     continueSection(view, data.continueWatching),
