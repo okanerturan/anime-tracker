@@ -34,7 +34,8 @@ async function toOrigin(request, env, url) {
   headers.delete('Host');
   try {
     const res = await fetch(target, { method: request.method, headers, body: request.body, redirect: 'manual' });
-    if (res.status < 500 || res.status === 501) { failingSince = 0; return res; }
+    // A deliberate 503 (maintenance, paused sync) carries this header: pass its message on.
+    if (res.status < 500 || res.status === 501 || res.headers.get('X-Tracker-Maintenance')) { failingSince = 0; return res; }
     throw new Error(`origin ${res.status}`);
   } catch (err) {
     const now = Date.now();

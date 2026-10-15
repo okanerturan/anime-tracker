@@ -1,4 +1,4 @@
-// Bundle the Worker. server/db.js and server/images.js are swapped for their Cloudflare versions.
+// Bundle the Worker. server/db.js, server/images.js and the hosted-only switches are swapped for their Cloudflare versions.
 import { build } from 'esbuild';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SWAP = {
   [path.join(root, 'server/db.js')]: path.join(root, 'worker/db.js'),
-  [path.join(root, 'server/images.js')]: path.join(root, 'worker/images.js')
+  [path.join(root, 'server/images.js')]: path.join(root, 'worker/images.js'),
+  [path.join(root, 'server/accounts/switches.js')]: path.join(root, 'worker/switches.js')
 };
 
 const swapPlugin = {

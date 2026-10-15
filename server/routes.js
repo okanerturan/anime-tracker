@@ -310,7 +310,7 @@ const routes = {
     const malId = num(url.searchParams.get('malId'));
     const ep = num(url.searchParams.get('episodeNumber'));
     const row = library.getEpisodeImage(malId, ep);
-    if (!row?.imageBlob) { res.writeHead(404); return res.end(); }
+    if (!row?.imageBlob || (process.env.AUTH_MODE === 'accounts' && require('./accounts/switches').thumbnailsOff())) { res.writeHead(404); return res.end(); }
     const etag = `"${malId}-${ep}-${String(row.updatedAt || '').replace(/\D/g, '')}"`;
     const headers = { 'Content-Type': row.imageMime || 'image/jpeg', ETag: etag,
       // Versioned URL (?v=) changes when the image changes, so it can be cached forever.

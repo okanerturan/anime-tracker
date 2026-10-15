@@ -190,4 +190,29 @@ test('origin lock: only the secret gets in (two values during rotation); /up is 
   delete process.env.ORIGIN_SECRET; delete process.env.ORIGIN_SECRET_PREVIOUS;
 });
 
+test('kill switches: read-only refuses writes but not reading or signing in; paused sync carries the message; thumbnails off hides stills', () => {
+  const switches = require('../server/accounts/switches');
+  const library = require('../server/library');
+  assert.equal(switches.refuse('POST', '/api/anime/rating'), null, 'all off: nothing refused');
+  switches.set('READ_ONLY', 'on');
+  assert.equal(switches.refuse('POST', '/api/anime/rating').status, 503);
+  assert.equal(switches.refuse('POST', '/api/crunchyroll/ingest').body.readOnly, true, 'sync refused too');
+  assert.equal(switches.refuse('POST', '/auth/passkeys/rename').status, 503, 'account changes refused');
+  assert.equal(switches.refuse('GET', '/api/up-next'), null, 'pages still load');
+  assert.equal(switches.refuse('POST', '/auth/signin/options'), null, 'signing in still works');
+  switches.set('READ_ONLY', 'off');
+  switches.set('SYNC_PAUSED', 'Crunchyroll changed something; fix coming');
+  assert.deepEqual(switches.refuse('POST', '/api/crunchyroll/ingest'), { status: 503, body: { error: 'Crunchyroll changed something; fix coming', paused: true } });
+  assert.equal(switches.refuse('POST', '/api/anime/rating'), null, 'only sync is paused');
+  switches.set('SYNC_PAUSED', '');
+  assert.equal(switches.refuse('POST', '/api/crunchyroll/ingest'), null, 'an empty message resumes');
+  const still = 'https://img1.ak.crunchyroll.com/still.jpg';
+  assert.ok(library.episodeImageUrl(1, 1, null, still).startsWith('/img/'));
+  switches.set('THUMBNAILS', 'off');
+  assert.equal(library.episodeImageUrl(1, 1, null, still), '', 'no still links while off');
+  assert.equal(library.episodeImageUrl(1, 1, '2026-01-01'), '');
+  switches.set('THUMBNAILS', 'on');
+  assert.throws(() => switches.set('READ_ONLY', 'maybe'), /must be one of/);
+});
+
 test.after(() => { store.close(); db.close(); fs.rmSync(tmp, { recursive: true, force: true }); });

@@ -28,4 +28,26 @@ function set(key, value) {
   return all({ fresh: true });
 }
 
-module.exports = { all, get, set, DEFAULTS };
+const SYNC_ROUTES = new Set(['/api/crunchyroll/ingest', '/api/crunchyroll/episodes', '/api/crunchyroll/series']);
+const MAINTENANCE = 'The tracker is in maintenance for a few minutes. Nothing was lost; try again shortly.';
+
+/**
+ * The request a switch refuses, as { status, body }, or null. READ_ONLY refuses every write except
+ * signing in and out (sessions live in accounts.db, not in an account's file); SYNC_PAUSED refuses
+ * the extension's sync routes with the operator's message, which its popup shows.
+ */
+function refuse(method, pathname) {
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return null;
+  const s = all();
+  if (s.READ_ONLY === 'on' && (pathname.startsWith('/api/') || pathname.startsWith('/auth/'))
+    && !pathname.startsWith('/auth/signin/') && pathname !== '/auth/signout') {
+    return { status: 503, body: { error: MAINTENANCE, readOnly: true } };
+  }
+  if (s.SYNC_PAUSED && SYNC_ROUTES.has(pathname)) return { status: 503, body: { error: s.SYNC_PAUSED, paused: true } };
+  return null;
+}
+
+/** Episode stills are off (hosted mode only): pages fall back to the show's poster. */
+const thumbnailsOff = () => process.env.AUTH_MODE === 'accounts' && get('THUMBNAILS') === 'off';
+
+module.exports = { all, get, set, refuse, thumbnailsOff, DEFAULTS };

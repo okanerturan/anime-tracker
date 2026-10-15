@@ -202,6 +202,7 @@ function getAnime(malId) {
 }
 
 function episodeImageUrl(malId, episodeNumber, updatedAt, imageUrl = null) {
+  if (process.env.AUTH_MODE === 'accounts' && require('./accounts/switches').thumbnailsOff()) return ''; // THUMBNAILS=off: posters only
   if (imageUrl) return images.localUrl(imageUrl);
   const v = updatedAt ? encodeURIComponent(String(updatedAt).replace(/\D/g, '')) : '0';
   return `/api/episode-image?malId=${malId}&episodeNumber=${episodeNumber}&v=${v}`;

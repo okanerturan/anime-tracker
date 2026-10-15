@@ -32,6 +32,10 @@ const server = http.createServer(async (req, res) => {
     if (!lock.ok) return sendJSON(res, 403, { error: 'forbidden' });
     req.originTrusted = lock.trusted;
     if (req.method === 'GET' && url.pathname === '/up') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('ok'); }
+    // Kill switches (D14): read-only maintenance and paused sync. The header tells the front
+    // Worker this 503 is deliberate, so it passes the message on instead of reporting the hub down.
+    const refused = require('./server/accounts/switches').refuse(req.method, url.pathname);
+    if (refused) { res.setHeader('X-Tracker-Maintenance', '1'); res.setHeader('Retry-After', '120'); return sendJSON(res, refused.status, refused.body); }
     if (await auth.handle(req, res, url)) return;
     if (url.pathname.startsWith('/api/')) {
       const who = auth.authenticate(req, res);

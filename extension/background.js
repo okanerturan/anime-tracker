@@ -41,8 +41,13 @@ async function trackerStatus(trackerUrl) {
     throw new Error(`Can't reach the tracker at ${trackerUrl}. Is it running, and is the Tracker URL right?`);
   }
   if (res.status === 401) throw new Error('The tracker rejected the key. Check "Tracker key" (your passphrase).');
-  if (!res.ok) throw new Error(`tracker ${res.status}`);
+  if (!res.ok) throw new Error(await serverMessage(res, `tracker ${res.status}`));
   return res.json();
+}
+
+/** The tracker's own explanation of a refusal (paused sync, maintenance), or a fallback. */
+async function serverMessage(res, fallback) {
+  try { return (await res.json()).error || fallback; } catch { return fallback; }
 }
 
 async function postTracker(trackerUrl, path, payload) {
@@ -51,7 +56,7 @@ async function postTracker(trackerUrl, path, payload) {
     headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'extension', ...authHeaders(trackerKey) },
     body: JSON.stringify(payload)
   });
-  if (!res.ok) throw new Error(`tracker ${path} ${res.status}`);
+  if (!res.ok) throw new Error(await serverMessage(res, `tracker ${path} ${res.status}`));
   return res.json();
 }
 
