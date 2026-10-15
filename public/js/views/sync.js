@@ -49,6 +49,31 @@ function capList(listEl, limit = 8) {
   return [listEl, more];
 }
 
+/** Airing calendar: a secret feed URL any calendar app can subscribe to. */
+function calendarSection() {
+  const field = h('input', { type: 'text', class: 'search mono', readonly: true, 'aria-label': 'Calendar feed address', value: 'Loading…' });
+  const copy = h('button', { type: 'button', class: 'btn small' }, 'Copy');
+  const open = h('a', { class: 'btn small primary', href: '#' }, 'Add to calendar app');
+  const reset = h('button', { type: 'button', class: 'btn small ghost' }, 'Make a new link');
+  const show = (path) => {
+    const url = `${location.origin}${path}`;
+    field.value = url;
+    open.href = url.replace(/^https?:/, 'webcal:');
+  };
+  api.calendar().then((r) => show(r.path)).catch((err) => { field.value = err.message; });
+  copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(field.value); toast('Calendar link copied'); } catch { field.select(); } });
+  reset.addEventListener('click', async () => {
+    try { const r = await api.resetCalendar(); show(r.path); toast('New calendar link made. The old one stops working; subscribe again with this one.'); } catch (err) { toast(err.message); }
+  });
+  return h('section', { class: 'section', id: 'calendar' },
+    h('div', { class: 'section-head' }, h('h2', {}, 'Airing calendar'), h('span', { class: 'sub' }, 'Next episodes of the shows you follow, in Google Calendar, Apple Calendar or Outlook')),
+    h('div', { class: 'panel' },
+      h('p', {}, 'Subscribe to this address in your calendar app. It lists each airing show\'s next episode at its real time, plus the following weeks, and updates itself every few hours. Shows on hold or dropped are left out.'),
+      h('div', { class: 'inline-form' }, field, copy),
+      h('div', { class: 'hero-actions' }, open, reset),
+      h('p', { class: 'muted' }, 'Anyone with this link can see your airing list (titles and times, nothing else). If it leaks, make a new link.')));
+}
+
 const MAL_STATUS = { Completed: 'completed', Watching: 'watching', 'On-Hold': 'onhold', Dropped: 'dropped', 'Plan to Watch': 'plan' };
 
 /** Read a MAL export (.xml or .xml.gz) in the browser and send just the fields the tracker needs. */
@@ -215,6 +240,7 @@ export async function render(view) {
         });
         return row;
       })))) : null,
+    calendarSection(),
     h('details', { class: 'collapse section', id: 'import', open: (stats.library || 0) < 20 || /[?&]import=1/.test(location.hash) ? '' : null },
       h('summary', {}, h('div', { class: 'section-head' },
         h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Import from elsewhere'),
@@ -246,4 +272,5 @@ export async function render(view) {
           h('a', { class: 'btn', href: '/api/backup', download: '' }, 'Download latest'),
           h('a', { class: 'btn ghost', href: '/api/backup?fresh=1', download: '' }, 'Back up now and download')))) : null].filter(Boolean));
   if (/[?&]import=1/.test(location.hash)) view.querySelector('#import')?.scrollIntoView({ block: 'start' });
+  if (/[?&]calendar=1/.test(location.hash)) view.querySelector('#calendar')?.scrollIntoView({ block: 'start' });
 }

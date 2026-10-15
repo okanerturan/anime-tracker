@@ -54,6 +54,8 @@ export const api = {
   dismiss: (malId, undo = false) => post('/api/recommendations/dismiss', { malId, undo }),
   study: () => cached('/api/study'),
   seasonal: () => cached('/api/seasonal'),
+  calendar: () => request('/api/calendar'),
+  resetCalendar: () => post('/api/calendar/reset'),
   history: (before) => request(`/api/history${before ? `?before=${encodeURIComponent(before)}` : ''}`),
   crStatus: () => request('/api/crunchyroll/status'),
   crDismissPlay: (episodeId, undo = false) => post('/api/crunchyroll/dismiss-play', { episodeId, undo }),

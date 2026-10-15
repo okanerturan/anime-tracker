@@ -232,6 +232,11 @@ const routes = {
     if (!body.episodeId) return sendJSON(res, 400, { error: 'episodeId required' });
     return sendJSON(res, 200, crunchyroll.dismissPlay(String(body.episodeId), Boolean(body.undo)));
   },
+  'GET /api/calendar': (req, res) => sendJSON(res, 200, { path: `/calendar/${require('./calendar').token()}.ics` }),
+  'POST /api/calendar/reset': async (req, res) => {
+    requireClientHeader(req);
+    return sendJSON(res, 200, { path: `/calendar/${require('./calendar').token(true)}.ics` });
+  },
   'POST /api/crunchyroll/hide-sampled': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);
@@ -284,6 +289,15 @@ const routes = {
 
 async function handle(req, res, url) {
   if (url.pathname.startsWith('/img/')) { await images.handle(req, res, url); return true; }
+  // Airing calendar: the secret token in the path is the only credential (calendar apps can't log in).
+  const cal = req.method === 'GET' && url.pathname.match(/^\/calendar\/([a-f0-9]{48})\.ics$/);
+  if (cal) {
+    const calendar = require('./calendar');
+    if (!calendar.checkToken(cal[1])) { res.writeHead(404); res.end(); return true; }
+    res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'private, max-age=1800' });
+    res.end(calendar.feed());
+    return true;
+  }
   const handler = routes[`${req.method} ${url.pathname}`];
   if (!handler) return false;
   try {

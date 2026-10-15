@@ -111,3 +111,17 @@ test('stats are numbers (never null) on an empty library, so the Sync page can r
   const s = await (await get('/api/stats')).json();
   for (const v of [s.library, s.episodes.n, s.episodes.w, s.episodes.i, s.images.cached]) assert.equal(typeof v, 'number');
 });
+
+test('the airing calendar is served only for the right token', async () => {
+  const { path } = await (await get('/api/calendar')).json();
+  assert.match(path, /^\/calendar\/[a-f0-9]{48}\.ics$/);
+  const ok = await get(path);
+  assert.equal(ok.status, 200);
+  assert.match(ok.headers.get('content-type'), /text\/calendar/);
+  const body = await ok.text();
+  assert.match(body, /^BEGIN:VCALENDAR\r\n/);
+  assert.equal((await get('/calendar/' + 'a'.repeat(48) + '.ics')).status, 404);
+  const reset = await (await post('/api/calendar/reset', {})).json();
+  assert.notEqual(reset.path, path);
+  assert.equal((await get(path)).status, 404, 'the old link stops working');
+});

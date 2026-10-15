@@ -265,7 +265,8 @@ function weekStrip(airing) {
   const placed = days.reduce((n, d) => n + d.items.length, 0);
   if (!placed) return null;
   return h('section', { class: 'section' },
-    h('div', { class: 'section-head' }, h('h2', {}, 'This week'), h('span', { class: 'sub' }, `${plural(placed, 'new episode')} for shows you follow`)),
+    h('div', { class: 'section-head' }, h('h2', {}, 'This week'), h('span', { class: 'sub' }, `${plural(placed, 'new episode')} for shows you follow`),
+      h('a', { class: 'sub push-end', href: '#/sync?calendar=1' }, 'Put this in your calendar →')),
     h('div', { class: 'week' }, days.map(({ date, items }, i) => h('div', { class: `week-day ${items.length ? 'has-items' : ''} ${i === 0 ? 'is-today' : ''}` },
       h('div', { class: 'week-head' },
         h('span', { class: 'week-name' }, i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString(undefined, { weekday: 'short' })),

@@ -121,6 +121,9 @@ async function handle(request, env) {
     const authed = viaBearer || viaCookie;
 
     const isApi = url.pathname.startsWith('/api/') || url.pathname.startsWith('/img/');
+    // Airing calendar feed: calendar apps can't send the cookie, so the secret token in the path is
+    // checked by the tracker itself (unknown tokens get 404).
+    if (request.method === 'GET' && /^\/calendar\/[a-f0-9]{48}\.ics$/.test(url.pathname)) return tracker(env).fetch(request);
     if (url.pathname.startsWith('/internal/')) {
       if (!viaBearer) return new Response('Forbidden', { status: 403 });
       return tracker(env).fetch(request);
