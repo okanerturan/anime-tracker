@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { h, fill, icon, media, progress, carousel, cardLink, relTime, ago, toast } from '../ui.js';
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
+import { rememberPlay } from '../playcheck.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 /** "~46 min" / "~2 h 10 min" for n episodes of a given length; null when the length is unknown. */
@@ -49,7 +50,7 @@ function sinceLine(data) {
 }
 
 /** After jumping to Crunchyroll, say what happens next so the user doesn't come back to tick boxes. */
-function playToast(ep) { toast(ep ? `Opening episode ${ep} on Crunchyroll. It's marked watched after your next sync.` : 'Opening Crunchyroll'); }
+function playToast(ep, item = null) { if (ep && item) rememberPlay(item, ep); toast(ep ? `Opening episode ${ep} on Crunchyroll. It's marked watched after your next sync.` : 'Opening Crunchyroll'); }
 const realTitle = (t) => t && !/^Episode \d+$/.test(t) ? t.replace(/^Episode\s+\d+\s*[:\-–]\s*/i, '') : null;
 
 /** One card shape for every shelf: thumbnail, progress, title, detail line, meta line (5 subgrid rows). */
@@ -92,7 +93,7 @@ function epCard(item, mode, onChange) {
     ? h('a', { class: 'play-overlay', href: item.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${item.title} on Crunchyroll` }, icon('play'), h('span', {}, 'Crunchyroll'))
     : null;
   const play = seasonPlay || (playUrl && (mode === 'continue' || mode === 'airing' || mode === 'hold' || mode === 'stalled')
-    ? h('a', { class: 'play-overlay', href: playUrl, target: '_blank', rel: 'noopener', 'aria-label': playExact ? `Play episode ${item.nextEpisode} on Crunchyroll` : `Open ${item.title} on Crunchyroll`, onclick: () => playToast(playExact ? item.nextEpisode : null) },
+    ? h('a', { class: 'play-overlay', href: playUrl, target: '_blank', rel: 'noopener', 'aria-label': playExact ? `Play episode ${item.nextEpisode} on Crunchyroll` : `Open ${item.title} on Crunchyroll`, onclick: () => playToast(playExact ? item.nextEpisode : null, item) },
         icon('play'), h('span', {}, playExact ? `Play E${item.nextEpisode}` : `Open on ${item.nextEpisodeSite || 'Crunchyroll'}`))
     : null);
   // Watched it elsewhere, or the sync hasn't caught up: tick the next episode without opening the show.
@@ -261,7 +262,7 @@ function tonight(items, inProgress, forced = null) {
   const still = pick.nextEpisodeImage || pick.resume?.thumb || pick.image;
   const open = () => openAnime(pick);
   return h('section', { class: 'tonight' },
-    h('a', { class: 'tonight-media', href: url || '#', target: url ? '_blank' : null, rel: 'noopener', 'aria-label': `Play ${pick.title} episode ${pick.nextEpisode}`, onclick: () => { if (url) playToast(pick.nextEpisode); } },
+    h('a', { class: 'tonight-media', href: url || '#', target: url ? '_blank' : null, rel: 'noopener', 'aria-label': `Play ${pick.title} episode ${pick.nextEpisode}`, onclick: () => { if (url) playToast(pick.nextEpisode, pick); } },
       media({ src: still, fallback: pick.image, alt: '', eager: true }),
       url ? h('span', { class: 'play-overlay is-large' }, icon('play'), h('span', {}, minsLeft ? `Resume · ${minsLeft} min left` : `Play E${pick.nextEpisode}`)) : null,
       pick.resume && pick.resume.durationS ? h('span', { class: 'tonight-progress', style: { '--p': String(pick.resume.playhead / pick.resume.durationS) }, 'aria-hidden': 'true' }) : null),
@@ -271,7 +272,7 @@ function tonight(items, inProgress, forced = null) {
       h('p', { class: 'tonight-sub' }, `Episode ${pick.nextEpisode}${name ? ` · ${name}` : ''}`),
       h('p', { class: 'card-meta' }, [`${plural(pick.remaining, 'episode')} to go`, timeFor(pick.remaining, pick.episodeMinutes), pick.leftInSeason === 1 ? 'season finale next' : null, pick.lastWatchedAt ? `last watched ${ago(pick.lastWatchedAt)}` : null].filter(Boolean).join(' · ')),
       h('div', { class: 'hero-actions' },
-        url ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener', onclick: () => playToast(pick.nextEpisode) }, icon('play'), ' ', pick.resume ? 'Resume on Crunchyroll' : `Play on ${pick.nextEpisodeSite || 'Crunchyroll'}`) : null,
+        url ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener', onclick: () => playToast(pick.nextEpisode, pick) }, icon('play'), ' ', pick.resume ? 'Resume on Crunchyroll' : `Play on ${pick.nextEpisodeSite || 'Crunchyroll'}`) : null,
         h('button', { type: 'button', class: 'btn', onclick: open }, 'Details'),
         surprise)));
 }

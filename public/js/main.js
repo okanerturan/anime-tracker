@@ -1,6 +1,7 @@
 import { api, clearCache } from './api.js';
 import { runRelay } from './anilist-relay.js';
 import { openQuickSwitcher } from './quickopen.js';
+import { checkPlay } from './playcheck.js';
 import { bus } from './bus.js';
 import { h, fill, relTime } from './ui.js';
 import { closeDrawer, openAnime } from './drawer.js';
@@ -105,6 +106,7 @@ window.addEventListener('hashchange', route);
 let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { hiddenAt = Date.now(); return; }
+  checkPlay();
   if (hiddenAt && Date.now() - hiddenAt > 10 * 60000 && !document.querySelector('dialog[open]')) {
     clearCache();
     bus.emit('library-changed'); // the Library refetches its list instead of repainting the old one
@@ -116,6 +118,7 @@ document.addEventListener('visibilitychange', () => {
 route();
 updateStatus();
 setInterval(updateStatus, 60000);
+checkPlay();
 
 // AniList relay: when the hosted server is blocked by AniList, this browser fills in the queued
 // requests (new metadata, air times, season lookups) whenever the app is open.

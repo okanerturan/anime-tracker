@@ -2,9 +2,9 @@
 // picked up on the next load and the app still opens on a train. Images are cache-first (their
 // URLs are content-addressed and immutable). API calls always go to the network; the pages keep
 // their own last-known snapshots in localStorage.
-const CACHE = 'anime-tracker-shell-v6';
+const CACHE = 'anime-tracker-shell-v7';
 const SHELL = ['/', '/index.html', '/styles.css', '/manifest.webmanifest', '/favicon.svg',
-  '/js/main.js', '/js/api.js', '/js/ui.js', '/js/bus.js', '/js/drawer.js', '/js/anilist-relay.js', '/js/quickopen.js',
+  '/js/main.js', '/js/api.js', '/js/ui.js', '/js/bus.js', '/js/drawer.js', '/js/anilist-relay.js', '/js/quickopen.js', '/js/playcheck.js',
   '/js/views/upnext.js', '/js/views/library.js', '/js/views/discover.js', '/js/views/insights.js', '/js/views/sync.js',
   '/icons/icon-192.png', '/icons/icon-512.png'];
 
