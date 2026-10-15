@@ -149,8 +149,13 @@ function epCard(item, mode, onChange) {
       e.stopPropagation();
       menu.hidden = !menu.hidden; more.setAttribute('aria-expanded', String(!menu.hidden));
       if (!menu.hidden) {
-        const close = (ev) => { if (!menu.contains(ev.target) && ev.target !== more) { menu.hidden = true; more.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', close, true); } };
+        const shut = () => { menu.hidden = true; more.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', close, true); menu.removeEventListener('keydown', onKey); };
+        const close = (ev) => { if (!menu.contains(ev.target) && ev.target !== more) shut(); };
+        // Keyboard: focus lands on the first option; Escape closes and returns focus to "⋯".
+        const onKey = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); shut(); more.focus(); } };
+        menu.addEventListener('keydown', onKey);
         setTimeout(() => document.addEventListener('click', close, true));
+        menu.querySelector('button')?.focus();
       }
     });
   }
