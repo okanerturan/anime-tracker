@@ -54,12 +54,15 @@ button, [role="button"] {
   --line: light-dark(oklch(0.88 0.008 265), oklch(0.31 0.018 265));
   --text: light-dark(oklch(0.2 0.01 265), oklch(0.94 0.006 265));
   --muted: light-dark(oklch(0.45 0.015 265), oklch(0.72 0.018 265));
-  --faint: light-dark(oklch(0.58 0.015 265), oklch(0.56 0.018 265));
+  --faint: light-dark(oklch(0.5 0.015 265), oklch(0.66 0.018 265)); /* >= 4.5:1 on bg and surfaces */
 
   --accent: oklch(0.7 0.18 47);
   --accent-hover: color-mix(in oklch, var(--accent), white 14%);
   --accent-subtle: color-mix(in oklch, var(--accent) 18%, transparent);
-  --on-accent: oklch(1 0 none);
+  /* Text on the orange fill is dark, as on Crunchyroll's own buttons: white on this orange is 2.9:1. */
+  --on-accent: oklch(0.2 0.03 47);
+  /* Orange used as text needs more depth on white and a little more light on dark to reach 4.5:1. */
+  --accent-text: light-dark(oklch(0.52 0.16 45), oklch(0.76 0.16 50));
   --good: light-dark(oklch(0.55 0.15 160), oklch(0.78 0.16 160));
   --good-subtle: color-mix(in oklch, var(--good) 16%, transparent);
   --info: light-dark(oklch(0.55 0.15 255), oklch(0.74 0.13 255));
@@ -871,7 +874,7 @@ input:user-invalid { border-color: oklch(0.65 0.2 25); }
 .link-btn {
   all: unset;
   align-self: start;
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
   font-size: var(--step--1);
   cursor: pointer;
@@ -1121,7 +1124,7 @@ code, .mono {
 .related-card .card-title { font-size: var(--step--1); }
 .done-text { color: var(--good); }
 
-.icon-btn.play { inline-size: 1.75rem; block-size: 1.75rem; border-radius: 50%; color: var(--accent); }
+.icon-btn.play { inline-size: 1.75rem; block-size: 1.75rem; border-radius: 50%; color: var(--accent-text); }
 .icon-btn.play svg path { fill: currentColor; }
 
 /* Recommendation actions: primary action full width, secondary pair side by side. */
@@ -1162,12 +1165,12 @@ code, .mono {
   border: 0;
   background: none;
   cursor: pointer;
-  color: var(--line);
+  color: var(--faint);
 }
 .star[aria-pressed="true"] { color: var(--almost); }
 @media (hover: hover) {
   .stars:hover .star { color: var(--almost); }
-  .stars .star:hover ~ .star { color: var(--line); }
+  .stars .star:hover ~ .star { color: var(--faint); }
 }
 .star:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
@@ -1211,7 +1214,7 @@ code, .mono {
   color: var(--faint);
 }
 
-.chip-toggle[aria-pressed="true"] > .chip-count { color: color-mix(in oklch, var(--on-accent) 80%, transparent); }
+.chip-toggle[aria-pressed="true"] > .chip-count { color: var(--on-accent); }
 
 @media (hover: hover) and (pointer: fine) {
   .chips.segmented > .chip-toggle:hover:not([aria-pressed="true"]):not(:disabled) { background: var(--surface-2); border-color: transparent; }
@@ -1301,7 +1304,7 @@ code, .mono {
 .tonight-media > .play-overlay { grid-area: 1 / 1; place-self: end start; }
 
 .tonight-info { display: flex; flex-direction: column; gap: var(--space-2xs); min-inline-size: 0; }
-.eyebrow { color: var(--accent); font-size: var(--step--1); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.eyebrow { color: var(--accent-text); font-size: var(--step--1); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .tonight-title { font-size: var(--step-3); line-height: 1.15; }
 .tonight-link { color: inherit; text-decoration: none; }
 @media (hover: hover) and (pointer: fine) {
@@ -1347,7 +1350,7 @@ code, .mono {
 
 .week-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2xs); }
 .week-name { font-weight: 700; font-size: var(--step--1); }
-.is-today .week-name { color: var(--accent); }
+.is-today .week-name { color: var(--accent-text); }
 .week-date { color: var(--faint); font-size: var(--step--2); }
 .week-empty { color: var(--faint); text-align: center; padding-block: var(--space-xs); }
 
@@ -1505,17 +1508,17 @@ select {
 /* Insights rows that open a show */
 .hbar.is-link { cursor: pointer; border-radius: var(--radius); }
 @media (hover: hover) and (pointer: fine) {
-  .hbar.is-link:hover .name { color: var(--accent); }
+  .hbar.is-link:hover .name { color: var(--accent-text); }
 }
 .hbar.is-link:focus-visible { outline-offset: 2px; }
 .row-link { color: inherit; text-decoration: none; }
 @media (hover: hover) and (pointer: fine) {
-  .row-link:hover { color: var(--accent); }
+  .row-link:hover { color: var(--accent-text); }
 }
 
 /* Toast with an action (Undo) */
 .toast:has(.toast-action) { display: inline-flex; align-items: center; gap: var(--space-s); }
-.toast-action { font: inherit; font-weight: 700; color: var(--accent); background: none; border: 0; padding: 0.2em 0.4em; cursor: pointer; border-radius: 4px; }
+.toast-action { font: inherit; font-weight: 700; color: var(--accent-text); background: none; border: 0; padding: 0.2em 0.4em; cursor: pointer; border-radius: 4px; }
 .toast-action:active { transform: scale(0.97); }
 
 /* Year-so-far and first-run blocks reuse the tonight panel without the media column */
