@@ -152,7 +152,7 @@ function pausedCard(p, onTracked) {
   dismiss.addEventListener('click', async () => {
     try {
       await api.crDismissPlay(p.episodeId);
-      el.remove();
+      if (document.contains(el)) el.remove(); else onTracked?.();
       toast(`Hidden ${p.seriesTitle}`, { label: 'Undo', onClick: async () => { await api.crDismissPlay(p.episodeId, true); onTracked?.(); } });
     } catch (err) { toast(err.message); }
   });
