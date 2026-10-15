@@ -142,7 +142,7 @@ function epCard(item, mode, onChange) {
   // Continue watching: a "⋯" menu (Hold / Drop / Details) to clear a show without opening it.
   let more = null; let menu = null;
   if (mode === 'continue') {
-    menu = h('div', { class: 'card-menu', hidden: true, role: 'menu', 'aria-label': `${item.title} options` },
+    menu = h('div', { class: 'card-menu', hidden: true, role: 'group', 'aria-label': `${item.title} options` },
       action('Hold', 'on_hold', 'btn small'), action('Drop', 'dropped', 'btn small'), h('button', { type: 'button', class: 'btn small ghost', onclick: () => open() }, 'Details'));
     more = h('button', { type: 'button', class: 'icon-btn card-more', 'aria-label': `More for ${item.title}`, 'aria-expanded': 'false', title: 'Hold, drop or details' }, '⋯');
     more.addEventListener('click', (e) => {
