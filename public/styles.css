@@ -1786,3 +1786,10 @@ table.simple .num-col { text-align: end; }
   .year-review .stat { padding: var(--space-xs); }
   .year-review .stat .v { font-size: var(--step-1); }
 }
+
+/* Library select mode */
+.card.is-selected { outline: 3px solid var(--accent); outline-offset: 2px; }
+.select-bar { position: sticky; inset-block-end: var(--space-s); z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs);
+  justify-self: center; padding: var(--space-xs) var(--space-s); border: 1px solid var(--line); border-radius: 999px;
+  background: color-mix(in oklch, var(--surface) 92%, transparent); backdrop-filter: blur(8px); box-shadow: 0 8px 24px oklch(0 0 none / 0.35); }
+.select-bar > .num { padding-inline: var(--space-xs); font-weight: 600; }

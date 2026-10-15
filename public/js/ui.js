@@ -97,10 +97,14 @@ export function toast(text, action = null) {
     btn.addEventListener('click', () => { action.onClick(); el.hidePopover?.(); });
     el.replaceChildren(h('span', {}, text), btn);
     try { el.showPopover(); } catch {}
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { try { el.hidePopover(); } catch {} }, 6000);
+    // A message with Undo stays 9 s, and doesn't vanish while the pointer is on it.
+    const hideLater = (ms) => { clearTimeout(toastTimer); toastTimer = setTimeout(() => { try { el.hidePopover(); } catch {} }, ms); };
+    hideLater(9000);
+    el.onmouseenter = () => clearTimeout(toastTimer);
+    el.onmouseleave = () => hideLater(3000);
     return;
   }
+  el.onmouseenter = null; el.onmouseleave = null;
   el.textContent = text;
   try { if (!el.matches(':popover-open')) el.showPopover(); } catch { el.hidden = false; }
   clearTimeout(toastTimer);

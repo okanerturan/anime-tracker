@@ -24,6 +24,8 @@ const EMPTY = {
 };
 const DAY = 86400000;
 const state = { filter: 'all', query: '', sort: 'activity_desc', group: false, items: null };
+// Select mode: tap cards to pick them, then Hold / Drop / Back to active for all of them at once.
+const select = { on: false, ids: new Set(), onChange: () => {} };
 // Remember the last filter and sort per browser.
 try { const saved = JSON.parse(localStorage.getItem('library:view') || 'null'); if (saved) { state.filter = saved.filter || state.filter; state.sort = saved.sort || state.sort; state.group = Boolean(saved.group); } } catch {}
 const remember = () => { try { localStorage.setItem('library:view', JSON.stringify({ filter: state.filter, sort: state.sort, group: state.group })); } catch {} };
@@ -112,7 +114,7 @@ function card(x, inSeries = 1) {
     }
     catch (err) { tick.disabled = false; toast(err.message); }
   });
-  return h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''} ${inSeries > 1 ? 'is-stack' : ''}` },
+  const el = h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''} ${inSeries > 1 ? 'is-stack' : ''} ${select.on && select.ids.has(x.malId) ? 'is-selected' : ''}` },
     media({ src: x.imageUrl, alt: '', kind: 'poster', badges: [h('div', { class: 'badge-end' }, badge), play || sequel, tick] }),
     progress(aired ? Math.min((x.progress ?? x.watchedCount), aired) / aired : 0),
     cardLink(title, () => openAnime({ ...x, title, image: x.imageUrl }), { href: `https://myanimelist.net/anime/${x.malId}` }),
@@ -123,6 +125,15 @@ function card(x, inSeries = 1) {
       x.rating ? h('span', { class: 'num rating', title: `Your rating: ${x.rating}/5` }, `★${x.rating}`) : null,
       h('span', { class: 'num push-end' }, `${(x.progress ?? x.watchedCount)}/${aired ?? '?'}`)),
     state.filter === 'unfinished' ? triage(x, title) : null);
+  // In select mode a click anywhere on the card toggles it (capture phase, before links and buttons).
+  el.addEventListener('click', (e) => {
+    if (!select.on) return;
+    e.preventDefault(); e.stopPropagation();
+    if (select.ids.has(x.malId)) select.ids.delete(x.malId); else select.ids.add(x.malId);
+    el.classList.toggle('is-selected', select.ids.has(x.malId));
+    select.onChange();
+  }, true);
+  return el;
 }
 
 /** Hold / Drop straight from an Unfinished card, with Undo in the toast. */
@@ -228,6 +239,44 @@ export async function render(view) {
   }));
   const sort = h('select', { 'aria-label': 'Sort' }, [['activity_desc', 'Recently watched'], ['left_asc', 'Fewest episodes left'], ['rating_desc', 'Your rating'], ['release_desc', 'Newest release'], ['release_asc', 'Oldest release'], ['added_desc', 'Recently added'], ['title_asc', 'Title A–Z']]
     .map(([v, l]) => h('option', { value: v, selected: state.sort === v }, l)));
+  // Select mode and its action bar.
+  const selectBtn = h('button', { type: 'button', class: 'chip-toggle group-toggle', 'aria-pressed': String(select.on), title: 'Pick several shows, then hold, drop or reactivate them together' }, 'Select');
+  const selCount = h('span', { class: 'num' });
+  const applyStatus = async (status, label) => {
+    const ids = [...select.ids];
+    if (!ids.length) return;
+    const before = new Map(state.items.filter((x) => select.ids.has(x.malId)).map((x) => [x.malId, x.listStatus || null]));
+    try {
+      await api.setListStatusBatch(ids, status);
+      for (const x of state.items) if (select.ids.has(x.malId)) x.listStatus = status;
+      select.ids.clear(); select.onChange(); bus.emit('library-changed'); draw();
+      toast(`${ids.length} show${ids.length === 1 ? '' : 's'} ${label}`, { label: 'Undo', onClick: async () => {
+        try {
+          // Put each show back to its own previous state, grouped by state.
+          const groups = new Map(); for (const [id, st] of before) { if (!groups.has(st)) groups.set(st, []); groups.get(st).push(id); }
+          for (const [st, list] of groups) await api.setListStatusBatch(list, st);
+          for (const x of state.items) if (before.has(x.malId)) x.listStatus = before.get(x.malId);
+          bus.emit('library-changed'); draw();
+        } catch (err) { toast(err.message); }
+      } });
+    } catch (err) { toast(err.message); }
+  };
+  const bar = h('div', { class: 'select-bar', hidden: true, role: 'toolbar', 'aria-label': 'Selected shows' },
+    selCount,
+    h('button', { type: 'button', class: 'btn small', onclick: () => applyStatus('on_hold', 'put on hold') }, 'Hold'),
+    h('button', { type: 'button', class: 'btn small', onclick: () => applyStatus('dropped', 'dropped') }, 'Drop'),
+    h('button', { type: 'button', class: 'btn small ghost', onclick: () => applyStatus(null, 'back to active') }, 'Back to active'),
+    h('button', { type: 'button', class: 'btn small ghost', onclick: () => { select.on = false; select.ids.clear(); selectBtn.setAttribute('aria-pressed', 'false'); select.onChange(); draw(); } }, 'Done'));
+  select.onChange = () => {
+    bar.hidden = !select.on;
+    selCount.textContent = select.ids.size ? `${select.ids.size} selected` : 'Tap shows to select them';
+    for (const b of bar.querySelectorAll('button')) if (b.textContent !== 'Done') b.disabled = !select.ids.size;
+  };
+  selectBtn.addEventListener('click', () => {
+    select.on = !select.on; if (!select.on) select.ids.clear();
+    selectBtn.setAttribute('aria-pressed', String(select.on)); select.onChange(); draw();
+  });
+  select.onChange();
   const groupBtn = h('button', { type: 'button', class: 'chip-toggle group-toggle', 'aria-pressed': String(state.group), title: 'Show one card per series instead of one per season' }, 'Group seasons');
   groupBtn.addEventListener('click', () => { state.group = !state.group; groupBtn.setAttribute('aria-pressed', String(state.group)); remember(); draw(); });
   sort.addEventListener('change', async () => {
@@ -261,10 +310,11 @@ export async function render(view) {
     bulk.disabled = false;
   });
   view.replaceChildren(h('section', { class: 'section' },
-    h('div', { class: 'section-head' }, h('h2', {}, 'Library'), count, h('div', { class: 'push-end library-tools' }, search, groupBtn, h('a', { class: 'btn small ghost', href: '/api/library.csv', download: '' }, 'Export CSV'), sort)),
+    h('div', { class: 'section-head' }, h('h2', {}, 'Library'), count, h('div', { class: 'push-end library-tools' }, search, selectBtn, groupBtn, h('a', { class: 'btn small ghost', href: '/api/library.csv', download: '' }, 'Export CSV'), sort)),
     h('div', { class: 'toolbar' }, chips),
     bulk,
-    grid));
+    grid,
+    bar));
   draw();
   paintBulk();
   liveDraw = () => { draw(); paintBulk(); };
