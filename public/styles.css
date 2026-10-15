@@ -1643,3 +1643,5 @@ a.week-item { text-decoration: none; color: inherit; }
 .quickopen-list > li > img { inline-size: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 0.25rem; }
 .quickopen-list > li.is-active { background: var(--surface-2); outline: 1px solid var(--line); }
 .quickopen-empty { display: block !important; padding: var(--space-s) !important; cursor: default !important; }
+.odd-item { grid-template-columns: 2.25rem minmax(0, 1fr); }
+.odd-actions { grid-column: 1 / -1; display: flex; gap: var(--space-2xs); flex-wrap: wrap; }

@@ -350,7 +350,15 @@ function resolveOverflow(malId, episodeNumber) {
   return { malId: mal, episodeNumber: ep };
 }
 
+/** Shows whose finale is ticked but most episodes aren't: usually a mapping slip or a stray bulk mark. */
+function suspiciousProgress() {
+  return getWatchlist('activity_desc')
+    .filter((x) => { const aired = x.airedEpisodes ?? x.episodesCount; return aired >= 4 && x.progress < aired && x.watchedCount / aired < 0.5 && db.prepare('SELECT 1 FROM episode_sync WHERE mal_id = ? AND episode_number >= ? AND watched = 1').get(x.malId, aired); })
+    .map((x) => ({ malId: x.malId, title: x.titleEnglish || x.title, image: x.imageUrl, watched: x.watchedCount, aired: x.airedEpisodes ?? x.episodesCount }));
+}
+
 module.exports = {
+  suspiciousProgress,
   progressOf,
   resolveOverflow,
   upsertAnime, addToLibrary, removeFromLibrary, isInLibrary, airedCount,

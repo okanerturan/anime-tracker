@@ -158,3 +158,12 @@ test('progress forgives history gaps only when the finale and most episodes were
   assert.equal(library.progressOf(1, 20, 20), 1);   // only the last episode: probably noise
   assert.equal(library.progressOf(5, 5, 12), 5);    // still watching
 });
+
+test('a finale ticked with most episodes unwatched is flagged as odd progress', async () => {
+  addShow(700, 'Odd Show', { episodes: 12, start_date: '2020-01-01' });
+  rule('GS700', 700);
+  await crunchyroll.ingest([play({ id: 'O12', series: 'GSERIES700', season: 'GS700', ep: 12 })], { source: 'test' });
+  assert.ok(library.suspiciousProgress().some((x) => x.malId === 700));
+  library.setWatched(700, 12, false);
+  assert.ok(!library.suspiciousProgress().some((x) => x.malId === 700));
+});

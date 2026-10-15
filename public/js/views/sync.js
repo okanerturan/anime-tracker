@@ -3,7 +3,7 @@ import { h, section, ago, toast, FORMAT_LABEL } from '../ui.js';
 
 export async function render(view) {
   view.replaceChildren(h('div', { class: 'skeleton' }));
-  const [cr, bg, stats] = await Promise.all([api.crStatus(), api.syncStatus(), api.stats()]);
+  const [cr, bg, stats, odd] = await Promise.all([api.crStatus(), api.syncStatus(), api.stats(), api.suspicious().catch(() => [])]);
   const last = cr.lastSync;
   const stale = !last || Date.now() - new Date(last.at).getTime() > 2 * 86400000;
 
@@ -81,6 +81,18 @@ export async function render(view) {
         h('li', {}, 'In the extension’s popup, set the Tracker URL to this page’s address (and the passphrase as Tracker key when it’s hosted). The popup shows the last sync and has a “Sync now” button.')),
         h('p', { class: 'muted' }, 'The extension uses your existing Crunchyroll login inside your own browser. It never stores your password or tokens, and only talks to crunchyroll.com and your tracker.'))),
     section('Needs review', 'Seasons the tracker mapped by guessing', h('div', { class: 'panel' }, review)),
+    odd.length ? section('Odd progress', `${odd.length} show${odd.length === 1 ? '' : 's'} with the finale ticked but most episodes not. Usually a mapping slip or a stray bulk mark.`,
+      h('div', { class: 'quiet-list' }, odd.map((x) => {
+        const all = h('button', { type: 'button', class: 'btn small' }, 'I watched it all');
+        const stray = h('button', { type: 'button', class: 'btn small ghost' }, `Remove stray E${x.aired}`);
+        const row = h('div', { class: 'rate-item odd-item' },
+          h('img', { src: x.image || '', alt: '', loading: 'lazy' }),
+          h('div', { class: 'rate-text' }, h('span', { class: 'week-item-title one-line', title: x.title }, x.title), h('span', { class: 'week-item-sub num' }, `${x.watched} of ${x.aired} ticked, including the finale`)),
+          h('div', { class: 'odd-actions' }, all, stray));
+        all.addEventListener('click', async () => { all.disabled = stray.disabled = true; try { await api.watchedThrough(x.malId, x.aired); toast(`${x.title}: all ${x.aired} marked watched`); row.remove(); } catch (err) { all.disabled = stray.disabled = false; toast(err.message); } });
+        stray.addEventListener('click', async () => { all.disabled = stray.disabled = true; try { await api.toggleWatched(x.malId, x.aired, false); toast(`${x.title}: E${x.aired} unmarked`); row.remove(); } catch (err) { all.disabled = stray.disabled = false; toast(err.message); } });
+        return row;
+      }))) : null,
     cr.sampled?.length ? section('Sampled, not tracked', `${cr.sampled.length} Crunchyroll seasons you tried but never finished an episode of. Track one to add it to your library.`,
       h('div', { class: 'quiet-list' }, cr.sampled.map((s) => {
         const btn = h('button', { type: 'button', class: 'btn small' }, 'Track');
