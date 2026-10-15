@@ -139,13 +139,28 @@ function epCard(item, mode, onChange) {
   const actions = mode === 'stalled' ? h('div', { class: 'card-actions card-actions--pair' }, action('Hold', 'on_hold'), action('Drop', 'dropped', 'btn small ghost'))
     : mode === 'hold' ? h('div', { class: 'card-actions card-actions--pair' }, action('Resume', null, 'btn small primary'), action('Drop', 'dropped', 'btn small ghost'))
       : seasonActions;
+  // Continue watching: a "⋯" menu (Hold / Drop / Details) to clear a show without opening it.
+  let more = null; let menu = null;
+  if (mode === 'continue') {
+    menu = h('div', { class: 'card-menu', hidden: true, role: 'menu', 'aria-label': `${item.title} options` },
+      action('Hold', 'on_hold', 'btn small'), action('Drop', 'dropped', 'btn small'), h('button', { type: 'button', class: 'btn small ghost', onclick: () => open() }, 'Details'));
+    more = h('button', { type: 'button', class: 'icon-btn card-more', 'aria-label': `More for ${item.title}`, 'aria-expanded': 'false', title: 'Hold, drop or details' }, '⋯');
+    more.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden; more.setAttribute('aria-expanded', String(!menu.hidden));
+      if (!menu.hidden) {
+        const close = (ev) => { if (!menu.contains(ev.target) && ev.target !== more) { menu.hidden = true; more.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', close, true); } };
+        setTimeout(() => document.addEventListener('click', close, true));
+      }
+    });
+  }
   return h('article', { class: `card ${play ? 'has-play' : ''}` },
-    media({ src: still, fallback: item.image, alt: '', badges: [badge, play, tick] }),
+    media({ src: still, fallback: item.image, alt: '', badges: [badge, play, tick, more] }),
     progress(frac, { hideWhenEmpty: mode === 'season' }),
     cardLink(item.title, open, { lines: 1, href: `https://myanimelist.net/anime/${item.malId}` }),
     h('p', { class: 'card-sub one-line', title: line }, line),
     h('p', { class: 'card-meta' }, meta.join(' · ')),
-    actions);
+    actions, menu);
 }
 
 const watchUrl = (p) => `https://www.crunchyroll.com/watch/${encodeURIComponent(p.episodeId)}`;

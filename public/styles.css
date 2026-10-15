@@ -1796,3 +1796,10 @@ table.simple .num-col { text-align: end; }
 
 /* While the Library selection bar is showing, messages sit above it instead of covering it. */
 body:has(.select-bar:not([hidden])) .toast { inset-block-end: calc(var(--space-m) + 4rem + env(safe-area-inset-bottom, 0px)); }
+
+/* Continue watching: the "⋯" button (bottom-right of the still) and its small floating menu. */
+.card-more { place-self: end end; margin: var(--space-xs); position: relative; z-index: 2; inline-size: 1.9rem; block-size: 1.9rem;
+  background: var(--badge-bg, oklch(0.2 0 none / 0.7)); color: oklch(1 0 none); border-color: transparent; font-weight: 800; line-height: 1; }
+.card-menu { position: absolute; inset-inline: var(--space-xs); inset-block-end: var(--space-xs); z-index: 3; display: flex; flex-wrap: wrap; gap: var(--space-2xs);
+  padding: var(--space-xs); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 8px 24px oklch(0 0 none / 0.35); }
+.card-menu > .btn { flex: 1 1 auto; }
