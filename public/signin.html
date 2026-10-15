@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Sign in · Anime Tracker</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="theme-color" content="#121318" />
+  <script>try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="signin-body">
+  <main class="signin" id="signin" aria-live="polite">
+    <a class="brand" href="/"><img class="brand-logo" src="/favicon.svg" alt="" width="28" height="28"><span>Anime Tracker</span></a>
+    <div id="panel" class="panel signin-panel"><p class="muted">Loading…</p></div>
+    <p class="signin-foot muted">Show data from <a href="https://anilist.co" rel="noopener">AniList</a>. Your Crunchyroll login never leaves your browser.</p>
+  </main>
+  <script type="module" src="/js/signin.js"></script>
+</body>
+</html>

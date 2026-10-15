@@ -13,6 +13,8 @@ async function request(url, options = {}, relayRounds = 0) {
   // Signed out (cookie cleared or expired on the hosted tracker): go to the login page instead of
   // leaving every view saying "unauthorized". The local server never answers 401.
   if (res.status === 401 && body.error === 'unauthorized') { location.href = `/login?next=${encodeURIComponent(location.hash)}`; throw new Error('Signed out'); }
+  // Hosted tracker with accounts: the server says where to sign in.
+  if (res.status === 401 && body.signIn) { location.href = `${body.signIn}?next=${encodeURIComponent(location.hash)}`; throw new Error('Signed out'); }
   if (!res.ok) throw new Error(body.error || `Request failed: ${res.status}`);
   return body;
 }

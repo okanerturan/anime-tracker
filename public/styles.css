@@ -1907,3 +1907,23 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 .bar-value { position: absolute; inset-block-end: 100%; inset-inline: 0; padding-block-end: 0.2em; text-align: center; font-size: var(--step--2); color: var(--muted); white-space: nowrap; }
 .bars--valued { padding-block-start: 1.2em; }
 .bar-readout { margin: 0 0 var(--space-xs); font-size: var(--step--1); color: var(--muted); min-block-size: 1.4em; }
+
+/* ---- Sign-in page (hosted mode) ---- */
+.signin-body { min-block-size: 100dvh; display: grid; place-items: start center; padding: var(--space-l) var(--space-s); background: var(--bg); }
+.signin { inline-size: min(100%, 28rem); display: grid; gap: var(--space-m); margin-block-start: clamp(1rem, 8vh, 5rem); }
+.signin > .brand { justify-self: center; font-size: var(--step-1); }
+.signin-panel { display: grid; gap: var(--space-s); padding: var(--space-l); }
+.signin-panel h1 { margin: 0; font-size: var(--step-2); }
+.signin-panel p { margin: 0; }
+.signin-main { justify-self: stretch; padding-block: 0.8em; font-size: var(--step-0); }
+.signin-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-xs); }
+.signin-form--stack { grid-template-columns: minmax(0, 1fr); }
+.signin-note { color: var(--muted); }
+.signin-note.bad { color: var(--bad, oklch(0.72 0.17 25)); }
+.signin .link-btn { justify-self: start; }
+.signin-foot { text-align: center; font-size: var(--step--1); }
+.codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2xs) var(--space-m); margin: 0; padding: var(--space-s) var(--space-s) var(--space-s) 2.2em; border: 1px dashed var(--line); border-radius: var(--radius-outer); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--step-0); letter-spacing: 0.04em; }
+.signin-check { display: flex; align-items: center; gap: 0.5em; }
+.signin-panel input:not([type="checkbox"]) { inline-size: 100%; padding: 0.7em 0.9em; border: 1px solid var(--line); border-radius: calc(var(--radius-outer) - 4px); background: var(--surface-2); color: var(--text); font: inherit; }
+.signin-panel input:not([type="checkbox"]):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.signin-foot a { color: var(--accent-text); }
