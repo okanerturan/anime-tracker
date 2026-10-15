@@ -1618,3 +1618,4 @@ a.week-item { text-decoration: none; color: inherit; }
   .topbar > .theme-btn { flex: none; }
   html { scroll-padding-block-start: calc(var(--header-h) * 2); }
 }
+.show-all { justify-self: start; align-self: start; }

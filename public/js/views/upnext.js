@@ -261,11 +261,11 @@ function caughtUpRow(items) {
   if (!items.length) return null;
   return h('section', { class: 'section' },
     h('div', { class: 'section-head' }, h('h2', {}, 'Caught up'), h('span', { class: 'sub' }, `${plural(items.length, 'airing show')} with nothing new yet`)),
-    h('div', { class: 'quiet-list' }, items.map((x) => h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
+    capped(h('div', { class: 'quiet-list' }, items.map((x) => h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
       h('img', { src: x.image, alt: '', loading: 'lazy' }),
       h('span', { class: 'week-item-text' },
         h('span', { class: 'week-item-title one-line' }, x.title),
-        h('span', { class: 'week-item-sub num' }, x.nextAiringAt ? `E${x.nextAiringEpisode} ${relTime(x.nextAiringAt)}` : 'next episode not scheduled'))))));
+        h('span', { class: 'week-item-sub num' }, x.nextAiringAt ? `E${x.nextAiringEpisode} ${relTime(x.nextAiringAt)}` : 'next episode not scheduled')))))));
 }
 
 /** "You just finished X": five stars right there, because ratings are what make Discover good. */
@@ -310,6 +310,16 @@ function readSnapshot() {
 }
 function writeSnapshot(data, cr) { try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ at: Date.now(), data, cr })); } catch {} }
 
+/** A quiet list that shows `limit` rows and a "Show all N" button for the rest. */
+function capped(listEl, limit = 8) {
+  const rows = [...listEl.children];
+  if (rows.length <= limit) return listEl;
+  rows.slice(limit).forEach((r) => { r.hidden = true; });
+  const more = h('button', { type: 'button', class: 'btn small ghost show-all' }, `Show all ${rows.length}`);
+  more.addEventListener('click', () => { rows.forEach((r) => { r.hidden = false; }); more.remove(); });
+  return [listEl, more];
+}
+
 /** Announced sequels of shows you finished: premiere date when known, "date not announced" otherwise. */
 function comingSoonRow(items) {
   if (!items.length) return null;
@@ -323,11 +333,11 @@ function comingSoonRow(items) {
   };
   return h('section', { class: 'section' },
     h('div', { class: 'section-head' }, h('h2', {}, 'Coming soon'), h('span', { class: 'sub' }, `${plural(items.length, 'announced sequel')} to shows you finished`)),
-    h('div', { class: 'quiet-list' }, items.map((x) => h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
+    capped(h('div', { class: 'quiet-list' }, items.map((x) => h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
       h('img', { src: x.image, alt: '', loading: 'lazy' }),
       h('span', { class: 'week-item-text' },
         h('span', { class: 'week-item-title one-line' }, x.title),
-        h('span', { class: 'week-item-sub one-line' }, `${when(x.startDate)}${x.after ? ` · after ${x.after}` : ''}`))))));
+        h('span', { class: 'week-item-sub one-line' }, `${when(x.startDate)}${x.after ? ` · after ${x.after}` : ''}`)))))));
 }
 
 export async function render(view) {
