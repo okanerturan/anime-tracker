@@ -1,0 +1,140 @@
+'use strict';
+// Hosted-mode sign-in endpoints and the gate in front of the app's data (D5, D7).
+//
+// The gate: a request belongs to an account through a session cookie or an extension device token
+// (Authorization: Bearer). Without one, /api/* answers 401 and the page shell (which holds no data)
+// sends the visitor to /signin.html. Cross-site requests can't forge a mutation: the cookie is
+// SameSite=Lax and mutating routes require the X-Tracker-Client header (no CORS is offered).
+const { adb, sha256 } = require('./store');
+const sessions = require('./sessions');
+const passkeys = require('./passkeys');
+const invites = require('./invites');
+const recovery = require('./recovery');
+const { sendJSON, parseBody } = require('../http');
+
+const fail = (status, message) => Object.assign(new Error(message), { status });
+
+function deviceAccount(req) {
+  const m = String(req.headers.authorization || '').match(/^Bearer\s+(\S{20,200})$/);
+  if (!m) return null;
+  const row = adb().prepare('SELECT account_id FROM device_tokens WHERE token_hash = ? AND revoked_at IS NULL').get(sha256(m[1]));
+  if (!row) return null;
+  adb().prepare("UPDATE device_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE token_hash = ?").run(sha256(m[1]));
+  return row.account_id;
+}
+
+/**
+ * Which account this request is, or null. A session older than 30 days is rotated here (the new
+ * cookie goes out on this response).
+ */
+function authenticate(req, res) {
+  const device = deviceAccount(req);
+  if (device) return { accountId: device, via: 'device' };
+  const s = sessions.resolve(sessions.fromRequest(req));
+  if (!s) return null;
+  if (s.rotated) res.setHeader('Set-Cookie', sessions.cookie(s.rotated));
+  return { accountId: s.accountId, via: 'session' };
+}
+
+function startSession(req, res, accountId) {
+  res.setHeader('Set-Cookie', sessions.cookie(sessions.create(accountId, { userAgent: req.headers['user-agent'] })));
+}
+
+const deviceName = (req, given) => String(given || '').trim().slice(0, 60)
+  || (/iPhone|iPad/.test(req.headers['user-agent'] || '') ? 'iPhone or iPad' : /Android/.test(req.headers['user-agent'] || '') ? 'Android' : /Mac/.test(req.headers['user-agent'] || '') ? 'Mac' : 'This device');
+
+// Mutating auth endpoints need the same header as the rest of the API (stops cross-site posts).
+function requireClient(req) {
+  if (!/^(app|extension)$/.test(String(req.headers['x-tracker-client'] || ''))) throw fail(403, 'missing X-Tracker-Client');
+}
+
+const ROUTES = {
+  /** Public: is this browser signed in? */
+  'GET /auth/state': (req, res) => {
+    const who = authenticate(req, res);
+    if (!who) return sendJSON(res, 200, { signedIn: false });
+    const a = adb().prepare('SELECT id, display_name AS name FROM accounts WHERE id = ?').get(who.accountId);
+    const keys = adb().prepare('SELECT COUNT(*) n FROM passkeys WHERE account_id = ?').get(who.accountId).n;
+    return sendJSON(res, 200, { signedIn: true, account: a, passkeys: keys, recoveryCodesLeft: recovery.remaining(who.accountId) });
+  },
+
+  /** Sign up step 1: check the invite, make the account, and ask the browser for a passkey. */
+  'POST /auth/signup/options': async (req, res) => {
+    requireClient(req);
+    const b = await parseBody(req);
+    invites.check(b.invite || null);
+    const name = String(b.name || '').trim().slice(0, 40) || null;
+    // The account exists from here, but without a passkey it can't be used; the invite is spent
+    // only when the passkey is saved, and accounts left without one are cleared by a daily job.
+    const accountId = adb().prepare('INSERT INTO accounts (display_name) VALUES (?)').run(name).lastInsertRowid;
+    const { flow, options } = await passkeys.registrationOptions(accountId, name || `account-${accountId}`);
+    return sendJSON(res, 200, { flow, options });
+  },
+
+  /** Sign up step 2: save the passkey, spend the invite, sign in, hand out recovery codes once. */
+  'POST /auth/signup/verify': async (req, res) => {
+    requireClient(req);
+    const b = await parseBody(req);
+    invites.check(b.invite || null);
+    const passkeyId = await passkeys.finishRegistration(b.flow, b.response, deviceName(req, b.deviceName));
+    const accountId = adb().prepare('SELECT account_id FROM passkeys WHERE id = ?').get(passkeyId).account_id;
+    invites.spend(b.invite || null, accountId);
+    startSession(req, res, accountId);
+    return sendJSON(res, 200, { ok: true, recoveryCodes: recovery.regenerate(accountId) });
+  },
+
+  'POST /auth/signin/options': async (req, res) => { requireClient(req); return sendJSON(res, 200, await passkeys.authenticationOptions()); },
+  'POST /auth/signin/verify': async (req, res) => {
+    requireClient(req);
+    const b = await parseBody(req);
+    const accountId = await passkeys.finishAuthentication(b.flow, b.response);
+    startSession(req, res, accountId);
+    return sendJSON(res, 200, { ok: true });
+  },
+
+  /** Lost every passkey: a recovery code signs in, and the page then asks for a new passkey. */
+  'POST /auth/recover': async (req, res) => {
+    requireClient(req);
+    const b = await parseBody(req);
+    const accountId = recovery.use(b.code);
+    if (!accountId) throw fail(401, 'That code isn\'t valid or was already used.');
+    startSession(req, res, accountId);
+    return sendJSON(res, 200, { ok: true, addPasskey: true, recoveryCodesLeft: recovery.remaining(accountId) });
+  },
+
+  /** Signed in: add a passkey (another device, or after a recovery code). */
+  'POST /auth/passkey/options': async (req, res) => {
+    requireClient(req);
+    const who = authenticate(req, res);
+    if (!who || who.via !== 'session') throw fail(401, 'Sign in first.');
+    return sendJSON(res, 200, await passkeys.registrationOptions(who.accountId));
+  },
+  'POST /auth/passkey/verify': async (req, res) => {
+    requireClient(req);
+    const who = authenticate(req, res);
+    if (!who || who.via !== 'session') throw fail(401, 'Sign in first.');
+    const b = await parseBody(req);
+    await passkeys.finishRegistration(b.flow, b.response, deviceName(req, b.deviceName));
+    return sendJSON(res, 200, { ok: true });
+  },
+
+  'POST /auth/signout': (req, res) => { requireClient(req); sessions.end(sessions.fromRequest(req)); res.setHeader('Set-Cookie', sessions.cookie(null)); return sendJSON(res, 200, { ok: true }); },
+  'POST /auth/signout-everywhere': (req, res) => {
+    requireClient(req);
+    const who = authenticate(req, res);
+    if (!who || who.via !== 'session') throw fail(401, 'Sign in first.');
+    sessions.endAll(who.accountId);
+    res.setHeader('Set-Cookie', sessions.cookie(null));
+    return sendJSON(res, 200, { ok: true });
+  }
+};
+
+/** Handles /auth/* routes; returns true when it answered. */
+async function handle(req, res, url) {
+  const route = ROUTES[`${req.method} ${url.pathname}`];
+  if (!route) return false;
+  try { await route(req, res); } catch (err) { sendJSON(res, err.status || 500, { error: err.status ? err.message : 'Something went wrong.' }); }
+  return true;
+}
+
+module.exports = { handle, authenticate };

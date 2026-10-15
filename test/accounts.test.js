@@ -55,4 +55,45 @@ test('session cookie is HttpOnly, Secure, SameSite=Lax and parsed back from the 
   assert.equal(sessions.fromRequest({ headers: { cookie: `other=1; ${sessions.COOKIE}=xyz; more=2` } }), 'xyz');
 });
 
+test('invites: each SIGNUP mode, single use, expiry and withdrawal', () => {
+  const switches = require('../server/accounts/switches');
+  const invites = require('../server/accounts/invites');
+  const t0 = Date.parse('2026-02-01T00:00:00Z');
+  switches.set('SIGNUP', 'closed');
+  const code = invites.create({ now: t0 });
+  assert.throws(() => invites.check(code, { now: t0 }), /closed/);
+  switches.set('SIGNUP', 'invite');
+  assert.throws(() => invites.check(null), /need an invite/);
+  assert.throws(() => invites.check('made-up'), /isn.t valid/);
+  assert.ok(invites.check(code, { now: t0 }));
+  // A cancelled passkey prompt never spends it: still usable.
+  assert.ok(invites.check(code, { now: t0 + 1000 }));
+  invites.spend(code, newAccount('Invitee'));
+  assert.throws(() => invites.check(code, { now: t0 }), /already been used/);
+  const short = invites.create({ days: 1, now: t0 });
+  assert.throws(() => invites.check(short, { now: t0 + 2 * DAY }), /expired/);
+  const pulled = invites.create({ now: t0 }); invites.revoke(pulled);
+  assert.throws(() => invites.check(pulled, { now: t0 }), /withdrawn/);
+  switches.set('SIGNUP', 'open');
+  assert.equal(invites.check(null), null, 'open signup needs no invite');
+  switches.set('SIGNUP', 'invite');
+  assert.throws(() => switches.set('SIGNUP', 'sometimes'), /must be one of/);
+});
+
+test('recovery codes: ten, one-time, hashed, and a new set cancels the old', () => {
+  const recovery = require('../server/accounts/recovery');
+  const id = newAccount('Recoverer');
+  const codes = recovery.regenerate(id);
+  assert.equal(codes.length, 10);
+  assert.equal(new Set(codes).size, 10);
+  assert.ok(codes.every((c) => /^[a-z2-9]{5}-[a-z2-9]{5}$/.test(c)));
+  assert.equal(store.adb().prepare('SELECT COUNT(*) n FROM recovery_codes WHERE code_hash = ?').get(codes[0]).n, 0, 'not stored raw');
+  assert.equal(recovery.use(codes[0].toUpperCase().replace('-', ' ')), id, 'case and separators don\'t matter');
+  assert.equal(recovery.use(codes[0]), null, 'used once only');
+  assert.equal(recovery.remaining(id), 9);
+  const fresh = recovery.regenerate(id);
+  assert.equal(recovery.use(codes[1]), null, 'the old set stopped working');
+  assert.equal(recovery.use(fresh[0]), id);
+});
+
 test.after(() => { store.close(); db.close(); fs.rmSync(tmp, { recursive: true, force: true }); });

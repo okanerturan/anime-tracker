@@ -16,7 +16,8 @@ const ALLOWED_HOSTS = [
 const RETRY_FAILED_AFTER_MS = 24 * 3600 * 1000;
 const EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/avif': '.avif' };
 
-const getStmt = db.prepare('SELECT * FROM image_cache WHERE url = ?');
+// The image index is shared catalog data (images are served without an account in hosted mode).
+const getStmt = catalog.prepare('SELECT * FROM image_cache WHERE url = ?');
 const putStmt = catalog.prepare(`INSERT INTO image_cache (url, file, mime, bytes, fetched_at, failed_at)
   VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)
   ON CONFLICT(url) DO UPDATE SET file=excluded.file, mime=excluded.mime, bytes=excluded.bytes, fetched_at=excluded.fetched_at, failed_at=NULL`);
@@ -160,7 +161,7 @@ async function prefetch(urls, concurrency = 6, onProgress) {
 }
 
 function stats() {
-  return db.prepare('SELECT COUNT(file) AS cached, COALESCE(SUM(bytes),0) AS bytes, SUM(failed_at IS NOT NULL AND file IS NULL) AS failed FROM image_cache').get();
+  return catalog.prepare('SELECT COUNT(file) AS cached, COALESCE(SUM(bytes),0) AS bytes, SUM(failed_at IS NOT NULL AND file IS NULL) AS failed FROM image_cache').get();
 }
 
 /** Binary value the database driver accepts (better-sqlite3 wants a Buffer). */

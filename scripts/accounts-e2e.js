@@ -1,0 +1,94 @@
+'use strict';
+// End-to-end check of hosted sign-in against the real app server: invite → passkey sign-up →
+// data → sign out → passkey sign-in → recovery code → sign out everywhere. Headless Chrome with its
+// virtual authenticator plays the browser.   node scripts/accounts-e2e.js   (needs Google Chrome)
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawn, execFileSync } = require('child_process');
+
+const ROOT = path.resolve(__dirname, '..');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accounts-e2e-'));
+const PORT = 8318;
+const ORIGIN = `http://localhost:${PORT}`;
+const env = { ...process.env, AUTH_MODE: 'accounts', DATA_DIR: tmp, RP_ID: 'localhost', APP_ORIGIN: ORIGIN, NO_SYNC: '1', PORT: String(PORT), HOST: 'localhost', SIGNUP: 'invite' };
+
+// An invite, made the way an operator would (straight against accounts.db).
+const invite = execFileSync(process.execPath, ['-e', "process.stdout.write(require('./server/accounts/invites').create({ note: 'e2e' }))"], { cwd: ROOT, env }).toString();
+
+const HELPERS = `
+window.b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');
+window.unb64 = (s) => Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+window.post = async (p, body) => { const r = await fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'app' }, body: JSON.stringify(body || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.status); return j; };
+window.httpStatus = async (p) => (await fetch(p)).status;
+window.attest = (cred) => ({ id: cred.id, rawId: b64(cred.rawId), type: cred.type, clientExtensionResults: {}, response: { clientDataJSON: b64(cred.response.clientDataJSON), attestationObject: b64(cred.response.attestationObject), transports: cred.response.getTransports() } });
+window.assertion = (cred) => ({ id: cred.id, rawId: b64(cred.rawId), type: cred.type, clientExtensionResults: {}, response: { clientDataJSON: b64(cred.response.clientDataJSON), authenticatorData: b64(cred.response.authenticatorData), signature: b64(cred.response.signature), userHandle: cred.response.userHandle ? b64(cred.response.userHandle) : undefined } });
+window.create = async (o) => navigator.credentials.create({ publicKey: { ...o, challenge: unb64(o.challenge), user: { ...o.user, id: unb64(o.user.id) }, excludeCredentials: (o.excludeCredentials || []).map((c) => ({ ...c, id: unb64(c.id) })) } });
+window.getCred = async (o) => navigator.credentials.get({ publicKey: { ...o, challenge: unb64(o.challenge), allowCredentials: [] } });
+'done'`;
+
+function cdp(url) {
+  const ws = new WebSocket(url); let id = 0; const waits = new Map();
+  ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && waits.has(d.id)) { waits.get(d.id)(d); waits.delete(d.id); } };
+  return { ready: new Promise((r) => { ws.onopen = r; }), send: (method, params = {}) => new Promise((r) => { const i = ++id; waits.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); }), close: () => ws.close() };
+}
+
+(async () => {
+  const server = spawn(process.execPath, ['server.js'], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let log = ''; server.stdout.on('data', (d) => { log += d; }); server.stderr.on('data', (d) => { log += d; });
+  for (let i = 0; i < 40 && !/running/.test(log); i += 1) await new Promise((r) => setTimeout(r, 250));
+  const chromePath = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  const chrome = spawn(chromePath, ['--headless=new', `--user-data-dir=${path.join(tmp, 'chrome')}`, '--remote-debugging-port=9335', '--no-first-run', `${ORIGIN}/manifest.webmanifest`], { stdio: 'ignore' });
+  let ok = true;
+  const check = (label, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${label}${detail ? ` (${detail})` : ''}`); if (!cond) ok = false; };
+  try {
+    let page = null;
+    for (let i = 0; i < 40 && !page; i += 1) {
+      await new Promise((r) => setTimeout(r, 250));
+      try { page = (await (await fetch('http://127.0.0.1:9335/json/list')).json()).find((t) => t.type === 'page'); } catch {}
+    }
+    if (!page) throw new Error('Chrome did not start');
+    const p = cdp(page.webSocketDebuggerUrl); await p.ready;
+    await p.send('Page.navigate', { url: `${ORIGIN}/favicon.svg` });
+    await new Promise((r) => setTimeout(r, 800));
+    await p.send('WebAuthn.enable');
+    await p.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true } });
+    const run = async (expr) => { const r = await p.send('Runtime.evaluate', { expression: `(async () => { try { return await (${expr}); } catch (e) { return { error: e.message }; } })()`, awaitPromise: true, returnByValue: true }); return r.result?.result?.value; };
+    await run(`(() => { ${HELPERS} })()`);
+
+    check('data needs sign-in', (await run("httpStatus('/api/up-next')")) === 401);
+    const signup = await run(`(async () => { const { flow, options } = await post('/auth/signup/options', { invite: ${JSON.stringify(invite)}, name: 'Okan' }); return post('/auth/signup/verify', { flow, invite: ${JSON.stringify(invite)}, response: attest(await create(options)) }); })()`);
+    check('signs up with the invite and a passkey', signup?.ok === true, signup?.error);
+    const codes = signup?.recoveryCodes || [];
+    check('gets 10 recovery codes once', codes.length === 10);
+    check('data loads once signed in', (await run("httpStatus('/api/up-next')")) === 200);
+    const again = await run(`post('/auth/signup/options', { invite: ${JSON.stringify(invite)} })`);
+    check('the invite only works once', /already been used/.test(again?.error || ''), again?.error);
+    const state = await run("fetch('/auth/state').then((r) => r.json())");
+    check('knows who is signed in', state?.signedIn && state.account?.name === 'Okan' && state.passkeys === 1, JSON.stringify(state));
+
+    await run("post('/auth/signout')");
+    check('signing out ends access', (await run("httpStatus('/api/up-next')")) === 401);
+    const signin = await run("(async () => { const { flow, options } = await post('/auth/signin/options'); return post('/auth/signin/verify', { flow, response: assertion(await getCred(options)) }); })()");
+    check('signs back in with the passkey', signin?.ok === true && (await run("httpStatus('/api/up-next')")) === 200, signin?.error);
+
+    await run("post('/auth/signout')");
+    const rec = await run(`post('/auth/recover', { code: ${JSON.stringify(codes[0] || '')} })`);
+    check('a recovery code signs in and asks for a new passkey', rec?.ok && rec.addPasskey && rec.recoveryCodesLeft === 9, rec?.error);
+    const reuse = await run(`(async () => { await post('/auth/signout'); return post('/auth/recover', { code: ${JSON.stringify(codes[0] || '')} }); })()`);
+    check('a used recovery code is refused', Boolean(reuse?.error));
+
+    await run(`post('/auth/recover', { code: ${JSON.stringify(codes[1] || '')} })`);
+    await run("post('/auth/signout-everywhere')");
+    check('sign out everywhere ends the session', (await run("httpStatus('/api/up-next')")) === 401);
+    const forged = await run("fetch('/auth/signin/options', { method: 'POST' }).then((r) => r.status)");
+    check('auth posts without the client header are refused', forged === 403);
+    p.close();
+  } catch (err) { check('run', false, err.message); }
+  chrome.kill(); server.kill();
+  if (!ok) console.log(log.split('\n').slice(-15).join('\n'));
+  await new Promise((r) => setTimeout(r, 500)); // Chrome finishes writing its profile
+  fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  console.log(ok ? 'accounts: all checks passed' : 'accounts: FAILED');
+  process.exit(ok ? 0 : 1);
+})();

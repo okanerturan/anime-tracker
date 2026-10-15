@@ -92,7 +92,8 @@ function cdp(url) {
     p.close();
   } catch (err) { check('run', false, err.message); }
   chrome.kill(); server.close(); store.close();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  await new Promise((r) => setTimeout(r, 500)); // Chrome finishes writing its profile
+  fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   console.log(ok ? 'passkeys: all checks passed' : 'passkeys: FAILED');
   process.exit(ok ? 0 : 1);
 })();
