@@ -1662,3 +1662,5 @@ button.history-row { cursor: pointer; }
 .history-pct { color: var(--muted); font-size: var(--step--1); }
 .history-pct.is-done { color: var(--good); }
 .library-tools { display: flex; gap: var(--space-xs); align-items: center; }
+.import-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--space-s); }
+.import-grid > p { grid-column: 1 / -1; }

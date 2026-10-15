@@ -35,6 +35,16 @@ function aniListImport() {
   return [h('div', { class: 'inline-form' }, name, go), status];
 }
 
+/** Show the first `limit` rows of a list, with a "Show all N" button for the rest. */
+function capList(listEl, limit = 8) {
+  const rows = [...listEl.children];
+  if (rows.length <= limit) return listEl;
+  rows.slice(limit).forEach((r) => { r.hidden = true; });
+  const more = h('button', { type: 'button', class: 'btn small ghost show-all' }, `Show all ${rows.length}`);
+  more.addEventListener('click', () => { rows.forEach((r) => { r.hidden = false; }); more.remove(); });
+  return [listEl, more];
+}
+
 const MAL_STATUS = { Completed: 'completed', Watching: 'watching', 'On-Hold': 'onhold', Dropped: 'dropped', 'Plan to Watch': 'plan' };
 
 /** Read a MAL export (.xml or .xml.gz) in the browser and send just the fields the tracker needs. */
@@ -158,7 +168,7 @@ export async function render(view) {
         return row;
       }))) : null,
     cr.sampled?.length ? section('Sampled, not tracked', `${cr.sampled.length} Crunchyroll seasons you tried but never finished an episode of. Track one to add it to your library.`,
-      h('div', { class: 'quiet-list' }, cr.sampled.map((s) => {
+      capList(h('div', { class: 'quiet-list' }, cr.sampled.map((s) => {
         const btn = h('button', { type: 'button', class: 'btn small' }, 'Track');
         const row = h('div', { class: 'rate-item' },
           h('img', { src: s.thumb || '', alt: '', loading: 'lazy' }),
@@ -172,16 +182,18 @@ export async function render(view) {
           catch (err) { btn.disabled = false; btn.textContent = 'Track'; toast(err.message); }
         });
         return row;
-      }))) : null,
-    section('Import from AniList', 'Your public AniList anime list by username: progress, scores, paused and dropped',
-      h('div', { class: 'panel' }, aniListImport())),
-    section('Import from MyAnimeList', 'Bring in everything you tracked elsewhere: episodes watched, scores (as stars), on hold and dropped',
-      h('div', { class: 'panel' },
-        h('ol', { class: 'steps' },
-          h('li', {}, 'On MyAnimeList, open ', h('a', { href: 'https://myanimelist.net/panel.php?go=export', target: '_blank', rel: 'noopener' }, 'Export'), ' and export your anime list. You get a .xml.gz file.'),
-          h('li', {}, 'Choose that file (or the .xml inside it) here. Nothing already watched is ever un-watched.')),
-        malInput())),
-    section('Manual import', 'Alternative to the extension: a watch-history JSON export', h('div', { class: 'panel' }, fileInput)),
+      })))) : null,
+    h('details', { class: 'collapse section', open: (stats.library || 0) < 20 ? '' : null },
+      h('summary', {}, h('div', { class: 'section-head' },
+        h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Import from elsewhere'),
+        h('span', { class: 'sub' }, 'AniList, MyAnimeList, or a Crunchyroll history file'))),
+      h('div', { class: 'collapse-body import-grid' },
+        h('div', { class: 'panel' }, h('h3', {}, 'AniList'), h('p', { class: 'muted' }, 'Your public anime list by username: progress, scores, paused and dropped.'), aniListImport()),
+        h('div', { class: 'panel' }, h('h3', {}, 'MyAnimeList'),
+          h('p', { class: 'muted' }, 'On MyAnimeList, open ', h('a', { href: 'https://myanimelist.net/panel.php?go=export', target: '_blank', rel: 'noopener' }, 'Export'), ' and export your anime list, then choose the .xml.gz file here.'),
+          malInput()),
+        h('div', { class: 'panel' }, h('h3', {}, 'Crunchyroll history file'), h('p', { class: 'muted' }, 'Alternative to the extension: a watch-history JSON export.'), fileInput),
+        h('p', { class: 'muted' }, 'Imports never un-watch anything or overwrite your ratings and list states.'))),
     section('Background metadata', [
       bg.phase !== 'idle' ? `Refreshing (${bg.phase})` : bg.lastCycle ? `Last refresh ${ago(bg.lastCycle.at)}` : 'No refresh yet',
       `${bg.queueLength} queued`, `Jikan ${bg.jikanAvailable ? 'reachable' : 'down (skipped)'}`].join(' · '),
