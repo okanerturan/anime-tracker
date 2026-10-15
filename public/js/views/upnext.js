@@ -214,7 +214,7 @@ const BUDGETS = [['any', 'Any length', Infinity], ['30', '≤ 30 min', 30], ['60
 let budget = 'any';
 try { budget = localStorage.getItem('upnext:budget') || 'any'; } catch {}
 
-function continueSection(view, items) {
+function continueSection(view, items, onBudget = null) {
   const ordered = [...items].sort((a, b) => Number(isNewSinceVisit(b.latestAiredAt)) - Number(isNewSinceVisit(a.latestAiredAt)));
   let current = null;
   const minutesLeft = (x) => (x.episodeMinutes ? x.remaining * x.episodeMinutes : Infinity);
@@ -233,6 +233,9 @@ function continueSection(view, items) {
     // Swap the section in place: a wrapper element would fall outside the page grid's content column.
     if (current) current.replaceWith(section);
     current = section;
+    // Tonight's pick follows the chip too: with "≤ 30 min" it comes from shows you can finish in that time.
+    // (Deferred: on first draw the page isn't assembled yet, so the swap would miss.)
+    queueMicrotask(() => onBudget?.(budget === 'any' ? items : list));
   };
   draw();
   return current;
@@ -473,12 +476,19 @@ function draw(view, data, cr) {
   const finishable = data.stalled.filter((x) => leftOf(x) >= 1 && leftOf(x) <= 2).sort((a, b) => leftOf(a) - leftOf(b) || a.lastAgeDays - b.lastAgeDays);
   const finishIds = new Set(finishable.map((x) => x.malId));
   const stalledRest = data.stalled.filter((x) => !finishIds.has(x.malId));
+  let tonightEl = tonight(data.continueWatching, inProgress) || h('div', { hidden: true });
+  tonightEl.dataset.pool = 'all';
   fill(view,
-    tonight(data.continueWatching, inProgress),
+    tonightEl,
     sinceLine(data),
     finishable.length ? carousel('Finish what you started', `${plural(finishable.length, 'show')} one or two episodes from the end`,
       finishable.map((x) => epCard(x, 'stalled', rerender)), '') : null,
-    continueSection(view, data.continueWatching),
+    continueSection(view, data.continueWatching, (pool) => {
+      if (pool === data.continueWatching && tonightEl.dataset.pool === 'all') return;
+      const fresh = tonight(pool, inProgress) || h('div', { hidden: true });
+      fresh.dataset.pool = pool === data.continueWatching ? 'all' : 'budget';
+      tonightEl.replaceWith(fresh); tonightEl = fresh;
+    }),
     rateSection,
     inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map((p) => pausedCard(p, () => refresh(view))), '') : null,
     weekStrip(airingWeek),
