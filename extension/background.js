@@ -60,7 +60,7 @@ async function ensureClientId(cfg) {
   if (cfg.clientId) return cfg.clientId;
   const html = await (await fetch('https://www.crunchyroll.com/', { credentials: 'include' })).text();
   const m = html.match(/"accountAuthClientId"\s*:\s*"([^"]+)"/);
-  if (!m) throw new Error('could not read Crunchyroll config; open crunchyroll.com in a tab');
+  if (!m) throw new Error("Couldn't reach your Crunchyroll account. Open crunchyroll.com in this browser, check you're signed in, and try again.");
   await set({ clientId: m[1] });
   return m[1];
 }
