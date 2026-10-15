@@ -60,9 +60,15 @@ export function media({ src, alt = '', kind = 'wide', fallback = null, badges = 
   if (useSrc) {
     const img = h('img', { src: useSrc, alt, loading: 'lazy', decoding: 'async' });
     if (kind === 'wide') {
-      if (!src && fallback) box.classList.add('is-portrait');
+      // A poster in a wide frame is shown whole, over a blurred copy of itself instead of empty bars.
+      const portrait = () => {
+        if (box.classList.contains('is-portrait')) return;
+        box.classList.add('is-portrait');
+        box.prepend(h('img', { class: 'media-backdrop', src: img.src, alt: '', 'aria-hidden': 'true', decoding: 'async' }));
+      };
+      if (!src && fallback) portrait();
       // An "episode still" that is really a poster is shown whole instead of cropped to a strip.
-      else img.addEventListener('load', () => { if (img.naturalHeight > img.naturalWidth * 0.9) box.classList.add('is-portrait'); }, { once: true });
+      else img.addEventListener('load', () => { if (img.naturalHeight > img.naturalWidth * 0.9) portrait(); }, { once: true });
     }
     box.append(img);
   }
