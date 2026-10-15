@@ -82,7 +82,9 @@ function recCard(r, onDismiss) {
       r.crunchyrollUrl ? h('a', { class: 'play-overlay', href: r.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${r.title} on Crunchyroll`, title: 'Open on Crunchyroll' }, icon('play'), h('span', {}, 'Crunchyroll')) : null,
       h('div', { class: 'badge-end' }, h('span', { class: 'pill accent num' }, `${r.match}% match`))] }),
     cardLink(r.title, open, { href: r.siteUrl || `https://myanimelist.net/anime/${r.malId}` }),
-    h('p', { class: 'card-meta' }, [r.year, FORMAT_LABEL[r.format] || r.format, r.episodes ? `${r.episodes} eps` : null, r.averageScore ? `★ ${r.averageScore}` : null].filter(Boolean).join(' · ')),
+    h('p', { class: 'card-meta' }, [r.year, FORMAT_LABEL[r.format] || r.format, r.episodes ? `${r.episodes} eps` : null,
+      r.episodes && r.duration ? (() => { const m = r.episodes * r.duration; return m < 60 ? `~${m} min` : `~${Math.round(m / 60)} h`; })() : null,
+      r.averageScore ? `★ ${r.averageScore}` : null].filter(Boolean).join(' · ')),
     h('p', { class: 'card-sub clamp-3' }, r.because.length ? ['Because you watched ', ...(r.becauseShows || r.because.map((t) => ({ title: t }))).flatMap((b, i, arr) => [
       b.malId ? h('a', { class: 'because-link', href: `#/library?anime=${b.malId}`, onclick: (e) => { e.preventDefault(); openAnime({ malId: b.malId, title: b.title }); } }, b.title) : b.title,
       i < arr.length - 1 ? ', ' : ''])] : ''),

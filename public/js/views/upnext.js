@@ -251,7 +251,7 @@ function weekStrip(airing) {
           h('span', { class: 'week-item-title one-line' }, x.title),
           out
             ? h('span', { class: 'week-item-sub num is-out' }, `▶ E${x.nextAiringEpisode} · out now`)
-            : h('span', { class: 'week-item-sub num' }, `E${x.nextAiringEpisode} · ${new Date(x.nextAiringAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`)));
+            : h('span', { class: 'week-item-sub num' }, `E${x.nextAiringEpisode}${x.totalEpisodes && x.nextAiringEpisode === x.totalEpisodes ? ' · finale' : ''} · ${new Date(x.nextAiringAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`)));
       })
         : h('span', { class: 'week-empty' }, '—')))));
 }
