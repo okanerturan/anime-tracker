@@ -322,5 +322,11 @@ test('web push: VAPID token verifies, requests are well-formed, gone subscriptio
     assert.equal(require('../server/state').get('pushLatest').title, 'New episode: Fresh Show');
     const r3 = await push.notifyNewEpisodes([{ title: 'Fresh Show', malId: 2, latestAiredAt: aired }]);
     assert.equal(r3.fresh, 0, 'the same episode is not announced twice');
+    const today = new Date().toISOString().slice(0, 10);
+    const season = { malId: 99, title: 'Show Season 2', after: 'Show', inLibrary: false, startDate: today };
+    const r4 = await push.notifyNewEpisodes([], [season, { malId: 98, title: 'Old S2', startDate: '2020-01-01' }]);
+    assert.equal(r4.premieres, 1);
+    assert.equal(require('../server/state').get('pushLatest').title, 'New season: Show Season 2');
+    assert.equal((await push.notifyNewEpisodes([], [season])).premieres, 0, 'a premiere is announced once');
   } finally { global.fetch = realFetch; }
 });

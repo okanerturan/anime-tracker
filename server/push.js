@@ -72,19 +72,33 @@ async function sendAll(message) {
  * After a refresh: tell devices about episodes that aired since the last check (once per episode).
  * `items` are Up Next's continue-watching cards (title, malId, nextEpisode, latestAiredAt).
  */
-async function notifyNewEpisodes(items) {
+async function notifyNewEpisodes(items, seasons = []) {
   // (Own field name: state.get() overwrites `at` with the row's save time.)
   const checked = state.get('pushChecked')?.checkedAt;
   const last = checked ? new Date(checked).getTime() : Date.now();
   const now = Date.now();
   state.set('pushChecked', { checkedAt: new Date(now).toISOString() });
   const fresh = (items || []).filter((x) => x.latestAiredAt && new Date(x.latestAiredAt).getTime() > last && new Date(x.latestAiredAt).getTime() <= now);
-  if (!fresh.length || !subscriptions().length) return { sent: 0, fresh: fresh.length };
+  // A new season of a show you watched, on (or up to 3 days after) its start date, once per season.
+  const today = new Date(now).toISOString().slice(0, 10);
+  const recent = new Date(now - 3 * 86400e3).toISOString().slice(0, 10);
+  const told = new Set(state.get('pushSeasons')?.ids || []);
+  const premieres = (seasons || []).filter((s) => !s.inLibrary && s.startDate && s.startDate <= today && s.startDate >= recent && !told.has(s.malId));
+  if (premieres.length) state.set('pushSeasons', { ids: [...told, ...premieres.map((s) => s.malId)].slice(-200) });
+  if (!subscriptions().length || (!fresh.length && !premieres.length)) return { sent: 0, fresh: fresh.length, premieres: premieres.length };
+  if (!fresh.length) {
+    const p = premieres[0];
+    const message = premieres.length === 1
+      ? { title: `New season: ${p.title}`, body: p.after ? `The sequel to ${p.after} has started.` : 'It has started.', url: '/#/up-next' }
+      : { title: `${premieres.length} new seasons started`, body: premieres.slice(0, 3).map((s) => s.title).join(', '), url: '/#/up-next' };
+    return { ...(await sendAll(message)), fresh: 0, premieres: premieres.length };
+  }
   const names = fresh.slice(0, 3).map((x) => x.title);
   const message = fresh.length === 1
     ? { title: `New episode: ${fresh[0].title}`, body: fresh[0].nextEpisode ? `Episode ${fresh[0].nextEpisode} is out.` : 'A new episode is out.', url: `/#/library?anime=${fresh[0].malId}` }
     : { title: `${fresh.length} new episodes`, body: `${names.join(', ')}${fresh.length > 3 ? ` and ${fresh.length - 3} more` : ''}`, url: '/#/up-next' };
-  return { ...(await sendAll(message)), fresh: fresh.length };
+  if (premieres.length) message.body += ` · New season: ${premieres.map((s) => s.title).slice(0, 2).join(', ')}`;
+  return { ...(await sendAll(message)), fresh: fresh.length, premieres: premieres.length };
 }
 
 module.exports = { keys, subscribe, unsubscribe, subscriptions, sendAll, notifyNewEpisodes, vapidJwt, b64url, fromB64url };

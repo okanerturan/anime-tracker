@@ -56,7 +56,7 @@ function pushSection() {
   const off = h('button', { type: 'button', class: 'btn small ghost', hidden: true }, 'Turn off');
   const test = h('button', { type: 'button', class: 'btn small', hidden: true }, 'Send a test');
   const box = h('div', { class: 'panel' },
-    h('p', {}, 'Get a notification when a show you follow has a new episode, checked every three hours. Works on a phone once the tracker is on your Home Screen, and in any desktop browser.'),
+    h('p', {}, 'Get a notification when a show you follow has a new episode, or a show you watched starts a new season. Checked every three hours. Works on a phone once the tracker is on your Home Screen, and in any desktop browser.'),
     h('div', { class: 'hero-actions' }, on, test, off), status);
   const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   const keyBytes = (k) => Uint8Array.from(atob(k.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((k.length + 3) % 4)), (c) => c.charCodeAt(0));
