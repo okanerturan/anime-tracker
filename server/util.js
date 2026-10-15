@@ -7,6 +7,8 @@ function normalizeTitle(title) {
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
+    // Apostrophes join words ("Journey's" -> "journeys") so straight, curly and missing ones all match.
+    .replace(/['’‘`]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }

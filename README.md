@@ -192,6 +192,10 @@ scripts/               maintenance: AniList refresh, image prefetch, data repair
 
 The frontend is plain HTML, CSS and JavaScript modules. The stylesheet leans on modern CSS (subgrid, container queries, anchor positioning, `light-dark()` colour tokens), much of it following [good-css.com](https://good-css.com/). Current Chrome gets every detail; Firefox loses a few touches but the layout holds.
 
+## Tests
+
+`npm test` runs the core behaviour tests (episode matching, the watched rule, split-season rollover, dub de-duplication, Crunchyroll link matching, the AniList relay) against an in-memory database with the network switched off. They run on every push through GitHub Actions.
+
 ## Useful scripts
 
 | Command | What it does |
