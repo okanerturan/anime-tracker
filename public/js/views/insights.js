@@ -171,7 +171,16 @@ export async function render(view) {
         stat(`${String(peakHour).padStart(2, '0')}:00`, `peak hour · ${WEEKDAYS[peakDay]} is your top day`),
         bestYear ? stat(bestYear.year, `biggest year: ${bestYear.hours}\u00a0h, ${bestYear.shows} shows`) : null,
         s.week ? stat(`${s.week.thisEpisodes} ep${s.week.thisEpisodes === 1 ? '' : 's'}`, `this week · ${s.week.thisHours}\u00a0h · last week ${s.week.lastEpisodes} (${s.week.lastHours}\u00a0h)${s.week.thisEpisodes > s.week.lastEpisodes ? ' ↑' : s.week.thisEpisodes < s.week.lastEpisodes ? ' ↓' : ''}`) : null,
-        s.streaks ? stat(`${s.streaks.current} day${s.streaks.current === 1 ? '' : 's'}`, `current streak · longest ${s.streaks.longest}${s.streaks.longestEnd ? ` (ending ${new Date(s.streaks.longestEnd).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})` : ''} · ${s.streaks.activeDays} watch days`) : null)),
+        // Leads with the current streak while there is one; otherwise with the record (a "0 days" headline reads as a scolding).
+        s.streaks ? (() => {
+          const st = s.streaks;
+          const ended = st.longestEnd ? ` (ending ${new Date(st.longestEnd).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})` : '';
+          const days = (n) => `${n} day${n === 1 ? '' : 's'}`;
+          const active = st.activeDays != null ? ` · ${st.activeDays} watch days` : '';
+          return st.current > 0
+            ? stat(days(st.current), `current streak · longest ${st.longest}${ended}${active}`)
+            : stat(days(st.longest), `longest streak${ended}${active}`);
+        })() : null)),
     h('div', { class: 'panels' },
       h('div', { class: 'panel' }, h('h3', {}, 'Hours per month'), bars(s.byMonth.map((m) => m.hours), s.byMonth.map((m) => (m.month.endsWith('-01') ? `’${m.month.slice(2, 4)}` : m.month.slice(5))), (v) => `${v} h`, s.byMonth.map((m) => new Date(`${m.month}-15`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })))),
       h('div', { class: 'panel' }, h('h3', {}, 'Episodes per year'), bars(s.byYear.map((y) => y.episodes), s.byYear.map((y) => String(y.year))))),
