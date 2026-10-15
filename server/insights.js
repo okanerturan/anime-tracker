@@ -376,11 +376,20 @@ function study() {
   const profile = tasteProfile(rows, weights);
   let finished = 0; let started = 0; let dropped = 0; let scoreSum = 0; let scoreN = 0;
   const formats = {};
+  const byGenre = new Map(); // genre -> { started, finished }
   for (const r of rows) {
     if (!r.watched) continue;
     started += 1;
     const aired = library.airedCount({ status: r.status, next_airing_episode: r.next_airing_episode, episodes: r.episodes }) || r.ep_rows;
     const c = r.watched / Math.max(1, aired);
+    // Airing shows you're keeping up with aren't "unfinished"; leave them out of the finish rate.
+    if (!(r.status === 'RELEASING' && c >= 0.9)) {
+      for (const g of parseJSONField(r.genres, [])) {
+        const e = byGenre.get(g) || { started: 0, finished: 0 };
+        e.started += 1; if (c >= 0.9) e.finished += 1;
+        byGenre.set(g, e);
+      }
+    }
     if (c >= 0.9) finished += 1; else if (c < 0.34 || r.list_status === 'dropped') dropped += 1;
     if (r.average_score) { scoreSum += r.average_score; scoreN += 1; }
     formats[r.format || 'UNKNOWN'] = (formats[r.format || 'UNKNOWN'] || 0) + 1;
@@ -437,6 +446,9 @@ function study() {
     topShows,
     taste: { genres: profile.genres.slice(0, 10).map(([name, v]) => ({ name, weight: Math.round(v * 100) })), tags: profile.tags.slice(0, 15).map(([name, v]) => ({ name, weight: Math.round(v * 100) })) },
     formats,
+    finishRateByGenre: [...byGenre.entries()].filter(([, e]) => e.started >= 5)
+      .map(([name, e]) => ({ name, started: e.started, finished: e.finished, rate: Math.round((100 * e.finished) / e.started) }))
+      .sort((a, b) => b.rate - a.rate),
     averageCommunityScore: scoreN ? Math.round(scoreSum / scoreN) : null
   };
 }
