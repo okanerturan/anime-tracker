@@ -56,6 +56,9 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (/^(input|textarea|select)$/i.test(document.activeElement?.tagName || '')) return;
   if (e.key === '?') { e.preventDefault(); const help = document.getElementById('help'); if (!help.open) help.showModal(); return; }
+  // 1-5 switch tabs (when no dialog is open).
+  const tab = { 1: 'up-next', 2: 'library', 3: 'discover', 4: 'insights', 5: 'sync' }[e.key];
+  if (tab && !document.querySelector('dialog[open]')) { e.preventDefault(); location.hash = `#/${tab}`; return; }
   if (e.key !== '/' || document.querySelector('dialog[open]')) return;
   e.preventDefault();
   const box = document.querySelector('#view input[type="search"]');
