@@ -411,11 +411,24 @@ function study() {
     }
   }
   const streaks = { current, longest, longestEnd, activeDays: days.length };
+  // This week (last 7 days) against the 7 days before, real plays only.
+  const week = { thisEpisodes: 0, thisMinutes: 0, lastEpisodes: 0, lastMinutes: 0 };
+  const nowMs = Date.now();
+  for (const p of plays) {
+    const t = new Date(p.date_played).getTime();
+    if (bulkTimes.has(t)) continue;
+    const age = nowMs - t;
+    const mins = (p.duration_s || 1440) / 60;
+    if (age >= 0 && age < 7 * DAY) { week.thisEpisodes += 1; week.thisMinutes += mins; }
+    else if (age >= 7 * DAY && age < 14 * DAY) { week.lastEpisodes += 1; week.lastMinutes += mins; }
+  }
+  week.thisHours = Math.round(week.thisMinutes / 6) / 10; week.lastHours = Math.round(week.lastMinutes / 6) / 10;
   const recentYears = Object.keys(byYear).map(Number).sort();
   return {
     timezone: tz,
     bulkMarked: bulk,
     streaks,
+    week,
     totals: { episodes: plays.length, hours: Math.round(minutes / 60), days: Math.round(minutes / 60 / 24 * 10) / 10, showsStarted: started, showsFinished: finished, showsDropped: dropped, firstPlay: plays.reduce((a, p) => (!a || p.date_played < a ? p.date_played : a), null) },
     byYear: recentYears.map((y) => ({ year: y, episodes: byYear[y].episodes, hours: Math.round(byYear[y].hours), shows: byYear[y].shows.size })),
     byMonth: Object.entries(byMonth).sort().slice(-24).map(([month, hours]) => ({ month, hours: Math.round(hours * 10) / 10 })),
