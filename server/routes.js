@@ -232,6 +232,12 @@ const routes = {
     if (!body.episodeId) return sendJSON(res, 400, { error: 'episodeId required' });
     return sendJSON(res, 200, crunchyroll.dismissPlay(String(body.episodeId), Boolean(body.undo)));
   },
+  'POST /api/crunchyroll/hide-sampled': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    if (!body.seasonId) return sendJSON(res, 400, { error: 'seasonId required' });
+    return sendJSON(res, 200, crunchyroll.hideSampled(String(body.seasonId).slice(0, 40), Boolean(body.undo)));
+  },
   'POST /api/crunchyroll/track': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);

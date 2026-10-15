@@ -1504,6 +1504,7 @@ select {
 
 .rate-item > img { inline-size: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: max(0.25rem, calc(var(--radius-outer) - var(--row-pad))); background: var(--surface-2); }
 .rate-item:has(> .btn) { grid-template-columns: 2.75rem minmax(0, 1fr) auto; }
+.rate-item:has(> .btn):has(> .icon-btn) { grid-template-columns: 2.75rem minmax(0, 1fr) auto auto; column-gap: var(--space-xs); }
 .rate-text { display: flex; flex-direction: column; gap: 0.3em; min-inline-size: 0; }
 .rate-item .star { font-size: var(--step-0); }
 .rate-item .icon-btn { inline-size: 1.75rem; block-size: 1.75rem; border-color: transparent; background: transparent; color: var(--faint); }

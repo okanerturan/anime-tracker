@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { bus } from '../bus.js';
-import { h, section, ago, toast, FORMAT_LABEL } from '../ui.js';
+import { h, section, ago, toast, FORMAT_LABEL, icon } from '../ui.js';
 
 /** AniList's {year, month, day} as YYYY-MM-DD, or null when any part is missing. */
 const fuzzyDate = (d) => (d && d.year && d.month && d.day ? `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}` : null);
@@ -180,12 +180,20 @@ export async function render(view) {
     cr.sampled?.length ? section('Sampled, not tracked', `${cr.sampled.length} Crunchyroll seasons you tried but never finished an episode of. Track one to add it to your library.`,
       capList(h('div', { class: 'quiet-list' }, cr.sampled.map((s) => {
         const btn = h('button', { type: 'button', class: 'btn small' }, 'Track');
+        const hide = h('button', { type: 'button', class: 'icon-btn', 'aria-label': `Not interested in ${s.seriesTitle}`, title: 'Not interested: hide from this list' }, icon('close'));
+        hide.addEventListener('click', async () => {
+          try {
+            await api.crHideSampled(s.seasonId);
+            row.hidden = true;
+            toast(`Hid ${s.seriesTitle}`, { label: 'Undo', onClick: async () => { try { await api.crHideSampled(s.seasonId, true); row.hidden = false; } catch (err) { toast(err.message); } } });
+          } catch (err) { toast(err.message); }
+        });
         const row = h('div', { class: 'rate-item' },
           h('img', { src: s.thumb || '', alt: '', loading: 'lazy' }),
           h('div', { class: 'rate-text' },
             h('span', { class: 'week-item-title one-line', title: `${s.seriesTitle} · ${s.seasonTitle || ''}` }, s.seriesTitle),
             h('span', { class: 'week-item-sub one-line' }, `${s.seasonTitle && s.seasonTitle !== s.seriesTitle ? `${s.seasonTitle} · ` : ''}${s.plays} play${s.plays === 1 ? '' : 's'} · ${ago(s.lastPlayed)}`)),
-          btn);
+          btn, hide);
         btn.addEventListener('click', async () => {
           btn.disabled = true; btn.textContent = 'Finding…';
           try { const r = await api.crTrack(s.seasonId); toast(r.needsReview ? `Added ${r.title}; check the match above` : `Added ${r.title}`); row.remove(); }

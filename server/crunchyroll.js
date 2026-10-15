@@ -334,7 +334,8 @@ function status() {
     FROM cr_history h LEFT JOIN cr_season_map r ON r.season_id = h.season_id
     WHERE h.season_id IS NOT NULL AND (r.season_id IS NULL OR r.mal_id = 0)
       AND h.season_title NOT LIKE '%Dub)%'
-    GROUP BY h.season_id ORDER BY lastPlayed DESC LIMIT 60`).all();
+      AND h.season_id NOT IN (SELECT value FROM json_each(?))
+    GROUP BY h.season_id ORDER BY lastPlayed DESC LIMIT 60`).all(JSON.stringify(hiddenSampled()));
   const imagesMod = require('./images');
   for (const s of sampled) s.thumb = imagesMod.localUrl(s.thumb);
   const seen = require('./state').get('extension');
@@ -409,4 +410,13 @@ function confirmSeason(seasonId) {
   return { ok: true };
 }
 
-module.exports = { ingest, status, remapSeason, confirmSeason, trackSeason, dismissPlay, normalizeRow, applySeasonEpisodes, wantedSeasons };
+/** Sampled seasons the user said "not interested" to (kept in app_state). */
+function hiddenSampled() { return require('./state').get('sampledHidden')?.ids || []; }
+function hideSampled(seasonId, undo = false) {
+  const ids = new Set(hiddenSampled());
+  if (undo) ids.delete(seasonId); else ids.add(seasonId);
+  require('./state').set('sampledHidden', { ids: [...ids].slice(-2000) });
+  return { ok: true };
+}
+
+module.exports = { hideSampled, ingest, status, remapSeason, confirmSeason, trackSeason, dismissPlay, normalizeRow, applySeasonEpisodes, wantedSeasons };

@@ -47,6 +47,7 @@ export const api = {
   importMal: (entries) => post('/api/import/mal', { entries }),
   suspicious: () => request('/api/library/suspicious'),
   crTrack: (seasonId) => post('/api/crunchyroll/track', { seasonId }),
+  crHideSampled: (seasonId, undo = false) => post('/api/crunchyroll/hide-sampled', { seasonId, undo }),
   crRemap: (seasonId, malId, offset) => post('/api/crunchyroll/remap', { seasonId, malId, offset }),
   crConfirm: (seasonId) => post('/api/crunchyroll/confirm', { seasonId }),
   crIngest: (rows) => post('/api/crunchyroll/ingest', { rows, source: 'manual' }),
