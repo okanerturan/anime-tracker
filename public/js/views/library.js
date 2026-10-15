@@ -130,9 +130,14 @@ function card(x, inSeries = 1) {
     if (!select.on) return;
     e.preventDefault(); e.stopPropagation();
     if (select.ids.has(x.malId)) select.ids.delete(x.malId); else select.ids.add(x.malId);
-    el.classList.toggle('is-selected', select.ids.has(x.malId));
+    paintSelected();
     select.onChange();
   }, true);
+  // Screen readers: a hidden "Selected" label, since the outline alone isn't announced.
+  const srSel = h('span', { class: 'sr-only' });
+  el.append(srSel);
+  const paintSelected = () => { const on = select.on && select.ids.has(x.malId); el.classList.toggle('is-selected', on); srSel.textContent = on ? 'Selected' : ''; };
+  paintSelected();
   return el;
 }
 
@@ -241,7 +246,7 @@ export async function render(view) {
     .map(([v, l]) => h('option', { value: v, selected: state.sort === v }, l)));
   // Select mode and its action bar.
   const selectBtn = h('button', { type: 'button', class: 'chip-toggle group-toggle', 'aria-pressed': String(select.on), title: 'Pick several shows, then hold, drop or reactivate them together' }, 'Select');
-  const selCount = h('span', { class: 'num' });
+  const selCount = h('span', { class: 'num', 'aria-live': 'polite' });
   const applyStatus = async (status, label) => {
     const ids = [...select.ids];
     if (!ids.length) return;
