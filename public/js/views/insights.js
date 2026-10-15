@@ -62,6 +62,12 @@ export async function render(view) {
   view.replaceChildren(h('div', { class: 'skeleton' }));
   const s = await api.study();
   const t = s.totals;
+  if (!t.episodes && !(s.byYear || []).length) {
+    fill(view, section('Insights', null, h('div', { class: 'empty' },
+      h('p', {}, 'Your viewing study appears after your first Crunchyroll sync: hours watched, streaks, when you watch, what you finish.'),
+      h('a', { class: 'btn primary', href: '#/sync' }, 'Set up sync'))));
+    return;
+  }
   const peakHour = s.byHour.indexOf(Math.max(...s.byHour));
   const peakDay = s.byWeekday.indexOf(Math.max(...s.byWeekday));
   const finishRate = t.showsStarted ? Math.round((100 * t.showsFinished) / t.showsStarted) : 0;

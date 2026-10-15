@@ -81,7 +81,7 @@ function recCard(r, onDismiss) {
   return h('article', { class: 'card rec-card' },
     media({ src: r.image, alt: '', kind: 'poster', badges: [
       r.crunchyrollUrl ? h('a', { class: 'play-overlay', href: r.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${r.title} on Crunchyroll`, title: 'Open on Crunchyroll' }, icon('play'), h('span', {}, 'Crunchyroll')) : null,
-      h('div', { class: 'badge-end' }, h('span', { class: 'pill accent num' }, `${r.match}% match`))] }),
+      r.match != null ? h('div', { class: 'badge-end' }, h('span', { class: 'pill accent num' }, `${r.match}% match`)) : null] }),
     cardLink(r.title, open, { href: r.siteUrl || `https://myanimelist.net/anime/${r.malId}` }),
     h('p', { class: 'card-meta' }, [r.year, FORMAT_LABEL[r.format] || r.format, r.episodes ? `${r.episodes} eps` : null,
       r.episodes && r.duration ? (() => { const m = r.episodes * r.duration; return m < 60 ? `~${m} min` : `~${Math.round(m / 60)} h`; })() : null,
@@ -130,7 +130,8 @@ async function seasonalSection() {
   if (!d.items.length) return null;
   const name = { WINTER: 'Winter', SPRING: 'Spring', SUMMER: 'Summer', FALL: 'Fall' }[d.season] || d.season;
   const cards = d.items.map((x) => { const card = recCard({ ...x, year: d.year, because: [], becauseShows: [], note: x.continuesYours ? 'Continues a show you watched' : x.triedEpisode ? `You tried episode ${x.triedEpisode} on Crunchyroll` : null }, () => card.remove()); return card; });
-  return carousel(`Airing this season · ${name} ${d.year}`, 'New shows scored against what you actually finish', cards, '');
+  return carousel(`${d.personal ? 'Airing' : 'Popular'} this season · ${name} ${d.year}`,
+    d.personal ? 'New shows scored against what you actually finish' : 'Add what looks good. Once you have watched a few shows, these get scored for your taste.', cards, '');
 }
 
 export async function render(view) {
@@ -159,6 +160,16 @@ export async function render(view) {
   // This season's row fills in when it arrives (its first fetch of the day can take a few seconds).
   const seasonalSlot = h('div', { class: 'view-slot' });
   seasonalPromise.then((el) => { if (el) seasonalSlot.replaceChildren(el); });
+  // A new library has no taste profile and no recommendations yet: say how to get them.
+  if (!data.profile.genres.length) {
+    view.replaceChildren(seasonalSlot,
+      section('Recommended for you', null, h('div', { class: 'panel' },
+        h('p', {}, 'Recommendations appear once your library has a few shows you watched.'),
+        h('div', { class: 'hero-actions' },
+          h('a', { class: 'btn primary', href: '#/sync' }, 'Sync Crunchyroll or import a list')))),
+      section('Find anything', null, ...searchPanel(new URLSearchParams(location.hash.split('?')[1] || '').get('q') || '')));
+    return;
+  }
   view.replaceChildren(...[
     seasonalSlot,
     section('Your taste', 'Weighted by how much of each show you watched, how recently, and your star ratings',

@@ -392,9 +392,10 @@ function draw(view, data, cr) {
         h('h2', { class: 'tonight-title' }, cr?.lastSync ? 'Your history is in. Start something.' : 'Your Crunchyroll history, turned into a watch list.'),
         h('p', { class: 'tonight-sub' }, cr?.lastSync
           ? 'Everything you watched is marked. Pick a recommendation on Discover, or add any show, and it shows up here with a Play button.'
-          : 'Install the browser extension and open crunchyroll.com once. Everything you have ever watched there arrives in about a minute, and this page fills itself in.'),
+          : 'Install the browser extension and open crunchyroll.com once. Everything you have ever watched there arrives in about a minute, and this page fills itself in. Already track anime on AniList or MyAnimeList? Import that list in a few seconds.'),
         h('div', { class: 'hero-actions' },
           cr?.lastSync ? h('a', { class: 'btn primary', href: '#/discover' }, 'Open Discover') : h('a', { class: 'btn primary', href: '#/sync' }, 'Set up sync'),
+          cr?.lastSync ? null : h('a', { class: 'btn', href: '#/sync?import=1' }, 'Import a list'),
           h('a', { class: 'btn', href: '#/library' }, 'Library')))));
     return;
   }

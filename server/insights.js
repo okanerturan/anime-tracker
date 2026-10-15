@@ -507,10 +507,11 @@ async function seasonal({ refresh = false } = {}) {
         match: Math.round((sim * 0.75 + quality * 0.25) * 100)
       };
     })
-    .filter((x) => !x.sequelOfUnwatched)
-    .sort((a, b) => b.match - a.match)
-    .slice(0, 30);
-  return { season, year, items };
+    .filter((x) => !x.sequelOfUnwatched);
+  // With nothing watched yet there's no taste to score against: show the season by popularity.
+  const personal = rows.some((r) => r.watched > 0);
+  if (personal) items.sort((a, b) => b.match - a.match); else for (const x of items) x.match = null;
+  return { season, year, personal, items: items.slice(0, 30) };
 }
 
 /** Recent plays, newest first, one row per episode (dub copies collapsed), for the history list. */

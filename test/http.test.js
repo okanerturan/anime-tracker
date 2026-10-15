@@ -106,3 +106,8 @@ test('CSV cells cannot start a spreadsheet formula', async () => {
   assert.equal(csvCell('-Prologue-'), "'-Prologue-");
   assert.equal(csvCell('Plain'), 'Plain');
 });
+
+test('stats are numbers (never null) on an empty library, so the Sync page can render', async () => {
+  const s = await (await get('/api/stats')).json();
+  for (const v of [s.library, s.episodes.n, s.episodes.w, s.episodes.i, s.images.cached]) assert.equal(typeof v, 'number');
+});

@@ -246,7 +246,7 @@ const routes = {
 
   'GET /api/stats': (req, res) => sendJSON(res, 200, {
     library: db.prepare('SELECT COUNT(*) n FROM watchlist').get().n,
-    episodes: db.prepare('SELECT COUNT(*) n, SUM(watched) w, SUM(image_blob IS NOT NULL) i FROM episode_sync').get(),
+    episodes: db.prepare('SELECT COUNT(*) n, COALESCE(SUM(watched), 0) w, COALESCE(SUM(image_blob IS NOT NULL), 0) i FROM episode_sync').get(),
     images: images.stats()
   }),
 

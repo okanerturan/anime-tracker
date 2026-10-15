@@ -138,7 +138,7 @@ export async function render(view) {
   view.replaceChildren(...[
     section('Crunchyroll sync', last ? `Last sync ${ago(last.at)} via ${last.source}` : 'Never synced',
       h('div', { class: 'stat-row' },
-        h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.rows.toLocaleString()), h('div', { class: 'l' }, 'history episodes stored')),
+        h('div', { class: 'stat' }, h('div', { class: 'v' }, (cr.rows ?? 0).toLocaleString()), h('div', { class: 'l' }, 'history episodes stored')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.latestPlayed ? new Date(cr.latestPlayed).toLocaleDateString() : '—'), h('div', { class: 'l' }, 'latest play')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, last?.summary?.marked ?? '—'), h('div', { class: 'l' }, 'newly watched in last sync')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.needsReview.length), h('div', { class: 'l' }, 'seasons to review')),
@@ -159,7 +159,7 @@ export async function render(view) {
         h('li', {}, 'Open crunchyroll.com once while logged in. The extension syncs right away, then every 30 minutes while Chrome is open and a couple of minutes after you finish an episode.'),
         h('li', {}, 'In the extension’s popup, set the Tracker URL to this page’s address (and the passphrase as Tracker key when it’s hosted). The popup shows the last sync and has a “Sync now” button.')),
         h('p', { class: 'muted' }, 'The extension uses your existing Crunchyroll login inside your own browser. It never stores your password or tokens, and only talks to crunchyroll.com and your tracker.'))),
-    section('Needs review', 'Seasons the tracker mapped by guessing', h('div', { class: 'panel' }, review)),
+    cr.rows ? section('Needs review', 'Seasons the tracker mapped by guessing', h('div', { class: 'panel' }, review)) : null,
     odd.length ? section('Odd progress', `${odd.length} show${odd.length === 1 ? '' : 's'} with the finale ticked but most episodes not. Usually a mapping slip or a stray bulk mark.`,
       h('div', { class: 'quiet-list' }, odd.map((x) => {
         const all = h('button', { type: 'button', class: 'btn small' }, 'I watched it all');
@@ -188,7 +188,7 @@ export async function render(view) {
         });
         return row;
       })))) : null,
-    h('details', { class: 'collapse section', open: (stats.library || 0) < 20 ? '' : null },
+    h('details', { class: 'collapse section', id: 'import', open: (stats.library || 0) < 20 || /[?&]import=1/.test(location.hash) ? '' : null },
       h('summary', {}, h('div', { class: 'section-head' },
         h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Import from elsewhere'),
         h('span', { class: 'sub' }, 'AniList, MyAnimeList, or a Crunchyroll history file'))),
@@ -204,9 +204,9 @@ export async function render(view) {
       `${bg.queueLength} queued`, `Jikan ${bg.jikanAvailable ? 'reachable' : 'down (skipped)'}`].join(' · '),
       h('div', { class: 'stat-row' },
         h('div', { class: 'stat' }, h('div', { class: 'v' }, stats.library), h('div', { class: 'l' }, 'shows in library')),
-        h('div', { class: 'stat' }, h('div', { class: 'v' }, `${stats.episodes.w.toLocaleString()} / ${stats.episodes.n.toLocaleString()}`), h('div', { class: 'l' }, 'episodes watched')),
+        h('div', { class: 'stat' }, h('div', { class: 'v' }, `${(stats.episodes?.w ?? 0).toLocaleString()} / ${(stats.episodes?.n ?? 0).toLocaleString()}`), h('div', { class: 'l' }, 'episodes watched')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, `${Math.round((100 * stats.episodes.i) / Math.max(stats.episodes.n, 1))}%`), h('div', { class: 'l' }, 'episode thumbnails stored')),
-        h('div', { class: 'stat' }, h('div', { class: 'v' }, stats.images.cached.toLocaleString()), h('div', { class: 'l' }, `posters cached locally (${Math.round(stats.images.bytes / 1048576)} MB)`))),
+        h('div', { class: 'stat' }, h('div', { class: 'v' }, (stats.images?.cached ?? 0).toLocaleString()), h('div', { class: 'l' }, `posters cached locally (${Math.round((stats.images?.bytes ?? 0) / 1048576)} MB)`))),
       bg.anilist?.blocked ? h('div', { class: 'panel warn' },
         h('b', {}, 'AniList is blocking this server. '),
         `Your browser fetches AniList data instead: the extension does it after each sync, and this page does it while it's open. Waiting: ${bg.anilist.pendingIds} shows, ${bg.anilist.pendingQueries} lookups.`) : null,
@@ -218,4 +218,5 @@ export async function render(view) {
         h('div', { class: 'hero-actions' },
           h('a', { class: 'btn', href: '/api/backup', download: '' }, 'Download latest'),
           h('a', { class: 'btn ghost', href: '/api/backup?fresh=1', download: '' }, 'Back up now and download')))) : null].filter(Boolean));
+  if (/[?&]import=1/.test(location.hash)) view.querySelector('#import')?.scrollIntoView({ block: 'start' });
 }
