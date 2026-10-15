@@ -103,7 +103,7 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
  * baseline, so installing the extension doesn't produce a flood.
  */
 async function notifyNewEpisodes(cfg) {
-  if (cfg.notifyNew === false || !chrome.notifications) return;
+  const notify = cfg.notifyNew !== false && Boolean(chrome.notifications);
   const res = await fetch(`${cfg.trackerUrl}/api/up-next`, { headers: authHeaders(cfg.trackerKey || '') });
   if (!res.ok) return;
   const data = await res.json();
@@ -117,6 +117,14 @@ async function notifyNewEpisodes(cfg) {
     next[x.malId] = Math.max(at, next[x.malId] || 0);
   }
   await set({ notified: next });
+  // Icon badge: shows with an episode out in the last 7 days that you haven't watched yet.
+  const week = (data.continueWatching || []).filter((x) => x.latestAiredAt && Date.now() - new Date(x.latestAiredAt).getTime() < 7 * 86400000).length;
+  try {
+    await chrome.action.setBadgeBackgroundColor({ color: '#f47521' });
+    await chrome.action.setBadgeText({ text: week ? String(week) : '' });
+    await chrome.action.setTitle({ title: week ? `Anime Tracker: ${week} show${week === 1 ? '' : 's'} with a new episode this week` : 'Anime Tracker' });
+  } catch {}
+  if (!notify) return;
   for (const x of fresh.slice(0, 3)) {
     chrome.notifications.create(`ep|${x.malId}|${x.nextEpisodeUrl || `${cfg.trackerUrl}/#/up-next`}`, {
       type: 'basic', iconUrl: 'icons/icon-128.png', title: 'New episode out',
