@@ -100,7 +100,7 @@ const NODE_FIELDS = `id idMal type format status episodes duration seasonYear
   title{romaji english} startDate{year month day} coverImage{extraLarge large color}
   genres averageScore popularity`;
 
-const FULL_FIELDS = `${NODE_FIELDS} bannerImage siteUrl description(asHtml:false)
+const FULL_FIELDS = `${NODE_FIELDS} bannerImage siteUrl description(asHtml:false) synonyms
   tags{name rank isMediaSpoiler}
   externalLinks{site url type language}
   nextAiringEpisode{episode airingAt}
@@ -111,10 +111,10 @@ const FULL_FIELDS = `${NODE_FIELDS} bannerImage siteUrl description(asHtml:false
 const upsertMediaStmt = db.prepare(`
 INSERT INTO media (mal_id, anilist_id, title, title_english, format, status, episodes, duration, season_year,
   start_date, genres, tags, average_score, popularity, cover_url, banner_url, color, site_url,
-  next_airing_episode, next_airing_at, streaming_episodes, external_links, description, is_full, fetched_at)
+  next_airing_episode, next_airing_at, streaming_episodes, external_links, description, synonyms, is_full, fetched_at)
 VALUES (@mal_id, @anilist_id, @title, @title_english, @format, @status, @episodes, @duration, @season_year,
   @start_date, @genres, @tags, @average_score, @popularity, @cover_url, @banner_url, @color, @site_url,
-  @next_airing_episode, @next_airing_at, @streaming_episodes, @external_links, @description, @is_full, CURRENT_TIMESTAMP)
+  @next_airing_episode, @next_airing_at, @streaming_episodes, @external_links, @description, @synonyms, @is_full, CURRENT_TIMESTAMP)
 ON CONFLICT(mal_id) DO UPDATE SET
   anilist_id=excluded.anilist_id, title=excluded.title, title_english=excluded.title_english,
   format=excluded.format, status=excluded.status, episodes=excluded.episodes, duration=excluded.duration,
@@ -127,6 +127,7 @@ ON CONFLICT(mal_id) DO UPDATE SET
   streaming_episodes=COALESCE(excluded.streaming_episodes, media.streaming_episodes),
   external_links=COALESCE(excluded.external_links, media.external_links),
   description=COALESCE(excluded.description, media.description),
+  synonyms=COALESCE(excluded.synonyms, media.synonyms),
   is_full=MAX(media.is_full, excluded.is_full),
   fetched_at=CASE WHEN excluded.is_full=1 OR media.is_full=0 THEN CURRENT_TIMESTAMP ELSE media.fetched_at END
 `);
@@ -160,6 +161,8 @@ function mediaRow(m, isFull) {
     next_airing_at: isFull ? m.nextAiringEpisode?.airingAt ?? null : null,
     streaming_episodes: isFull ? JSON.stringify(m.streamingEpisodes || []) : null,
     external_links: isFull ? JSON.stringify((m.externalLinks || []).filter((l) => l.type === 'STREAMING').map((l) => ({ site: l.site, url: l.url, language: l.language }))) : null,
+    // Search aliases: keep short Latin-alphabet ones ("JJK", "SnK", "Mushoku Tensei"); other scripts can't be typed here anyway.
+    synonyms: isFull ? JSON.stringify((m.synonyms || []).filter((x) => x && x.length <= 100 && /^[\x20-\x7E\u00C0-\u017F]+$/.test(x)).slice(0, 8)) : null,
     description: isFull && m.description ? m.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim() : null,
     is_full: isFull ? 1 : 0
   };

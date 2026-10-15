@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { h, fill, icon, media, progress, cardLink, statusPill, ago, toast, FORMAT_LABEL } from '../ui.js';
+import { h, fill, icon, media, progress, cardLink, statusPill, ago, toast, FORMAT_LABEL, titleMatches } from '../ui.js';
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 
@@ -42,10 +42,7 @@ function matches(x) {
   if (state.filter === 'rated' && !x.rating) return false;
   if (state.filter === 'airing' && x.status !== 'RELEASING') return false;
   if (wanted && !wanted.includes(st)) return false;
-  if (state.query) {
-    const q = state.query.toLowerCase();
-    if (!`${x.title} ${x.titleEnglish} ${(x.genres || []).join(' ')}`.toLowerCase().includes(q)) return false;
-  }
+  if (state.query && !titleMatches(x, state.query, (x.genres || []).join(' '))) return false;
   return true;
 }
 

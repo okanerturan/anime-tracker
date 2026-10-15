@@ -218,3 +218,10 @@ test('fixing a mis-guessed season clears what the wrong show got from it', async
   assert.deepEqual(watched(830), [], 'the wrong show keeps nothing from that season');
   assert.equal(library.isInLibrary(830), false, 'and leaves the library when nothing else of it remains');
 });
+
+test('alternate titles are stored (Latin-alphabet ones only) and returned with the library', () => {
+  library.addToLibrary({ malId: 840, title: 'Jujutsu Kaisen Test', totalEpisodes: 24 });
+  anilist.storeFull([{ id: 840, idMal: 840, type: 'ANIME', title: { romaji: 'Jujutsu Kaisen Test' }, synonyms: ['JJK', 'Sorcery Fight', '咒术回战', 'Магическая битва'], genres: [], tags: [], externalLinks: [], relations: { edges: [] }, recommendations: { nodes: [] } }]);
+  const x = library.getWatchlist('title_asc').find((s) => s.malId === 840);
+  assert.deepEqual(x.synonyms, ['JJK', 'Sorcery Fight']);
+});

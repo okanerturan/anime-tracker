@@ -176,7 +176,9 @@ const ADDED_COLUMNS = [
   // A paused play the user dismissed from the Started-on-Crunchyroll shelf.
   ['cr_history', 'dismissed', 'dismissed INTEGER DEFAULT 0'],
   ['media', 'cr_checked_at', 'cr_checked_at TEXT'],
-  ['media', 'description', 'description TEXT']
+  ['media', 'description', 'description TEXT'],
+  // Alternate titles from AniList (JSON array, short Latin-alphabet ones only: "JJK", "AoT").
+  ['media', 'synonyms', 'synonyms TEXT']
 ];
 
 function applySchema(db) {

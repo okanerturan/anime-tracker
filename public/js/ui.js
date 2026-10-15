@@ -162,3 +162,14 @@ export function cardLink(text, onClick, { lines = 2, href = '#' } = {}) {
   });
   return h('h3', { class: `card-title ${lines === 1 ? 'one-line' : 'clamp-2'}`, title: text }, a);
 }
+
+/** Lowercase, accents and punctuation removed: "Re:ZERO" and "re zero" compare equal. */
+export const normTitle = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** Every word of the query appears in the show's titles, alternate titles ("JJK") or extra text. */
+export function titleMatches(x, query, extra = '') {
+  const words = normTitle(query).split(' ').filter(Boolean);
+  if (!words.length) return true;
+  const hay = ` ${normTitle(`${x.titleEnglish || ''} ${x.title || ''} ${(x.synonyms || []).join(' ')} ${extra}`)}`;
+  return words.every((w) => hay.includes(w));
+}

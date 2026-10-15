@@ -66,7 +66,7 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
            COALESCE(m.cover_url, a.image_url, '') AS remoteImage, COALESCE(a.synopsis, '') AS synopsis,
            COALESCE(a.total_episodes, m.episodes) AS totalEpisodes,
            m.format, m.status, m.genres, m.average_score AS averageScore, m.color,
-           m.next_airing_episode AS nextAiringEpisode, m.next_airing_at AS nextAiringAt, m.episodes AS mediaEpisodes, m.external_links, m.duration AS episodeMinutes,
+           m.next_airing_episode AS nextAiringEpisode, m.next_airing_at AS nextAiringAt, m.episodes AS mediaEpisodes, m.external_links, m.duration AS episodeMinutes, m.synonyms,
            COUNT(e.episode_number) AS episodesCount,
            COALESCE(SUM(e.watched = 1), 0) AS watchedCount,
            MAX(CASE WHEN e.watched = 1 THEN e.episode_number END) AS furthest,
@@ -94,6 +94,7 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
     }
     return {
       malId: r.malId,
+      synonyms: parseJSONField(r.synonyms, []),
       episodeMinutes: r.episodeMinutes || null,
       nextEpisode: next?.n ?? null,
       nextEpisodeUrl: nextUrl,

@@ -1,21 +1,22 @@
 // ⌘K / Ctrl+K quick switcher: type part of a title, arrows to move, Enter to open the show's panel.
 import { api } from './api.js';
-import { h, fill } from './ui.js';
+import { h, fill, normTitle } from './ui.js';
 import { openAnime } from './drawer.js';
 import { bus } from './bus.js';
 
 let items = null;
 bus.on('library-changed', () => { items = null; });
-const norm = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const norm = normTitle;
 
-/** Prefix of a word beats anywhere-in-title; shorter titles break ties. */
+/** Whole word, then prefix of a word, then anywhere in the title; shorter titles break ties. */
 function rank(list, q) {
   const words = norm(q).split(' ').filter(Boolean);
   if (!words.length) return list.slice(0, 8);
   return list.map((x) => {
-    const hay = ` ${norm(`${x.titleEnglish} ${x.title}`)}`;
+    const hay = ` ${norm(`${x.titleEnglish} ${x.title} ${(x.synonyms || []).join(' ')}`)} `;
     if (!words.every((w) => hay.includes(w))) return null;
-    const score = words.reduce((n, w) => n + (hay.includes(` ${w}`) ? 2 : 1), 0);
+    // Whole word beats start of a word beats anywhere ("re zero": Re:ZERO before Ga-Rei-Zero).
+    const score = words.reduce((n, w) => n + (hay.includes(` ${w} `) ? 3 : hay.includes(` ${w}`) ? 2 : 1), 0);
     return { x, score, len: (x.titleEnglish || x.title).length };
   }).filter(Boolean).sort((a, b) => b.score - a.score || a.len - b.len).slice(0, 8).map((r) => r.x);
 }

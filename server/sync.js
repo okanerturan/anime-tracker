@@ -144,6 +144,7 @@ async function refreshCycle() {
       WHERE m.is_full IS NOT 1
          OR (m.status IN ('RELEASING','NOT_YET_RELEASED') AND m.fetched_at < datetime('now','-6 hours'))
          OR m.fetched_at < datetime('now','-30 days')
+         OR m.synonyms IS NULL
     `).all().map((r) => r.id);
     if (stale.length) await anilist.fetchFullByMalIds(stale);
     summary.metadataRefreshed = stale.length;
