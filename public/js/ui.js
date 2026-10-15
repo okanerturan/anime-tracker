@@ -54,11 +54,12 @@ export function icon(name) {
  * A portrait image in a wide box (a poster standing in for an episode still) is shown whole,
  * on a tinted surface, instead of being cropped to a strip.
  */
-export function media({ src, alt = '', kind = 'wide', fallback = null, badges = [], tint = null } = {}) {
+export function media({ src, alt = '', kind = 'wide', fallback = null, badges = [], tint = null, eager = false } = {}) {
   const box = h('div', { class: `media ${kind === 'poster' ? 'media--poster' : ''}`, style: tint ? { '--tint': tint } : null });
   const useSrc = src || fallback;
   if (useSrc) {
-    const img = h('img', { src: useSrc, alt, loading: 'lazy', decoding: 'async' });
+    // The first pictures on screen load right away (eager): lazy ones wait for layout, which delays the page.
+    const img = h('img', { src: useSrc, alt, loading: eager ? 'eager' : 'lazy', decoding: 'async', fetchpriority: eager ? 'high' : null });
     if (kind === 'wide') {
       // A poster in a wide frame is shown whole, over a blurred copy of itself instead of empty bars.
       const portrait = () => {

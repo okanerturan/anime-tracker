@@ -52,6 +52,18 @@
     <form method="dialog"><button type="submit" class="btn">Close</button></form>
   </dialog>
   <div id="toast" class="toast" popover="manual" role="status"></div>
+  <!-- Fetch the whole module graph at once instead of main.js first, then its imports. -->
+  <link rel="modulepreload" href="/js/api.js">
+  <link rel="modulepreload" href="/js/anilist-relay.js">
+  <link rel="modulepreload" href="/js/quickopen.js">
+  <link rel="modulepreload" href="/js/bus.js">
+  <link rel="modulepreload" href="/js/ui.js">
+  <link rel="modulepreload" href="/js/drawer.js">
+  <link rel="modulepreload" href="/js/views/upnext.js">
+  <link rel="modulepreload" href="/js/views/library.js">
+  <link rel="modulepreload" href="/js/views/discover.js">
+  <link rel="modulepreload" href="/js/views/insights.js">
+  <link rel="modulepreload" href="/js/views/sync.js">
   <script type="module" src="/js/main.js"></script>
 </body>
 </html>

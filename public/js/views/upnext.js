@@ -262,7 +262,7 @@ function tonight(items, inProgress, forced = null) {
   const open = () => openAnime(pick);
   return h('section', { class: 'tonight' },
     h('a', { class: 'tonight-media', href: url || '#', target: url ? '_blank' : null, rel: 'noopener', 'aria-label': `Play ${pick.title} episode ${pick.nextEpisode}`, onclick: () => { if (url) playToast(pick.nextEpisode); } },
-      media({ src: still, fallback: pick.image, alt: '' }),
+      media({ src: still, fallback: pick.image, alt: '', eager: true }),
       url ? h('span', { class: 'play-overlay is-large' }, icon('play'), h('span', {}, minsLeft ? `Resume · ${minsLeft} min left` : `Play E${pick.nextEpisode}`)) : null,
       pick.resume && pick.resume.durationS ? h('span', { class: 'tonight-progress', style: { '--p': String(pick.resume.playhead / pick.resume.durationS) }, 'aria-hidden': 'true' }) : null),
     h('div', { class: 'tonight-info' },

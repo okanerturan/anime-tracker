@@ -88,7 +88,7 @@ function progressState(x) {
 }
 
 /** `inSeries`: with "Group seasons" on, how many library entries share this card's series. */
-function card(x, inSeries = 1) {
+function card(x, inSeries = 1, eager = false) {
   const aired = x.airedEpisodes ?? x.episodesCount;
   const title = x.titleEnglish || x.title;
   const st = progressState(x);
@@ -115,7 +115,7 @@ function card(x, inSeries = 1) {
     catch (err) { tick.disabled = false; toast(err.message); }
   });
   const el = h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''} ${inSeries > 1 ? 'is-stack' : ''} ${select.on && select.ids.has(x.malId) ? 'is-selected' : ''}` },
-    media({ src: x.imageUrl, alt: '', kind: 'poster', badges: [h('div', { class: 'badge-end' }, badge), play || sequel, tick] }),
+    media({ src: x.imageUrl, alt: '', kind: 'poster', eager, badges: [h('div', { class: 'badge-end' }, badge), play || sequel, tick] }),
     progress(aired ? Math.min((x.progress ?? x.watchedCount), aired) / aired : 0),
     cardLink(title, () => openAnime({ ...x, title, image: x.imageUrl }), { href: `https://myanimelist.net/anime/${x.malId}` }),
     h('div', { class: 'card-meta' },
@@ -231,13 +231,13 @@ export async function render(view) {
     count.textContent = `${list.length}${grouped ? ' series' : ''} of ${state.items.length}${grouped ? ' shows' : ''}${tail}`;
     // Draw what fills the screen now and the rest in batches right after, so a filter tap or a
     // keystroke never waits on 400 cards; a newer draw cancels the batches still queued.
-    const make = (x) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1);
+    const make = (x, i) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1, i < 6);
     const myDraw = ++drawSeq;
     if (list.length > 48) {
       const rest = list.slice(48);
       const more = () => {
         if (myDraw !== drawSeq || !grid.isConnected) return;
-        grid.append(...rest.splice(0, 120).map(make));
+        grid.append(...rest.splice(0, 120).map((x) => make(x, Infinity)));
         if (rest.length) requestAnimationFrame(more);
       };
       requestAnimationFrame(more);
