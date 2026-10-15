@@ -232,3 +232,15 @@ test('seasons linked as sequel and prequel share a series id in the library', ()
   const by = Object.fromEntries(library.getWatchlist('title_asc').filter((x) => x.malId >= 850 && x.malId <= 853).map((x) => [x.malId, x.series]));
   assert.equal(by[850], 850); assert.equal(by[851], 850); assert.equal(by[852], 850); assert.equal(by[853], 853);
 });
+
+test('removing a show and undoing it brings back its rating and list state', () => {
+  library.addToLibrary({ malId: 860, title: 'Rated Show', totalEpisodes: 12 });
+  library.setRating(860, 4);
+  library.setListStatus(860, 'on_hold');
+  const removed = library.removeFromLibrary(860);
+  assert.equal(library.isInLibrary(860), false);
+  library.restoreToLibrary(removed);
+  const x = library.getWatchlist('title_asc').find((s) => s.malId === 860);
+  assert.equal(x.rating, 4);
+  assert.equal(x.listStatus, 'on_hold');
+});

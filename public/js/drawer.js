@@ -69,11 +69,16 @@ export async function openAnime(partial) {
   });
   const removeBtn = h('button', { type: 'button', class: 'btn ghost' }, 'Remove');
   removeBtn.addEventListener('click', async () => {
-    if (!window.confirm(`Remove "${item.title}" from your library?`)) return;
-    await api.remove(item.malId);
-    toast('Removed');
-    bus.emit('library-changed');
-    closeDrawer();
+    // No confirm dialog: remove right away and offer Undo, which puts back the rating and list state too.
+    removeBtn.disabled = true;
+    try {
+      const r = await api.remove(item.malId);
+      bus.emit('library-changed');
+      closeDrawer();
+      toast(`Removed ${item.title}`, { label: 'Undo', onClick: async () => {
+        try { await api.restore(r.removed); bus.emit('library-changed'); toast(`${item.title} is back`); } catch (err) { toast(err.message); }
+      } });
+    } catch (err) { removeBtn.disabled = false; toast(err.message); }
   });
 
   // External links + franchise (prequels, sequels, side stories), filled in once details load.

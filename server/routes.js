@@ -49,7 +49,15 @@ const routes = {
     requireClientHeader(req);
     const body = await parseBody(req);
     if (!num(body.malId)) return sendJSON(res, 400, { error: 'malId required' });
-    library.removeFromLibrary(num(body.malId));
+    const removed = library.removeFromLibrary(num(body.malId));
+    insights.invalidate();
+    return sendJSON(res, 200, { ok: true, removed });
+  },
+  'POST /api/watchlist/restore': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    if (!library.restoreToLibrary(body.removed)) return sendJSON(res, 400, { error: 'nothing to restore' });
+    insights.invalidate();
     return sendJSON(res, 200, { ok: true });
   },
   'POST /api/episode/toggle-watched': async (req, res) => {

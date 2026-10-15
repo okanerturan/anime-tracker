@@ -35,6 +35,7 @@ export const api = {
   syncAnime: (malId) => post('/api/sync-episodes', { malId }),
   add: (anime) => post('/api/watchlist/add', { anime }),
   remove: (malId) => post('/api/watchlist/remove', { malId }),
+  restore: (removed) => post('/api/watchlist/restore', { removed }),
   search: (q) => request(`/api/search?q=${encodeURIComponent(q)}`),
   recommendations: (refresh) => request(`/api/recommendations${refresh ? '?refresh=1' : ''}`),
   dismiss: (malId, undo = false) => post('/api/recommendations/dismiss', { malId, undo }),

@@ -33,7 +33,21 @@ function addToLibrary(anime) {
   addWatchlistStmt.run(anime.malId);
 }
 
-function removeFromLibrary(malId) { removeWatchlistStmt.run(malId); }
+/** Remove from the library; returns the removed entry (rating, list state, added date) for Undo. */
+function removeFromLibrary(malId) {
+  const row = db.prepare('SELECT mal_id, added_at, synced_at, list_status, rating FROM watchlist WHERE mal_id = ?').get(malId) || null;
+  removeWatchlistStmt.run(malId);
+  return row;
+}
+
+/** Undo for removeFromLibrary: put the entry back exactly as it was. */
+function restoreToLibrary(row) {
+  if (!row || !Number(row.mal_id)) return false;
+  db.prepare(`INSERT OR REPLACE INTO watchlist (mal_id, added_at, synced_at, list_status, rating) VALUES (?, ?, ?, ?, ?)`)
+    .run(Number(row.mal_id), row.added_at || null, row.synced_at || null, LIST_STATUSES.includes(row.list_status) ? row.list_status : null,
+      Number.isInteger(row.rating) && row.rating >= 1 && row.rating <= 5 ? row.rating : null);
+  return true;
+}
 function isInLibrary(malId) { return Boolean(inLibraryStmt.get(malId)); }
 
 /** Number of episodes that have aired according to AniList (null when unknown). */
@@ -430,6 +444,6 @@ module.exports = {
   suspiciousProgress,
   progressOf,
   resolveOverflow,
-  upsertAnime, addToLibrary, removeFromLibrary, isInLibrary, airedCount,
+  upsertAnime, addToLibrary, removeFromLibrary, restoreToLibrary, isInLibrary, airedCount,
   getWatchlist, getAnime, getEpisodes, getDetails, markWatchedElsewhere, getAllEpisodes, setWatched, markWatchedThrough, setListStatus, setRating, reactivate, getEpisodeImage, episodeImageUrl
 };
