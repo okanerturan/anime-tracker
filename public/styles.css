@@ -926,7 +926,8 @@ input:user-invalid { border-color: oklch(0.65 0.2 25); }
 /* ---------- Insights ---------- */
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  /* Two per row on a phone (~21rem of content), more on wider screens. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
   gap: var(--space-s);
 }
 
@@ -1668,3 +1669,14 @@ button.history-row { cursor: pointer; }
 /* One per navigation (see route() in main.js). It has no box of its own, so its children sit in
    the page grid; it passes the grid's columns down for .full-width children that inherit them. */
 .view-slot { display: contents; grid-template-columns: inherit; }
+
+/* Phones: all five tabs fit without scrolling (Sync and its badge were cut off), and poster
+   carousels show two cards with the third peeking instead of one giant poster. */
+@media (max-width: 30rem) {
+  .tabs ul { justify-content: space-between; gap: 0; }
+  .tabs a { padding-inline: 0.5rem; font-size: var(--step--1); }
+  .carousel { grid-auto-columns: min(72cqi, 19rem); }
+  .carousel:has(> .rec-card) { grid-auto-columns: 44cqi; }
+  .stat { padding: var(--space-xs) var(--space-s); }
+  .stat .v { font-size: var(--step-2); }
+}

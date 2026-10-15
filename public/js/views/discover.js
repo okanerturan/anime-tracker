@@ -78,7 +78,7 @@ function recCard(r, onDismiss) {
     toast(`Hidden ${r.title}`, { label: 'Undo', onClick: async () => { await api.dismiss(r.malId, true); bus.emit('recommendations-changed'); } });
   });
   const open = () => openAnime({ malId: r.malId, title: r.title, image: r.image });
-  return h('article', { class: 'card' },
+  return h('article', { class: 'card rec-card' },
     media({ src: r.image, alt: '', kind: 'poster', badges: [
       r.crunchyrollUrl ? h('a', { class: 'play-overlay', href: r.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${r.title} on Crunchyroll`, title: 'Open on Crunchyroll' }, icon('play'), h('span', {}, 'Crunchyroll')) : null,
       h('div', { class: 'badge-end' }, h('span', { class: 'pill accent num' }, `${r.match}% match`))] }),
