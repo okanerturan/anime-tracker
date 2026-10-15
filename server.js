@@ -26,6 +26,12 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (auth) {
     require('./server/accounts/log').attach(req, res);
+    // Origin lock: only the front Worker (holding the secret) reaches the hub; then its
+    // X-Client-IP can be trusted for rate limits.
+    const lock = require('./server/accounts/origin').check(req, url.pathname);
+    if (!lock.ok) return sendJSON(res, 403, { error: 'forbidden' });
+    req.originTrusted = lock.trusted;
+    if (req.method === 'GET' && url.pathname === '/up') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('ok'); }
     if (await auth.handle(req, res, url)) return;
     if (url.pathname.startsWith('/api/')) {
       const who = auth.authenticate(req, res);

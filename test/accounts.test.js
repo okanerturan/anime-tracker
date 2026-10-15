@@ -175,4 +175,19 @@ test('devices: hashed tokens, a 10-browser limit, pairing codes once within 10 m
   assert.throws(() => devices.redeem(late, 'Late'), /isn.t valid/, 'expires after 10 minutes');
 });
 
+test('origin lock: only the secret gets in (two values during rotation); /up is exempt; no secret, no lock', () => {
+  const origin = require('../server/accounts/origin');
+  const req = (h = {}, method = 'GET') => ({ method, headers: h });
+  delete process.env.ORIGIN_SECRET; delete process.env.ORIGIN_SECRET_PREVIOUS;
+  assert.deepEqual(origin.check(req(), '/api/up-next'), { ok: true, trusted: false }, 'local runs have no lock');
+  process.env.ORIGIN_SECRET = 'new-secret-value'; process.env.ORIGIN_SECRET_PREVIOUS = 'old-secret-value';
+  assert.equal(origin.check(req(), '/api/up-next').ok, false);
+  assert.equal(origin.check(req({ 'x-origin-auth': 'guess' }), '/api/up-next').ok, false);
+  assert.deepEqual(origin.check(req({ 'x-origin-auth': 'new-secret-value' }), '/api/up-next'), { ok: true, trusted: true });
+  assert.equal(origin.check(req({ 'x-origin-auth': 'old-secret-value' }), '/').ok, true, 'the previous value still works during rotation');
+  assert.equal(origin.check(req(), '/up').ok, true, 'health check exempt');
+  assert.equal(origin.check(req({}, 'POST'), '/up').ok, false, 'only GET /up');
+  delete process.env.ORIGIN_SECRET; delete process.env.ORIGIN_SECRET_PREVIOUS;
+});
+
 test.after(() => { store.close(); db.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
