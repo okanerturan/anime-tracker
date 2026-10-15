@@ -59,6 +59,21 @@ function feed() {
         'TRANSP:TRANSPARENT', 'END:VEVENT');
     }
   }
+  // Premieres: announced shows in your library and announced sequels of your shows, as all-day events.
+  // AniList month-only dates are stored as the 1st, so only dates with a real day are included.
+  const premieres = db.prepare(`SELECT DISTINCT m.mal_id AS malId, COALESCE(m.title_english, m.title) AS title, m.start_date AS date FROM media m
+    WHERE m.status = 'NOT_YET_RELEASED' AND length(m.start_date) = 10 AND m.start_date NOT LIKE '%-01'
+      AND (m.mal_id IN (SELECT mal_id FROM watchlist WHERE list_status IS NULL)
+        OR m.mal_id IN (SELECT r.related_mal_id FROM media_relation r JOIN watchlist w ON w.mal_id = r.mal_id WHERE r.relation_type = 'SEQUEL' AND w.list_status IS NULL))`).all();
+  const day = (iso) => iso.replace(/-/g, '');
+  for (const p of premieres) {
+    const start = new Date(`${p.date}T00:00:00Z`).getTime();
+    if (Number.isNaN(start) || start < now - 86400000) continue;
+    lines.push('BEGIN:VEVENT', `UID:premiere-${p.malId}@anime-tracker`, `DTSTAMP:${stamp(now)}`, `DTSTART;VALUE=DATE:${day(p.date)}`,
+      `DTEND;VALUE=DATE:${day(new Date(start + 86400000).toISOString().slice(0, 10))}`, fold(`SUMMARY:${esc(`${p.title} premieres`)}`),
+      fold(`DESCRIPTION:${esc('Premiere date from AniList; the exact time is added once the first episode is scheduled.')}`),
+      'TRANSP:TRANSPARENT', 'END:VEVENT');
+  }
   lines.push('END:VCALENDAR');
   return `${lines.join('\r\n')}\r\n`;
 }
