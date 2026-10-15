@@ -910,6 +910,13 @@ input:user-invalid { border-color: oklch(0.65 0.2 25); }
 
 .ep-row > .name { flex: 1; }
 
+/* A show with no episode pictures: compact numbered rows, several to a line. */
+.ep-grid.ep-grid--plain { grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); gap: var(--space-xs); }
+.ep-tile--plain { padding: var(--space-xs) var(--space-s); }
+.ep-tile--plain > .ep-row { align-items: center; }
+.ep-num { flex: none; min-inline-size: 2.2em; color: var(--muted); font-weight: 700; font-size: var(--step--2); }
+.ep-tile--plain[data-watched="true"] .name { color: var(--muted); }
+
 .check {
   position: relative;
   flex: none;
@@ -1755,7 +1762,7 @@ table.simple .num-col { text-align: end; }
 
 /* Phones: two episode tiles per row in the show panel (one per row made a 13-episode season a long scroll). */
 @media (max-width: 30rem) {
-  .ep-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-xs); }
+  .ep-grid:not(.ep-grid--plain) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-xs); }
   .ep-grid .ep-row { font-size: var(--step--1); }
 }
 
