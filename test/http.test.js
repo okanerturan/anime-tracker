@@ -68,3 +68,11 @@ test('the app shell and its scripts are served', async () => {
     assert.equal(res.status, 200, path);
   }
 });
+
+test('history exports as a CSV download', async () => {
+  const res = await get('/api/history.csv');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/csv/);
+  assert.match(res.headers.get('content-disposition'), /attachment; filename="crunchyroll-history-/);
+  assert.match(await res.text(), /^﻿?date_played,show,/);
+});

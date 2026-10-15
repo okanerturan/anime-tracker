@@ -135,6 +135,15 @@ const routes = {
     return sendJSON(res, 200, insights.dismiss(num(body.malId), { undo: Boolean(body.undo) }));
   },
   'GET /api/study': (req, res) => sendJSON(res, 200, insights.study()),
+  // The whole history as CSV for spreadsheets: one row per episode, newest first.
+  'GET /api/history.csv': (req, res) => {
+    const { items } = insights.history({ limit: 100000 });
+    const cell = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const lines = [['date_played', 'show', 'crunchyroll_series', 'season', 'episode', 'episode_title', 'percent_watched', 'myanimelist_id'].join(',')];
+    for (const p of items) lines.push([p.datePlayed, p.title || p.seriesTitle, p.seriesTitle, p.seasonTitle, p.malEpisode || p.episodeNumber, p.episodeTitle, p.percent, p.malId > 0 ? p.malId : ''].map(cell).join(','));
+    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="crunchyroll-history-${new Date().toISOString().slice(0, 10)}.csv"`, 'Cache-Control': 'no-store' });
+    res.end('\ufeff' + lines.join('\r\n'));
+  },
   'GET /api/history': (req, res, url) => sendJSON(res, 200, insights.history({ before: url.searchParams.get('before') || null, limit: Math.min(200, Number(url.searchParams.get('limit')) || 60) })),
 
   'GET /api/crunchyroll/status': (req, res) => sendJSON(res, 200, crunchyroll.status()),

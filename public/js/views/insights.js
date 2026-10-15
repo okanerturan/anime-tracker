@@ -54,7 +54,8 @@ function historySection() {
   };
   more.addEventListener('click', load);
   load().catch(() => list.append(h('div', { class: 'muted' }, 'Could not load history.')));
-  return section('Recently watched', 'Your Crunchyroll history, one row per episode', h('div', { class: 'panel' }, list, more));
+  const csv = h('a', { class: 'btn small', href: '/api/history.csv', download: '' }, 'Export as CSV');
+  return section('Recently watched', 'Your Crunchyroll history, one row per episode', h('div', { class: 'panel' }, h('div', { class: 'hero-actions' }, csv), list, more));
 }
 
 export async function render(view) {
