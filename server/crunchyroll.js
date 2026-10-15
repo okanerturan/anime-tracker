@@ -234,6 +234,23 @@ async function ingest(rawRows, { source = 'extension' } = {}) {
           if (!library.isInLibrary(agreed.mal)) ensureInLibrary(agreed.mal);
         }
       }
+      // Then the Crunchyroll-series reverse index: the catalog knows which shows belong to this
+      // Crunchyroll series (AniList links, promoted claims); its Nth TV season, by start date, is
+      // season N. Used only when that gives a full answer from catalog data (no network).
+      if (!rule && require('./db').MULTI && sample.series_id) {
+        const entries = db.prepare(`SELECT * FROM media WHERE cr_series_id = ? AND format IN ('TV','TV_SHORT','ONA') ORDER BY start_date`).all(sample.series_id);
+        const n = Number(sample.season_number) || (entries.length === 1 ? 1 : 0);
+        const pick = n >= 1 && entries.length >= n ? entries[n - 1] : null;
+        if (pick) {
+          const minEp = Math.min(...seasonRows.map((r) => r.episode_number).filter((x) => x != null), Infinity);
+          const cand = { idMal: pick.mal_id, title: { romaji: pick.title, english: pick.title_english }, format: pick.format, episodes: pick.episodes };
+          const r = ruleFromCandidates(sample, Number.isFinite(minEp) ? minEp : 1, [cand]);
+          if (r?.rule) {
+            rule = { ...r.rule, source: 'cr-series', needsReview: false };
+            if (!library.isInLibrary(pick.mal_id)) ensureInLibrary(pick.mal_id);
+          } else if (r?.needFull) for (const id of r.needFull) require('./catalog/worker').enqueue('full', { malId: id }, { recency: 1 });
+        }
+      }
       if (!rule && require('./db').MULTI) {
         const minEp = Math.min(...seasonRows.map((r) => r.episode_number).filter((n) => n != null), Infinity);
         require('./catalog/worker').waitForSearch(seasonQuery(sample), seasonKey, { series_title: sample.series_title, season_title: sample.season_title }, Number.isFinite(minEp) ? minEp : 1);

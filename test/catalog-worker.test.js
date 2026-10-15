@@ -210,3 +210,17 @@ test('fixing a season on the Sync page counts as that account\'s vote', async ()
   const vote = catalogDb.prepare("SELECT mal_id, ep_offset, account_id FROM cr_season_claims WHERE season_id = 'GFIXED'").get();
   assert.deepEqual(vote, { mal_id: 950, ep_offset: 12, account_id: 'fixer' });
 });
+
+test('a known Crunchyroll series maps its third season by position, with zero searches', async () => {
+  reset(); catalogDb.exec('DELETE FROM catalog_waiters; DELETE FROM cr_season_claims');
+  const { withAccount, db: adb } = require('../server/db');
+  const crunchyroll = require('../server/crunchyroll');
+  const ins = catalogDb.prepare("INSERT OR REPLACE INTO media (mal_id, title, format, status, episodes, start_date, cr_series_id, is_full) VALUES (?, ?, 'TV', 'FINISHED', 12, ?, 'GREVIDX', 1)");
+  ins.run(820, 'Long Runner', '2018-01-01'); ins.run(821, 'Long Runner II', '2020-01-01'); ins.run(822, 'Long Runner III', '2022-01-01');
+  const plays = [1, 2].map((e) => ({ id: `rv-${e}`, episodeId: `RV${e}`, seriesId: 'GREVIDX', seasonId: 'GREVS3', seriesTitle: 'Long Runner', seasonTitle: 'Long Runner Season 3', seasonNumber: 3, episodeNumber: e, datePlayed: new Date(Date.now() - e * 60e3).toISOString(), fullyWatched: true, playhead: 1400, durationS: 1440 }));
+  await withAccount('rv', () => crunchyroll.ingest(plays));
+  const watched = withAccount('rv', () => adb.prepare('SELECT episode_number FROM episode_sync WHERE mal_id = 822 AND watched = 1 ORDER BY 1').all().map((r) => r.episode_number));
+  assert.deepEqual(watched, [1, 2], 'season 3 of the series is its third TV entry');
+  assert.equal(catalogDb.prepare("SELECT COUNT(*) n FROM catalog_jobs WHERE type = 'search'").get().n, 0, 'no search');
+  assert.equal(withAccount('rv', () => adb.prepare("SELECT source FROM cr_season_map WHERE season_id = 'GREVS3'").get().source), 'cr-series');
+});
