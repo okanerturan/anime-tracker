@@ -33,6 +33,9 @@ function deviceAccount(req) {
   const row = adb().prepare('SELECT account_id FROM device_tokens WHERE token_hash = ? AND revoked_at IS NULL').get(sha256(m[1]));
   if (!row) return null;
   adb().prepare("UPDATE device_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE token_hash = ?").run(sha256(m[1]));
+  // The extension syncing counts as using the account (the 24-month inactivity rule must not
+  // delete someone who only ever syncs).
+  adb().prepare("UPDATE accounts SET last_active_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").run(row.account_id);
   return row.account_id;
 }
 

@@ -120,4 +120,39 @@ test('log lines carry no tokens, cookies or codes', () => {
   assert.match(lineText, /^GET \/calendar\/\*\*\*\.ics 200 \d+ms$/);
 });
 
+test('quota: soft warns, hard allows only reads, auth and syncing new plays', () => {
+  const quota = require('../server/accounts/quota');
+  const file = path.join(tmp, 'padded.db');
+  fs.writeFileSync(file, Buffer.alloc(3 * 1048576));
+  process.env.QUOTA_SOFT_MB = '1'; process.env.QUOTA_HARD_MB = '2';
+  assert.equal(quota.level(file), 'hard');
+  assert.equal(quota.blocks('POST', '/api/episode/watched-through', 'hard'), true);
+  assert.equal(quota.blocks('POST', '/api/crunchyroll/ingest', 'hard'), false, 'syncing new plays still works');
+  assert.equal(quota.blocks('GET', '/api/up-next', 'hard'), false, 'reads still work');
+  assert.equal(quota.blocks('POST', '/auth/account/delete', 'hard'), false, 'export and delete still work');
+  quota.forget(file); process.env.QUOTA_HARD_MB = '10';
+  assert.equal(quota.level(file), 'soft');
+  delete process.env.QUOTA_SOFT_MB; delete process.env.QUOTA_HARD_MB; quota.forget(file);
+  assert.equal(quota.level(file), 'ok');
+});
+
+test('cleanup: 24 months idle and passkey-less sign-ups older than a day are removed', () => {
+  const cleanup = require('../server/accounts/cleanup');
+  const now = Date.parse('2030-01-01T00:00:00Z');
+  const a = store.adb();
+  const idle = a.prepare("INSERT INTO accounts (display_name, created_at, last_active_at) VALUES ('Idle', '2027-01-01T00:00:00Z', '2027-06-01T00:00:00Z')").run().lastInsertRowid;
+  const active = a.prepare("INSERT INTO accounts (display_name, created_at, last_active_at) VALUES ('Active', '2027-01-01T00:00:00Z', '2029-12-01T00:00:00Z')").run().lastInsertRowid;
+  a.prepare("INSERT INTO passkeys (id, account_id, public_key) VALUES ('pk-active', ?, x'00')").run(active);
+  const abandoned = a.prepare("INSERT INTO accounts (display_name, created_at) VALUES ('Never finished', '2029-12-30T00:00:00Z')").run().lastInsertRowid;
+  const fresh = a.prepare("INSERT INTO accounts (display_name, created_at) VALUES ('Signing up now', '2029-12-31T23:00:00Z')").run().lastInsertRowid;
+  withAccount(String(idle), () => db.prepare('SELECT 1').get());
+  const r = cleanup.sweep({ now });
+  const left = new Set(a.prepare('SELECT id FROM accounts').all().map((x) => x.id));
+  assert.ok(!left.has(Number(idle)), 'idle account removed');
+  assert.ok(!left.has(Number(abandoned)), 'abandoned sign-up removed');
+  assert.ok(left.has(Number(active)) && left.has(Number(fresh)), 'active and in-progress accounts kept');
+  assert.ok(!fs.existsSync(path.join(tmp, 'accounts', `${idle}.db`)), 'its data file is gone');
+  assert.ok(r.inactive >= 1 && r.abandoned >= 1);
+});
+
 test.after(() => { store.close(); db.close(); fs.rmSync(tmp, { recursive: true, force: true }); });

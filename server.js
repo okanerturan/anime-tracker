@@ -7,7 +7,8 @@ const http = require('http');
 const routes = require('./server/routes');
 const sync = require('./server/sync');
 const { serveStatic } = require('./server/static');
-const { MULTI, withAccount } = require('./server/db');
+const { MULTI, withAccount, db } = require('./server/db');
+const quota = require('./server/accounts/quota');
 
 const { sendJSON } = require('./server/http');
 
@@ -29,6 +30,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/')) {
       const who = auth.authenticate(req, res);
       if (!who) return sendJSON(res, 401, { error: 'Sign in first.', signIn: '/signin.html' });
+      // Storage quota from the account file's size: warn past the soft limit; past the hard one only
+      // reads and syncing new plays go through.
+      const lvl = quota.level(db.fileOf(who.accountId));
+      if (lvl !== 'ok') res.setHeader('X-Storage', lvl);
+      if (quota.blocks(req.method, url.pathname, lvl)) return sendJSON(res, 507, { error: 'Your account is over its storage limit. Syncing new plays still works; export or tidy up to make changes again.' });
       if (await withAccount(who.accountId, () => routes.handle(req, res, url))) return;
       return sendJSON(res, 404, { error: 'not found' });
     }
@@ -44,4 +50,9 @@ server.listen(PORT, HOST, () => {
   console.log(`Anime tracker running: http://localhost:${PORT}`);
   // Hosted mode refreshes per account from the scheduler (group 8); a single or implicit account here.
   if (process.env.NO_SYNC !== '1' && !auth) asAccount(() => sync.start());
+  // Hosted mode: daily account housekeeping (24-month inactivity, abandoned sign-ups).
+  if (auth && process.env.NO_SYNC !== '1') {
+    const sweep = () => { try { const r = require('./server/accounts/cleanup').sweep(); if (r.inactive || r.abandoned) console.log(`accounts cleanup: ${r.inactive} inactive, ${r.abandoned} abandoned`); } catch (err) { console.error('accounts cleanup failed', err.message); } };
+    setTimeout(sweep, 60e3).unref(); setInterval(sweep, 86400e3).unref();
+  }
 });

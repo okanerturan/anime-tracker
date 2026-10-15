@@ -110,6 +110,8 @@ const db = {
   close: () => { for (const [k, e] of open) { e.conn.close(); open.delete(k); } catalogConn?.close(); },
   /** How many account files are open (tests and the status endpoint). */
   openCount: () => open.size,
+  /** The path of an account's file (hosted mode), or the single file. */
+  fileOf: (accountId) => fileFor(MULTI ? String(accountId) : 'main'),
   /** Close an account's file (before deleting or replacing it); returns its path. */
   forget: (accountId) => {
     const key = String(accountId);
