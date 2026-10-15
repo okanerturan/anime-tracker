@@ -118,7 +118,8 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
   }
   return rows.map((r) => {
     const aired = airedCount({ status: r.status, next_airing_episode: r.nextAiringEpisode, episodes: r.mediaEpisodes });
-    const next = r.watchedCount && r.watchedCount < (aired ?? r.episodesCount) ? nextStmt.get(r.malId, r.malId) : null;
+    // Next episode for shows in progress, and E1 for released shows you haven't started.
+    const next = (r.watchedCount || (aired ?? 0) > 0) && r.watchedCount < (aired ?? r.episodesCount) ? nextStmt.get(r.malId, r.malId) : null;
     // Play target: the exact episode, else the show's Crunchyroll page, else the first service AniList lists.
     let nextUrl = next?.url && /crunchyroll\.com\/watch\//.test(next.url) ? next.url.replace(/^http:/, 'https:') : null;
     let nextSite = 'Crunchyroll';

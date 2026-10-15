@@ -97,7 +97,7 @@ function card(x, inSeries = 1) {
         icon('play'), h('span', {}, x.sequel.airing ? 'Sequel airing' : 'Sequel out'))
     : null;
   // In-progress shows get a Play pill straight to the next episode, like Up Next.
-  const play = x.nextEpisodeUrl && ['watching', 'almost', 'unfinished'].includes(st.key)
+  const play = x.nextEpisodeUrl && ['watching', 'almost', 'unfinished', 'not-started'].includes(st.key)
     ? h('a', { class: 'play-overlay', href: x.nextEpisodeUrl, target: '_blank', rel: 'noopener', 'aria-label': x.nextEpisodeUrlIsExact ? `Play episode ${x.nextEpisode} of ${title} on Crunchyroll` : `Open ${title} on ${x.nextEpisodeSite}` }, icon('play'), h('span', {}, x.nextEpisodeUrlIsExact ? `E${x.nextEpisode}` : x.nextEpisodeSite === 'Crunchyroll' ? 'Open' : x.nextEpisodeSite))
     : null;
   // Same tick as Up Next: mark the next episode watched from the card.
