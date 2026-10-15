@@ -1,7 +1,7 @@
 // Service worker: syncs every 30 minutes (and whenever you open Crunchyroll).
 importScripts('crunchyroll-api.js', 'anilist-relay.js'); /* global crunchyrollSync, runAniListRelay */
 
-const DEFAULTS = { trackerUrl: 'http://localhost:8080', trackerKey: '', clientId: null, lastSync: null, lastResult: null, lastError: null };
+const DEFAULTS = { trackerUrl: 'http://localhost:8080', trackerKey: '', clientId: null, lastSync: null, lastResult: null, lastError: null, notifyNew: true, notified: null };
 const get = () => chrome.storage.local.get(DEFAULTS);
 const set = (v) => chrome.storage.local.set(v);
 
@@ -85,6 +85,7 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
         if (relay.ran && result.deferred) Object.assign(result, await postTracker(cfg.trackerUrl, '/api/crunchyroll/ingest', { rows: [] }));
       } catch { /* the relay is best effort */ }
       await set({ lastSync: new Date().toISOString(), lastResult: { ...result, episodes, links, relay, reason, fetched: got.rows.length }, lastError: null });
+      notifyNewEpisodes(cfg).catch(() => {});
       return { ok: true, result };
     } catch (err) {
       await set({ lastError: `${new Date().toLocaleString()}: ${err.message}` });
@@ -95,6 +96,41 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
   })();
   return running;
 }
+
+/**
+ * New-episode notifications. After a sync, any show on Continue watching whose newest aired episode
+ * is newer than what we last told you about gets one notification. The first run only records a
+ * baseline, so installing the extension doesn't produce a flood.
+ */
+async function notifyNewEpisodes(cfg) {
+  if (cfg.notifyNew === false || !chrome.notifications) return;
+  const res = await fetch(`${cfg.trackerUrl}/api/up-next`, { headers: authHeaders(cfg.trackerKey || '') });
+  if (!res.ok) return;
+  const data = await res.json();
+  const seen = (await get()).notified;
+  const next = { ...(seen || {}) };
+  const fresh = [];
+  for (const x of data.continueWatching || []) {
+    if (!x.latestAiredAt) continue;
+    const at = new Date(x.latestAiredAt).getTime();
+    if (seen && (!seen[x.malId] || at > seen[x.malId]) && Date.now() - at < 3 * 86400000) fresh.push(x);
+    next[x.malId] = Math.max(at, next[x.malId] || 0);
+  }
+  await set({ notified: next });
+  for (const x of fresh.slice(0, 3)) {
+    chrome.notifications.create(`ep|${x.malId}|${x.nextEpisodeUrl || `${cfg.trackerUrl}/#/up-next`}`, {
+      type: 'basic', iconUrl: 'icons/icon-128.png', title: 'New episode out',
+      message: `${x.title} · episode ${x.nextEpisode}${x.nextEpisodeTitle && !/^Episode \d+$/.test(x.nextEpisodeTitle) ? `: ${x.nextEpisodeTitle}` : ''}`,
+      priority: 0
+    });
+  }
+  if (fresh.length > 3) chrome.notifications.create(`more|${Date.now()}|${cfg.trackerUrl}/#/up-next`, { type: 'basic', iconUrl: 'icons/icon-128.png', title: 'New episodes out', message: `${fresh.length - 3} more shows have new episodes`, priority: 0 });
+}
+chrome.notifications?.onClicked.addListener((id) => {
+  const url = id.split('|').slice(2).join('|');
+  if (url) chrome.tabs.create({ url });
+  chrome.notifications.clear(id);
+});
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
@@ -114,6 +150,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       reply(await get());
     } else if (msg.type === 'set-tracker-url') {
       await set({ trackerUrl: String(msg.url || DEFAULTS.trackerUrl).replace(/\/+$/, '') });
+      reply({ ok: true });
+    } else if (msg.type === 'set-notify') {
+      await set({ notifyNew: Boolean(msg.on) });
       reply({ ok: true });
     } else if (msg.type === 'set-tracker-key') {
       await set({ trackerKey: String(msg.key || '') });

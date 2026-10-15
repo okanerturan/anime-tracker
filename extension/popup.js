@@ -11,6 +11,7 @@ function render(s) {
   $('error').textContent = s.lastError || (s.lastSync ? '' : 'Not synced yet. Click “Sync now”.');
   $('url').value = s.trackerUrl;
   $('key').value = s.trackerKey || '';
+  $('notify').checked = s.notifyNew !== false;
   $('open').href = `${s.trackerUrl}/#/up-next`;
   loadUpNext(s);
 }
@@ -70,5 +71,6 @@ async function sync(full) {
 $('sync').onclick = () => sync(false);
 $('full').onclick = () => sync(true);
 $('url').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-tracker-url', url: e.target.value }, refresh);
+$('notify').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-notify', on: e.target.checked }, refresh);
 $('key').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-tracker-key', key: e.target.value }, refresh);
 refresh();

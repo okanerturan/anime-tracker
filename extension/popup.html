@@ -33,6 +33,8 @@
   details > section { padding-top: 0; }
   input { width: 100%; background: var(--surface); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 6px; font: inherit; }
   label { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; }
+  .check-row { display: flex; gap: 8px; align-items: flex-start; }
+  .check-row input { width: auto; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -56,6 +58,7 @@
     <section>
       <label>Tracker URL <input id="url"></label>
       <label>Tracker key <input id="key" type="password" autocomplete="off" placeholder="only for the hosted tracker"></label>
+      <label class="check-row"><input type="checkbox" id="notify"> Notify me when a show I'm watching has a new episode</label>
       <div class="actions"><button id="full" class="secondary">Full resync</button></div>
     </section>
   </details>
