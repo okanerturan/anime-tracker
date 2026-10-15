@@ -271,6 +271,9 @@ export async function render(view) {
         });
         return row;
       }))) : null,
+    // Settings people look for come before the long, low-priority list of sampled seasons.
+    pushSection(),
+    calendarSection(),
     cr.sampled?.length ? section('Sampled, not tracked', `${cr.sampled.length} Crunchyroll seasons you tried but never finished an episode of. Track one to add it to your library.`,
       capList(h('div', { class: 'quiet-list' }, cr.sampled.map((s) => {
         const btn = h('button', { type: 'button', class: 'btn small' }, 'Track');
@@ -292,8 +295,6 @@ export async function render(view) {
         });
         return row;
       })))) : null,
-    calendarSection(),
-    pushSection(),
     h('details', { class: 'collapse section', id: 'import', open: (stats.library || 0) < 20 || /[?&]import=1/.test(location.hash) ? '' : null },
       h('summary', {}, h('div', { class: 'section-head' },
         h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Import from elsewhere'),
