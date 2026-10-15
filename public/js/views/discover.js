@@ -142,12 +142,18 @@ export async function render(view) {
   const grid = h('div', { class: 'cards', style: { '--rows': '5' } });
   const count = h('span', { class: 'sub num' });
   let items = data.items;
+  // 60 at a time; "Show more" adds the next 60 (the count says how many match the filters).
+  let limit = 60;
+  const more = h('button', { type: 'button', class: 'btn small ghost show-all', hidden: true });
+  more.addEventListener('click', () => { limit += 60; draw(); });
   const draw = () => {
     const list = items.filter(passes);
-    count.textContent = `${Math.min(list.length, 60)} of ${items.length}`;
+    count.textContent = list.length > limit ? `${limit} of ${list.length}` : `${list.length}`;
     grid.replaceChildren(...(list.length
-      ? list.slice(0, 60).map((r) => recCard(r, () => { items = items.filter((x) => x.malId !== r.malId); draw(); }))
+      ? list.slice(0, limit).map((r) => recCard(r, () => { items = items.filter((x) => x.malId !== r.malId); draw(); }))
       : [h('div', { class: 'empty' }, 'Nothing matches these filters.')]));
+    more.hidden = list.length <= limit;
+    more.textContent = `Show ${Math.min(60, list.length - limit)} more`;
   };
   draw();
   const refresh = h('button', { type: 'button', class: 'btn push-end' }, 'Recompute');
@@ -187,6 +193,7 @@ export async function render(view) {
       h('div', { class: 'section-head' }, h('h2', {}, 'Recommended for you'), count, refresh),
       h('p', { class: 'muted' }, 'Shows you haven’t watched, from AniList community recommendations of shows you liked. Rate shows (open one from your Library) to steer this; dropped and 1–2 star shows count against their recommendations.'),
       filterBar(draw),
-      grid),
+      grid,
+      more),
     section('Find anything', null, ...searchPanel(new URLSearchParams(location.hash.split('?')[1] || '').get('q') || ''))].filter(Boolean));
 }

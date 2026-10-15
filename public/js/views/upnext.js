@@ -387,8 +387,14 @@ function draw(view, data, cr) {
       h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), title),
       h('span', { class: 'sub' }, sub),
       link ? h('a', { class: 'sub push-end', href: link.href, onclick: (e) => e.stopPropagation() }, link.label) : null)),
-    h('div', { class: 'collapse-body' },
-      h('div', { class: 'cards cards--wide', style: { '--rows': '6' } }, items.slice(0, 60).map((x) => epCard(x, mode, rerender)))));
+    h('div', { class: 'collapse-body' }, ...(() => {
+      // First 24 cards; the rest are built only when asked for, so a long list never goes missing.
+      const grid = h('div', { class: 'cards cards--wide', style: { '--rows': '6' } }, items.slice(0, 24).map((x) => epCard(x, mode, rerender)));
+      if (items.length <= 24) return [grid];
+      const more = h('button', { type: 'button', class: 'btn small ghost show-all' }, `Show all ${items.length}`);
+      more.addEventListener('click', () => { grid.append(...items.slice(24).map((x) => epCard(x, mode, rerender))); more.remove(); });
+      return [grid, more];
+    })()));
 
   const airingWeek = [...data.airingSoon, ...(data.caughtUpAiring || [])].filter((x) => x.nextAiringAt && x.nextAiringAt - Date.now() < 7 * 86400000);
   const caughtUp = [...(data.airingSoon || []), ...(data.caughtUpAiring || [])].filter((x) => !x.nextAiringAt || x.nextAiringAt - Date.now() >= 7 * 86400000);
