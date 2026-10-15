@@ -42,7 +42,7 @@ It's built around a real account: 3,884 Crunchyroll history entries going back t
   </tr>
 </table>
 
-**Search and keyboard.** Search ignores punctuation and knows the nicknames AniList lists, so "jjk", "re zero" and "returners magic" all find their shows, in the Library filter and in ⌘K / Ctrl+K, which opens any show by name (or searches AniList); `/` jumps to search, 1–5 switch tabs, `?` lists them all.
+**Search and keyboard.** Search ignores punctuation and knows the nicknames AniList lists, so "jjk", "re zero" and "returners magic" all find their shows, in the Library filter and in ⌘K / Ctrl+K, which opens any show by name (or searches AniList) and also runs commands like sync, calendar, import, review or theme; `/` jumps to search, 1–5 switch tabs, `?` lists them all.
 
 **Airing calendar.** The Sync page has a private calendar link to subscribe to in Google Calendar, Apple Calendar or Outlook: each airing show's next episode at its real time plus the following weeks, refreshed every few hours (shows on hold or dropped are left out). The link is a long random secret you can replace at any time; it reveals titles and air times, nothing else.
 
