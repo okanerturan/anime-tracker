@@ -104,12 +104,16 @@ setInterval(updateStatus, 60000);
 
 // AniList relay: when the hosted server is blocked by AniList, this browser fills in the queued
 // requests (new metadata, air times, season lookups) whenever the app is open.
+// A tick answers the queued batch; while batches keep coming (a big backfill), it goes again soon.
+let relayTimer = null;
 async function relayTick() {
+  clearTimeout(relayTimer);
   const ran = await runRelay();
   if (ran) bus.emit('library-changed');
+  relayTimer = setTimeout(relayTick, ran ? 5000 : 10 * 60 * 1000);
 }
-setTimeout(relayTick, 3000);
-setInterval(relayTick, 10 * 60 * 1000);
+relayTimer = setTimeout(relayTick, 3000);
+bus.on('relay-now', relayTick);
 
 // Offline shell (see sw.js). Registered after load so it never competes with the first paint.
 if ('serviceWorker' in navigator) {

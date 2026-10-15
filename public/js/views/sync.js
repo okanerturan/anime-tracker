@@ -133,7 +133,12 @@ export async function render(view) {
     render(view);
   });
   const runBtn = h('button', { type: 'button', class: 'btn' }, 'Refresh metadata now');
-  runBtn.addEventListener('click', async () => { await api.runSync(); toast('Background refresh started'); });
+  runBtn.addEventListener('click', async () => {
+    await api.runSync();
+    toast('Background refresh started');
+    // If AniList blocks the server, the refresh queues requests for this browser: answer them now.
+    setTimeout(() => bus.emit('relay-now'), 4000);
+  });
 
   view.replaceChildren(...[
     section('Crunchyroll sync', last ? `Last sync ${ago(last.at)} via ${last.source}` : 'Never synced',
