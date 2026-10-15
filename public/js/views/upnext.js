@@ -310,6 +310,26 @@ function readSnapshot() {
 }
 function writeSnapshot(data, cr) { try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ at: Date.now(), data, cr })); } catch {} }
 
+/** Announced sequels of shows you finished: premiere date when known, "date not announced" otherwise. */
+function comingSoonRow(items) {
+  if (!items.length) return null;
+  const when = (d) => {
+    if (!d) return 'date not announced';
+    const date = new Date(d);
+    if (Number.isNaN(date.getTime())) return d;
+    const days = Math.round((date.getTime() - Date.now()) / 86400000);
+    const label = date.toLocaleDateString(undefined, /-01$/.test(d) && days > 60 ? { month: 'long', year: 'numeric' } : { day: 'numeric', month: 'short', year: 'numeric' });
+    return days <= 0 ? `premiered ${label}` : days <= 30 ? `in ${days} day${days === 1 ? '' : 's'} · ${label}` : label;
+  };
+  return h('section', { class: 'section' },
+    h('div', { class: 'section-head' }, h('h2', {}, 'Coming soon'), h('span', { class: 'sub' }, `${plural(items.length, 'announced sequel')} to shows you finished`)),
+    h('div', { class: 'quiet-list' }, items.map((x) => h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
+      h('img', { src: x.image, alt: '', loading: 'lazy' }),
+      h('span', { class: 'week-item-text' },
+        h('span', { class: 'week-item-title one-line' }, x.title),
+        h('span', { class: 'week-item-sub one-line' }, `${when(x.startDate)}${x.after ? ` · after ${x.after}` : ''}`))))));
+}
+
 export async function render(view) {
   const snap = readSnapshot();
   if (snap) draw(view, snap.data, snap.cr); else view.replaceChildren(h('div', { class: 'skeleton' }));
@@ -377,6 +397,7 @@ function draw(view, data, cr) {
     inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map((p) => pausedCard(p, () => refresh(view))), '') : null,
     weekStrip(airingWeek),
     caughtUpRow(caughtUp),
+    comingSoonRow(data.comingSoon || []),
     carousel('New seasons available', 'Sequels of shows you finished',
       data.newSeasons.map((x) => epCard(x, 'season')), 'No unwatched sequels.'),
     stalledRest.length ? collapsible('Paused a while ago', `${plural(stalledRest.length, 'show')} you stopped partway. Hold or drop them to clear this list`, stalledRest, 'stalled', { href: '#/library?filter=unfinished&sort=left_asc', label: 'All of them in the Library, fewest left first →' }) : null,

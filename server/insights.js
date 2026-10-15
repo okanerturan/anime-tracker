@@ -132,13 +132,39 @@ function upNext() {
   newSeasonCards.sort((a, b) => (b.format === 'TV') - (a.format === 'TV') || (b.averageScore || 0) - (a.averageScore || 0));
 
   onHold.sort((a, b) => a.lastAgeDays - b.lastAgeDays);
+  // Coming soon: announced sequels of shows you finished (or nearly), with a premiere date when known.
+  const upcoming = db.prepare(`
+    SELECT DISTINCT r.related_mal_id AS mal_id, src.mal_id AS src_id, m.title, m.title_english, m.cover_url AS cover, m.status, m.format,
+           m.episodes, m.start_date, m.average_score
+    FROM media_relation r
+    JOIN watchlist sw ON sw.mal_id = r.mal_id
+    JOIN anime src ON src.mal_id = r.mal_id
+    JOIN media m ON m.mal_id = r.related_mal_id
+    WHERE r.relation_type = 'SEQUEL' AND m.status = 'NOT_YET_RELEASED'
+      AND m.format IN ('TV','TV_SHORT','ONA','MOVIE')
+      AND COALESCE(sw.list_status, '') <> 'dropped'
+      AND EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND e.watched = 1)
+  `).all();
+  const seenUpcoming = new Set();
+  const comingSoon = [];
+  for (const u of upcoming) {
+    if (seenUpcoming.has(u.mal_id)) continue;
+    seenUpcoming.add(u.mal_id);
+    const src = byId.get(u.src_id);
+    const srcAired = src ? (library.airedCount({ status: src.status, next_airing_episode: src.next_airing_episode, episodes: src.episodes }) ?? src.ep_rows) : 0;
+    if (src && srcAired && src.watched / srcAired < 0.75) continue;
+    comingSoon.push(card(u, { after: src ? displayTitle(src) : null, startDate: u.start_date || null, inLibrary: library.isInLibrary(u.mal_id) }));
+  }
+  // Dated premieres first, soonest first; undated ("TBA") after.
+  comingSoon.sort((a, b) => (a.startDate ? 0 : 1) - (b.startDate ? 0 : 1) || String(a.startDate).localeCompare(String(b.startDate)));
+
   // Finished in the last two weeks and not rated yet: the moment a rating is easiest to give.
   const recentlyFinished = rows
     .filter((r) => r.watched && !r.rating && r.episodes && r.watched >= r.episodes && r.status === 'FINISHED' && r.last_watched && now - new Date(r.last_watched).getTime() < 14 * DAY)
     .sort((a, b) => String(b.last_watched).localeCompare(String(a.last_watched)))
     .slice(0, 6)
     .map((r) => card(r, { finishedAt: r.last_watched, episodes: r.episodes }));
-  return { continueWatching, airingSoon, newSeasons: newSeasonCards, caughtUpAiring, stalled, onHold, dropped, recentlyFinished };
+  return { continueWatching, airingSoon, newSeasons: newSeasonCards, caughtUpAiring, stalled, onHold, dropped, recentlyFinished, comingSoon };
 }
 
 // Your rating scales a show's pull on recommendations: 5 stars counts double, 1-2 stars count against.
