@@ -83,7 +83,7 @@ function pushSection() {
       catch (err) { status.textContent = err.message; }
     });
     test.addEventListener('click', async () => {
-      try { const r = await api.pushTest(); status.textContent = r.sent ? 'Test sent. It should arrive in a few seconds.' : 'The push service did not accept the test. Turn notifications off and on again.'; }
+      try { const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription(); const r = await api.pushTest(sub?.endpoint); status.textContent = r.sent ? 'Test sent. It should arrive in a few seconds.' : 'The push service did not accept the test. Turn notifications off and on again.'; }
       catch (err) { status.textContent = err.message; }
     });
   }

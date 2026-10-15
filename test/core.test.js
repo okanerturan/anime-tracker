@@ -299,6 +299,11 @@ test('web push: VAPID token verifies, requests are well-formed, gone subscriptio
   const realFetch = global.fetch;
   global.fetch = async (url, opts) => { seen.push({ url, opts }); return new Response(null, { status: url.endsWith('/gone') ? 410 : 201 }); };
   try {
+    seen.length = 0;
+    const only = await push.sendAll({ title: 't', body: 'b' }, { only: 'https://push.example.com/alive' });
+    assert.equal(seen.length, 1, 'a test goes to one device');
+    assert.equal(only.devices, 2, 'other devices are kept');
+    seen.length = 0;
     const r = await push.sendAll({ title: 't', body: 'b', url: '/#/up-next' });
     assert.equal(r.sent, 1);
     assert.deepEqual(push.subscriptions().map((s) => s.endpoint), ['https://push.example.com/alive'], 'the 410 one is removed');

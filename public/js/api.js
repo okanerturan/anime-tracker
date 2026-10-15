@@ -60,7 +60,7 @@ export const api = {
   pushKey: () => request('/api/push/key'),
   pushSubscribe: (subscription) => post('/api/push/subscribe', { subscription }),
   pushUnsubscribe: (endpoint) => post('/api/push/unsubscribe', { endpoint }),
-  pushTest: () => post('/api/push/test'),
+  pushTest: (endpoint) => post('/api/push/test', { endpoint }),
   resetCalendar: () => post('/api/calendar/reset'),
   history: (before) => request(`/api/history${before ? `?before=${encodeURIComponent(before)}` : ''}`),
   crStatus: () => request('/api/crunchyroll/status'),

@@ -48,9 +48,10 @@ function unsubscribe(endpoint) {
 }
 
 /** Wake every subscribed device; drops subscriptions the push service says are gone. */
-async function sendAll(message) {
+async function sendAll(message, { only = null } = {}) {
   if (message) state.set('pushLatest', message);
-  const list = subscriptions();
+  const all = subscriptions();
+  const list = only ? all.filter((s) => s.endpoint === only) : all;
   if (!list.length) return { sent: 0 };
   const { publicKey, privateJwk } = await keys();
   const keep = []; let sent = 0;
@@ -64,8 +65,10 @@ async function sendAll(message) {
       if (res.ok) sent += 1;
     } catch { keep.push(s); }
   }
-  saveSubscriptions(keep);
-  return { sent, devices: keep.length };
+  // Devices outside this send stay as they were.
+  const untouched = all.filter((s) => !list.includes(s));
+  saveSubscriptions([...untouched, ...keep]);
+  return { sent, devices: untouched.length + keep.length };
 }
 
 /**
