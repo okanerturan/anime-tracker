@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { h, fill, icon, media, progress, cardLink, statusPill, ago, toast, FORMAT_LABEL, titleMatches } from '../ui.js';
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
+import { rememberPlay } from '../playcheck.js';
 
 const FILTERS = [
   ['all', 'All'], ['watching', 'Watching'], ['almost', 'Almost done'], ['unfinished', 'Unfinished'], ['completed', 'Completed'], ['sequel', 'Sequel out'],
@@ -100,7 +101,7 @@ function card(x, inSeries = 1, eager = false) {
     : null;
   // In-progress shows get a Play pill straight to the next episode, like Up Next.
   const play = x.nextEpisodeUrl && ['watching', 'almost', 'unfinished', 'not-started'].includes(st.key)
-    ? h('a', { class: 'play-overlay', href: x.nextEpisodeUrl, target: '_blank', rel: 'noopener', 'aria-label': x.nextEpisodeUrlIsExact ? `Play episode ${x.nextEpisode} of ${title} on Crunchyroll` : `Open ${title} on ${x.nextEpisodeSite}` }, icon('play'), h('span', {}, x.nextEpisodeUrlIsExact ? `E${x.nextEpisode}` : x.nextEpisodeSite === 'Crunchyroll' ? (st.key === 'not-started' ? 'Start' : 'Open') : x.nextEpisodeSite))
+    ? h('a', { class: 'play-overlay', href: x.nextEpisodeUrl, target: '_blank', rel: 'noopener', onclick: () => { if (x.nextEpisodeUrlIsExact) rememberPlay({ malId: x.malId, title }, x.nextEpisode); }, 'aria-label': x.nextEpisodeUrlIsExact ? `Play episode ${x.nextEpisode} of ${title} on Crunchyroll` : `Open ${title} on ${x.nextEpisodeSite}` }, icon('play'), h('span', {}, x.nextEpisodeUrlIsExact ? `E${x.nextEpisode}` : x.nextEpisodeSite === 'Crunchyroll' ? (st.key === 'not-started' ? 'Start' : 'Open') : x.nextEpisodeSite))
     : null;
   // Same tick as Up Next: mark the next episode watched from the card.
   const tick = x.nextEpisode && ['watching', 'almost', 'unfinished', 'caught-up'].includes(st.key) && st.left > 0

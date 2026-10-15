@@ -3,6 +3,7 @@ import { api } from './api.js';
 import { h, fill, icon, media, toast, statusPill, relTime, FORMAT_LABEL } from './ui.js';
 import { runRelay } from './anilist-relay.js';
 import { bus } from './bus.js';
+import { rememberPlay } from './playcheck.js';
 
 const dialog = () => document.getElementById('drawer');
 
@@ -381,7 +382,7 @@ export async function openAnime(partial) {
     const fallback = crSeries || other;
     const url = nextEp.crunchyrollUrl || fallback?.url;
     fill(playRow, url
-      ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener' }, icon('play'), ' ',
+      ? h('a', { class: 'btn primary', href: url, target: '_blank', rel: 'noopener', onclick: () => { if (nextEp.crunchyrollUrl) rememberPlay(item, nextEp.episodeNumber); } }, icon('play'), ' ',
           nextEp.crunchyrollUrl ? `Play E${nextEp.episodeNumber}${nextName ? ` · ${nextName}` : ''}` : `Open on ${fallback.site} · next is E${nextEp.episodeNumber}`)
       : null);
   }
@@ -394,7 +395,7 @@ export async function openAnime(partial) {
       title: 'Toggle watched. Shift-click marks every episode up to this one.'
     }, icon('check'));
     const playPill = ep.crunchyrollUrl
-      ? h('a', { class: 'play-overlay ep-play', href: ep.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Watch episode ${ep.episodeNumber} on Crunchyroll` }, icon('play'), h('span', {}, 'Play'))
+      ? h('a', { class: 'play-overlay ep-play', href: ep.crunchyrollUrl, target: '_blank', rel: 'noopener', onclick: () => { if (!ep.watched) rememberPlay(item, ep.episodeNumber); }, 'aria-label': `Watch episode ${ep.episodeNumber} on Crunchyroll` }, icon('play'), h('span', {}, 'Play'))
       : null;
     const el = h('article', { class: `card ep-tile ${playPill ? 'has-play' : ''}`, 'data-watched': String(ep.watched), 'data-episode': String(ep.episodeNumber) },
       media({ src: ep.image, alt: '', badges: [h('span', { class: 'pill dark badge-start num' }, `E${ep.episodeNumber}`), playPill] }),
