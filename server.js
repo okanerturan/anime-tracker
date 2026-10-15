@@ -11,6 +11,7 @@ const { MULTI, withAccount, db } = require('./server/db');
 const quota = require('./server/accounts/quota');
 
 const { sendJSON } = require('./server/http');
+const passgate = require('./server/passgate');
 
 // Hosted mode (AUTH_MODE=accounts): requests belong to the account their session cookie or device
 // token names (server/accounts/http.js). IMPLICIT_ACCOUNT=1 instead runs everything as that one
@@ -24,14 +25,18 @@ const HOST = process.env.HOST || '127.0.0.1';
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (auth) require('./server/accounts/log').attach(req, res);
+  // Origin lock (any mode, when ORIGIN_SECRET is set): only the front Worker, holding the secret,
+  // reaches the hub; then its X-Client-IP can be trusted for rate limits. GET /up is the proxy's
+  // health check.
+  const lock = require('./server/accounts/origin').check(req, url.pathname);
+  if (!lock.ok) return sendJSON(res, 403, { error: 'forbidden' });
+  req.originTrusted = lock.trusted;
+  if (req.method === 'GET' && url.pathname === '/up') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('ok'); }
+  // One account behind a passphrase (the hub before accounts are switched on): the same gate as the
+  // Cloudflare build. Without APP_PASSPHRASE (a tracker at home on 127.0.0.1) there is no gate.
+  if (!auth && passgate.enabled() && await passgate.handle(req, res, url)) return;
   if (auth) {
-    require('./server/accounts/log').attach(req, res);
-    // Origin lock: only the front Worker (holding the secret) reaches the hub; then its
-    // X-Client-IP can be trusted for rate limits.
-    const lock = require('./server/accounts/origin').check(req, url.pathname);
-    if (!lock.ok) return sendJSON(res, 403, { error: 'forbidden' });
-    req.originTrusted = lock.trusted;
-    if (req.method === 'GET' && url.pathname === '/up') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('ok'); }
     // Kill switches (D14): read-only maintenance and paused sync. The header tells the front
     // Worker this 503 is deliberate, so it passes the message on instead of reporting the hub down.
     const refused = require('./server/accounts/switches').refuse(req.method, url.pathname);

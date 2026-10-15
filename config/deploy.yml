@@ -1,0 +1,59 @@
+# The hosted tracker on hub (the Hetzner box shared with other apps, see ~/code/backlog/hetzner-consolidation.md),
+# behind kamal-proxy. Visitors never come here directly: the front Worker on anime-tracker.okan.workers.dev
+# proxies to this host with X-Origin-Auth, and the app refuses requests without it (AGENTS.md).
+service: anime-tracker
+image: okturan/anime-tracker
+
+# The box is shared, so the container has a ceiling.
+servers:
+  web:
+    hosts:
+      - 178.104.118.172
+    options:
+      memory: 1g
+      cpus: 1
+
+proxy:
+  ssl: true
+  host: anime-tracker.178-104-118-172.sslip.io
+  app_port: 3000
+  healthcheck:
+    path: /up
+
+# Account files, catalog.db and accounts.db. Owned by uid 1000 (the image's node user).
+volumes:
+  - /srv/anime-tracker:/data
+
+registry:
+  server: ghcr.io
+  username: okturan
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+# Built off the box (amd64), never on the shared server.
+builder:
+  arch: amd64
+
+env:
+  clear:
+    # passphrase until migration step 5 (8.10), then accounts with SIGNUP=invite.
+    AUTH_MODE: passphrase
+    RP_ID: anime-tracker.okan.workers.dev
+    APP_ORIGIN: https://anime-tracker.okan.workers.dev
+    R2_BUCKET: anime-tracker-images
+    R2_BACKUP_BUCKET: hub-backups
+  secret:
+    - APP_PASSPHRASE
+    - ORIGIN_SECRET
+    - IMAGE_SIGNING_KEY
+    - TIMEZONE
+    - R2_ACCOUNT_ID
+    - R2_ACCESS_KEY_ID
+    - R2_SECRET_ACCESS_KEY
+    - R2_BACKUP_ACCESS_KEY_ID
+    - R2_BACKUP_SECRET_ACCESS_KEY
+
+aliases:
+  logs: app logs -f
+  switch: app exec "node scripts/switch.js"
+  restore: app exec "node scripts/restore.js"

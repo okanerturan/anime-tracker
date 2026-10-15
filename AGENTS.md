@@ -73,3 +73,19 @@ To put one account back: `READ_ONLY on` (or stop the app), copy
 `/data/restore-drill/accounts/<id>.db` over `/data/accounts/<id>.db` and delete its `-wal`/`-shm`,
 then `READ_ONLY off`. No other account is touched. `--all` restores every account (whole-box rebuild:
 `kamal setup` on the new box, restore with `--all` into `/data`, start).
+
+## Deploy (Kamal)
+
+`Dockerfile` (Node 26, better-sqlite3 built in the image, runs as `node` on port 3000) and
+`config/deploy.yml` (hub 178.104.118.172, `anime-tracker.178-104-118-172.sslip.io`, 1 GB / 1 CPU,
+`/srv/anime-tracker:/data`, health check `GET /up`). Secrets come from the environment through
+`.kamal/secrets`, which holds only variable names.
+
+- Once on the box: `mkdir -p /srv/anime-tracker && chown 1000:1000 /srv/anime-tracker`.
+- `AUTH_MODE=passphrase` with `APP_PASSPHRASE` gives the same passphrase gate and session cookie as the
+  Cloudflare build (`server/passgate.js`), so signed-in browsers and the extension keep working when
+  the front Worker starts proxying. Switch to `AUTH_MODE=accounts` at migration step 5.
+- Kamal isn't installed on this Mac yet: `gem install kamal` (or the official Docker image) before the
+  first `kamal setup`.
+- Local check of the image: `docker build -t anime-tracker:local .` then
+  `docker run -p 8195:3000 -v at-data:/data -e APP_PASSPHRASE=test -e NO_SYNC=1 anime-tracker:local`.

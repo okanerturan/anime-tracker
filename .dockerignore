@@ -1,0 +1,16 @@
+.git
+node_modules
+data
+dist
+docs
+openspec
+test
+.wrangler
+.env
+.dev.vars
+.kamal
+_cr_repo
+scripts/legacy
+*.db
+*.db-wal
+*.db-shm
