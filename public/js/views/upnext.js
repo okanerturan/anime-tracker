@@ -67,14 +67,15 @@ function epCard(item, mode, onChange) {
     const left = item.leftInSeason;
     if (isNewSinceVisit(item.latestAiredAt)) badge = h('span', { class: 'pill accent badge-start' }, 'NEW EPISODE');
     else if (left != null && left >= 1 && left <= 3) badge = h('span', { class: 'pill state-almost badge-start num' }, left === 1 ? 'FINALE NEXT' : `ALMOST DONE · ${left} LEFT`);
-    else if (item.status === 'RELEASING') badge = h('span', { class: 'pill airing badge-start' }, 'AIRING');
+    // (No "AIRING" tag here: every show in this row is one you're watching; the tags that remain say something.)
     const name = realTitle(item.nextEpisodeTitle);
     line = `Episode ${item.nextEpisode}${name ? ` · ${name}` : ''}`;
     frac = item.aired ? Math.min(item.furthest || item.watched, item.aired) / item.aired : 0;
     const toGo = timeFor(item.remaining, item.episodeMinutes);
-    meta.push(`${plural(item.remaining, 'episode')} to go${toGo ? ` · ${toGo}` : ''}`);
-    if (item.resume) meta.push(`resume, ${Math.round((item.resume.durationS - item.resume.playhead) / 60)} min left`);
-    else if (item.lastWatchedAt) meta.push(ago(item.lastWatchedAt));
+    // Short enough for one line on every card; a paused episode says "Resume · 11 min" on its Play button instead.
+    meta.push(`${item.remaining} ep${item.remaining === 1 ? '' : 's'} left`);
+    if (toGo) meta.push(toGo);
+    if (item.lastWatchedAt) meta.push(ago(item.lastWatchedAt));
   } else if (mode === 'airing') {
     line = `Episode ${item.nextAiringEpisode} ${relTime(item.nextAiringAt)}`;
     frac = item.aired ? item.watched / item.aired : 0;
@@ -94,7 +95,7 @@ function epCard(item, mode, onChange) {
     ? playPill(item.crunchyrollUrl, 'Crunchyroll', { label: `Open ${item.title} on Crunchyroll` })
     : null;
   const play = seasonPlay || (playUrl && (mode === 'continue' || mode === 'airing' || mode === 'hold' || mode === 'stalled')
-    ? playPill(playUrl, playExact ? `Play E${item.nextEpisode}` : `Open on ${item.nextEpisodeSite || 'Crunchyroll'}`, {
+    ? playPill(playUrl, item.resume ? `Resume · ${Math.max(1, Math.round((item.resume.durationS - item.resume.playhead) / 60))} min` : playExact ? `Play E${item.nextEpisode}` : `Open on ${item.nextEpisodeSite || 'Crunchyroll'}`, {
         label: playExact ? `Play episode ${item.nextEpisode} on Crunchyroll` : `Open ${item.title} on Crunchyroll`, onClick: () => playToast(playExact ? item.nextEpisode : null, item) })
     : null);
   // Watched it elsewhere, or the sync hasn't caught up: tick the next episode without opening the show.
@@ -174,7 +175,7 @@ function epCard(item, mode, onChange) {
     });
   }
   return showCard({ show: item, open, kind: 'wide', image: still, fallback: item.image, badges: [badge, play, tick, more],
-    progress: frac, progressOpts: { hideWhenEmpty: mode === 'season' }, lines: 1, sub: line, subClass: 'one-line', meta, actions, extra: [menu] });
+    progress: frac, progressOpts: { hideWhenEmpty: mode === 'season' }, lines: 2, sub: line, subClass: 'one-line', meta, actions, extra: [menu] });
 }
 
 const watchUrl = (p) => `https://www.crunchyroll.com/watch/${encodeURIComponent(p.episodeId)}`;
@@ -344,7 +345,7 @@ function rateStrip(allItems, onRated) {
     }));
     const skip = h('button', { type: 'button', class: 'icon-btn', 'aria-label': `Skip rating ${x.title}`, title: 'Skip' }, icon('close'));
     skip.addEventListener('click', () => { skipRating(x.malId); el.remove(); onRated?.(); });
-    el = showRow({ show: x, sub: `Finished ${ago(x.finishedAt)} · ${plural(x.episodes, 'episode')}`, actions: [stars, skip] });
+    el = showRow({ show: x, sub: `Finished ${ago(x.finishedAt)}`, actions: [stars, skip] });
     return el;
   };
   return h('section', { class: 'section rate-strip' },
