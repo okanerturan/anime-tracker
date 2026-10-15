@@ -20,6 +20,34 @@ function hbars(rows, { value = 'value', label = 'name', suffix = '', onOpen = nu
     h('span', { class: 'num' }, `${r[value]}${suffix}`))));
 }
 
+/** Year in review: a chip per year; the panel shows that year's totals and its top five shows. */
+function yearsSection(years) {
+  if (years.length < 2) return null;
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const body = h('div', { class: 'panel year-review' });
+  const chips = h('div', { class: 'chips segmented', role: 'group', 'aria-label': 'Year' });
+  const show = (y) => {
+    for (const c of chips.children) c.setAttribute('aria-pressed', String(c.dataset.year === String(y.year)));
+    fill(body,
+      h('div', { class: 'stat-row' },
+        stat(`${y.hours}\u00a0h`, `${y.episodes.toLocaleString()} episodes`),
+        stat(String(y.shows), 'shows'),
+        y.busiestMonth ? stat(MONTHS[y.busiestMonth.month - 1], `busiest month · ${y.busiestMonth.hours}\u00a0h`) : null),
+      h('h3', {}, `Most watched in ${y.year}`),
+      h('ol', { class: 'year-top' }, y.top.map((t) => h('li', {},
+        t.malId ? h('a', { class: 'row-link', href: `#/insights?anime=${t.malId}`, onclick: (e) => { e.preventDefault(); openAnime({ malId: t.malId, title: t.title }); } }, t.title) : h('span', {}, t.title),
+        h('span', { class: 'muted num' }, `${t.episodes} eps`)))));
+  };
+  for (const y of years) {
+    const c = h('button', { type: 'button', class: 'chip-toggle', 'data-year': String(y.year), 'aria-pressed': 'false' }, String(y.year));
+    c.addEventListener('click', () => show(y));
+    chips.append(c);
+  }
+  // Open on last year once it's over: the current year already has its own card at the top.
+  show(years.find((y) => y.year < new Date().getFullYear()) || years[0]);
+  return section('Your years', 'Each year at a glance: hours, shows and what you watched most', chips, body);
+}
+
 const stat = (v, l) => h('div', { class: 'stat' }, h('div', { class: 'v' }, v), h('div', { class: 'l' }, l));
 
 /** "Recently watched": plays grouped by local day, with a Show more button that pages back in time. */
@@ -110,5 +138,6 @@ export async function render(view) {
           s.binges.map((b) => h('tr', {}, h('td', { class: 'date-col' }, new Date(b.day).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })),
             h('td', {}, b.malId ? h('a', { class: 'row-link', href: `#/insights?anime=${b.malId}`, onclick: (e) => { e.preventDefault(); openAnime({ malId: b.malId, title: b.show }); } }, b.show) : b.show),
             h('td', { class: 'num-col' }, b.episodes)))) : h('div', { class: 'muted' }, 'No 6+ episode days yet.'))),
+    yearsSection(s.years || []),
     historySection());
 }

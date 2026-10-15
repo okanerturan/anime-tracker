@@ -1751,3 +1751,12 @@ table.simple .num-col { text-align: end; }
   .rec-card:hover .rec-hide, .rec-card:focus-within .rec-hide { opacity: 1; }
 }
 @media (hover: hover) and (pointer: fine) { .rec-hide:hover { background: color-mix(in oklch, var(--surface-2), var(--bad, oklch(0.65 0.18 25)) 35%); color: var(--text); } }
+
+/* Insights: year in review */
+.year-review { display: flex; flex-direction: column; gap: var(--space-s); }
+.year-review h3 { margin: 0; font-size: var(--step-0); }
+.year-top { margin: 0; padding-inline-start: 1.6em; display: grid; gap: var(--space-2xs); list-style: decimal; }
+.year-top li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
+.year-top li { display: list-item; }
+.year-top li > :first-child { display: inline; }
+.year-top li > .num { float: inline-end; }

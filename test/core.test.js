@@ -244,3 +244,11 @@ test('removing a show and undoing it brings back its rating and list state', () 
   assert.equal(x.rating, 4);
   assert.equal(x.listStatus, 'on_hold');
 });
+
+test('the study has a year in review with top shows', () => {
+  const s = insights.study();
+  assert.ok(Array.isArray(s.years) && s.years.length >= 1);
+  const y = s.years[0];
+  assert.ok(y.year && y.episodes > 0 && Array.isArray(y.top) && y.top.length >= 1);
+  assert.ok(y.top[0].episodes >= (y.top[1]?.episodes ?? 0));
+});

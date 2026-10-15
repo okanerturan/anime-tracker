@@ -372,14 +372,16 @@ function study() {
     if (bulkTimes.has(d.getTime())) {
       bulk += 1;
       const y0 = local(d).year;
-      byYear[y0] = byYear[y0] || { episodes: 0, hours: 0, shows: new Set() };
+      byYear[y0] = byYear[y0] || { episodes: 0, hours: 0, shows: new Set(), perShow: new Map() };
       byYear[y0].episodes += 1; byYear[y0].hours += mins / 60; byYear[y0].shows.add(p.series_title);
+      byYear[y0].perShow.set(p.series_title, (byYear[y0].perShow.get(p.series_title) || 0) + 1);
       continue;
     }
     const L = local(d);
     const y = L.year;
-    byYear[y] = byYear[y] || { episodes: 0, hours: 0, shows: new Set() };
+    byYear[y] = byYear[y] || { episodes: 0, hours: 0, shows: new Set(), perShow: new Map() };
     byYear[y].episodes += 1; byYear[y].hours += mins / 60; byYear[y].shows.add(p.series_title);
+    byYear[y].perShow.set(p.series_title, (byYear[y].perShow.get(p.series_title) || 0) + 1);
     const ym = `${y}-${L.month}`;
     byMonth[ym] = (byMonth[ym] || 0) + mins / 60;
     byWeekday[L.weekday] += 1;
@@ -460,6 +462,15 @@ function study() {
     week,
     totals: { episodes: plays.length, hours: Math.round(minutes / 60), days: Math.round(minutes / 60 / 24 * 10) / 10, showsStarted: started, showsFinished: finished, showsDropped: dropped, firstPlay: plays.reduce((a, p) => (!a || p.date_played < a ? p.date_played : a), null) },
     byYear: recentYears.map((y) => ({ year: y, episodes: byYear[y].episodes, hours: Math.round(byYear[y].hours), shows: byYear[y].shows.size })),
+    // Year in review: every year with plays, its busiest month and its five most-watched shows.
+    years: Object.keys(byYear).map(Number).sort((a, b) => b - a).map((y) => {
+      const months = Object.entries(byMonth).filter(([k]) => k.startsWith(`${y}-`)).sort((a, b) => b[1] - a[1]);
+      return {
+        year: y, episodes: byYear[y].episodes, hours: Math.round(byYear[y].hours), shows: byYear[y].shows.size,
+        busiestMonth: months[0] ? { month: Number(months[0][0].slice(5)), hours: Math.round(months[0][1]) } : null,
+        top: [...byYear[y].perShow.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([title, episodes]) => ({ title, episodes, malId: showIds.get(title) || null }))
+      };
+    }),
     byMonth: Object.entries(byMonth).sort().slice(-24).map(([month, hours]) => ({ month, hours: Math.round(hours * 10) / 10 })),
     byWeekday, byHour,
     binges: binges.slice(0, 10),
