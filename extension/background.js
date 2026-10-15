@@ -183,6 +183,15 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         const res = await fetch(`${c.trackerUrl}/api/crunchyroll/series-info?seriesId=${encodeURIComponent(msg.seriesId)}`, { headers: authHeaders(c.trackerKey || '') });
         reply(res.ok ? { ...(await res.json()), trackerUrl: c.trackerUrl } : null);
       } catch { reply(null); }
+    } else if (msg.type === 'rate') {
+      // Star rating from the card on crunchyroll.com (finished, unrated shows).
+      const malId = Number(msg.malId); const rating = Number(msg.rating);
+      if (!Number.isInteger(malId) || malId <= 0 || !Number.isInteger(rating) || rating < 1 || rating > 5) { reply({ ok: false }); return; }
+      try {
+        const c = await get();
+        const res = await fetch(`${c.trackerUrl}/api/anime/rating`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'extension', ...authHeaders(c.trackerKey || '') }, body: JSON.stringify({ malId, rating }) });
+        reply({ ok: res.ok });
+      } catch { reply({ ok: false }); }
     } else if (msg.type === 'set-overlay') {
       await set({ overlay: Boolean(msg.on) });
       reply({ ok: true });
