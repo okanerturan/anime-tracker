@@ -183,11 +183,14 @@ node scripts/backup.js restore data/backups/anime-tracker-2026-10-13.json.gz --c
 ```
 server.js              local entry point (binds to 127.0.0.1:8080)
 server/
-  db.js, schema.js     SQLite (better-sqlite3) and the shared schema
+  db.js, schema.js     SQLite (better-sqlite3). One file in single-user mode; with AUTH_MODE=accounts
+                       one file per account (data/accounts/<id>.db) plus a shared catalog.db
+                       (show metadata, images, AniList queues) attached to each, chosen per request
   library.js           watchlist, episodes, watched state, split-season rollover
   crunchyroll.js       history ingest and Crunchyroll season to MAL mapping
   sync.js              background refresh: metadata, new episodes, titles, thumbnails
-  state.js             small persistent key/value store (last refresh, last backup)
+  state.js             small persistent key/value store (last refresh, last backup); global keys
+                       live in the catalog in hosted mode
   push.js              web push (VAPID, no payload): subscriptions, new-episode/season/premiere checks
   calendar.js          the private airing-calendar (.ics) feed
   insights.js          Up Next, recommendations, viewing study
@@ -201,6 +204,8 @@ scripts/               maintenance: AniList refresh, image prefetch, data repair
 ```
 
 The frontend is plain HTML, CSS and JavaScript modules. The stylesheet leans on modern CSS (subgrid, container queries, anchor positioning, `light-dark()` colour tokens), much of it following [good-css.com](https://good-css.com/). Current Chrome gets every detail; Firefox loses a few touches but the layout holds.
+
+**Hosted layout (work in progress, `hub` branch).** `scripts/split-backup.js` turns a single-user backup or database into `catalog.db` plus `accounts/1.db`; `AUTH_MODE=accounts IMPLICIT_ACCOUNT=1 DATA_DIR=<dir> node server.js` runs the app on that layout as account 1 until the accounts layer lands. Episode stills are stored as source URLs and served through the image cache, so an account file is a few MB.
 
 ## Tests
 
