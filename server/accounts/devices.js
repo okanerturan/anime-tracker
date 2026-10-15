@@ -12,7 +12,7 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 const DEVICE_ROUTES = new Set([
   'GET /api/crunchyroll/status', 'POST /api/crunchyroll/ingest', 'POST /api/crunchyroll/episodes', 'POST /api/crunchyroll/series',
   'GET /api/crunchyroll/series-info', 'GET /api/up-next', 'POST /api/episode/watched-through', 'POST /api/episode/unmark',
-  'POST /api/anime/rating', 'POST /api/anime/list-status', 'GET /api/anilist/relay', 'POST /api/anilist/relay', 'GET /api/episode-image'
+  'POST /api/anime/rating', 'POST /api/anime/list-status', 'GET /api/anilist/relay', 'GET /api/episode-image'
 ]);
 const deviceMayUse = (method, pathname) => DEVICE_ROUTES.has(`${method} ${pathname}`);
 

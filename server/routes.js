@@ -133,7 +133,8 @@ const routes = {
 
   'GET /api/sync-status': (req, res) => sendJSON(res, 200, { ...sync.status(), anilist: anilist.relayStatus() }),
   // AniList relay: the extension and the web app run queued AniList requests from the browser.
-  'GET /api/anilist/relay': (req, res) => sendJSON(res, 200, anilist.takeRelayJobs()),
+  // Hosted mode: the catalog worker fetches AniList, so a browser is never handed relay jobs.
+  'GET /api/anilist/relay': (req, res) => sendJSON(res, 200, require('./db').MULTI ? { blocked: false, blockedMessage: null, jobs: [] } : anilist.takeRelayJobs()),
   'POST /api/anilist/relay': async (req, res) => {
     requireClientHeader(req);
     // Hosted mode: a browser's answer must never become everyone's catalog (D3); the worker fetches.
