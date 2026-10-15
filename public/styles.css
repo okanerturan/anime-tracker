@@ -1768,3 +1768,12 @@ table.simple .num-col { text-align: end; }
 /* Insights history: "Finished only" hides sampled episodes. */
 .history.finished-only .is-partial { display: none; }
 .hero-actions > .chip-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* Phones: two episode tiles per row in the show panel (one per row made a 13-episode season a long scroll). */
+@media (max-width: 30rem) {
+  .ep-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-xs); }
+  .ep-grid .ep-row { font-size: var(--step--1); }
+}
+
+/* Tips about Shift-click and hovering mean nothing on a touch screen. */
+@media (hover: none) { .pointer-only { display: none; } }

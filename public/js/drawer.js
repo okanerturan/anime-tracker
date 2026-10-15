@@ -285,7 +285,7 @@ export async function openAnime(partial) {
       relatedSection,
       similarSection,
       item.inLibrary === false ? null : h('section', { class: 'section' },
-        h('div', { class: 'section-head' }, h('h2', {}, 'Episodes'), summary, h('span', { class: 'sub' }, 'Shift-click a check to mark everything up to it'), markAllBtn),
+        h('div', { class: 'section-head' }, h('h2', {}, 'Episodes'), summary, h('span', { class: 'sub pointer-only' }, 'Shift-click a check to mark everything up to it'), markAllBtn),
         epContainer)));
 
   // While a show is open its name leads the tab title (also when moving to a related season);
