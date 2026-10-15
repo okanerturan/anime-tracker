@@ -930,8 +930,7 @@ input:user-invalid { border-color: oklch(0.65 0.2 25); }
 /* ---------- Insights ---------- */
 .stat-row {
   display: grid;
-  /* Two per row on a phone (~21rem of content), more on wider screens. */
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
   gap: var(--space-s);
 }
 
@@ -1694,6 +1693,7 @@ button.history-row { cursor: pointer; }
   .tabs a { padding-inline: 0.5rem; font-size: var(--step--1); }
   .carousel { grid-auto-columns: min(72cqi, 19rem); }
   .carousel:has(> .rec-card) { grid-auto-columns: 44cqi; }
+  .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stat { padding: var(--space-xs) var(--space-s); }
   .stat .v { font-size: var(--step-2); }
 }

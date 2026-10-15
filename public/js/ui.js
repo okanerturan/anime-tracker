@@ -153,7 +153,7 @@ export function statusPill(status) {
   return null;
 }
 
-export const FORMAT_LABEL = { TV: 'TV', TV_SHORT: 'TV short', MOVIE: 'Movie', OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Special', MUSIC: 'Music' };
+export const FORMAT_LABEL = { TV: 'TV', TV_SHORT: 'Short', MOVIE: 'Movie', OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Special', MUSIC: 'Music' };
 
 /**
  * Whole card clickable from one link: the title is a real link whose ::after covers the card.
