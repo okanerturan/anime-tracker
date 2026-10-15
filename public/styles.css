@@ -1881,6 +1881,15 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
   padding-block-end: var(--space-s);
 }
 .show-row--stack > .show-row-text { padding-block-start: var(--space-2xs); }
+/* Wide controls beside a narrow row would leave the title a sliver ("SAKAMOT / O DAYS…"): below
+   30rem they take a line of their own under the title, the skip button at the far end. */
+.show-row--wrap { container: show-row / inline-size; }
+@container show-row (width < 30rem) {
+  /* The poster spans both lines (1 / -1 would count only explicit rows, and there are none). */
+  .show-row--wrap > .show-row-poster { grid-row: 1 / span 2; }
+  .show-row--wrap > .show-row-text { grid-column: 2 / -1; align-self: end; }
+  .show-row--wrap > .show-row-actions { grid-column: 2 / -1; align-self: start; justify-content: space-between; margin-inline-start: -0.4rem; }
+}
 .show-row--stack > .show-row-actions { grid-column: 2; flex-wrap: wrap; }
 .show-row.is-done { border-color: var(--good); }
 @media (prefers-reduced-motion: no-preference) {

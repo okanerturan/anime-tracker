@@ -12,7 +12,7 @@ import { openAnime } from './drawer.js';
  *   sub       the grey second line (text or a node)
  *   actions   buttons/nodes, kept outside the open target (a button can't hold buttons)
  */
-export function showRow({ show = null, href = null, image = '', title = '', sub = '', actions = [], stack = false, label = null } = {}) {
+export function showRow({ show = null, href = null, image = '', title = '', sub = '', actions = [], stack = false, wrapActions = false, label = null } = {}) {
   const name = title || show?.title || '';
   const open = href
     ? h('a', { class: 'show-row-open', href, target: '_blank', rel: 'noopener', title: name, 'aria-label': label || `Open ${name} on Crunchyroll` }, name)
@@ -20,7 +20,9 @@ export function showRow({ show = null, href = null, image = '', title = '', sub 
       ? h('button', { type: 'button', class: 'show-row-open', title: name, 'aria-label': label || `Open ${name}`, onclick: () => openAnime(show) }, name)
       : h('span', { class: 'show-row-open is-static', title: name }, name);
   const acts = actions.filter(Boolean);
-  return h('div', { class: `show-row ${stack ? 'show-row--stack' : ''} ${href || show ? 'is-link' : ''}`.trim() },
+  // wrapActions: wide controls (five stars) move under the title when the row is narrow, instead
+  // of squeezing the title into a sliver.
+  return h('div', { class: `show-row ${stack ? 'show-row--stack' : ''} ${wrapActions ? 'show-row--wrap' : ''} ${href || show ? 'is-link' : ''}`.replace(/\s+/g, ' ').trim() },
     h('img', { class: 'show-row-poster', src: image || show?.image || '', alt: '', loading: 'lazy' }),
     h('div', { class: 'show-row-text' }, open, sub ? h('span', { class: 'show-row-sub one-line' }, sub) : null),
     acts.length ? h('div', { class: 'show-row-actions' }, ...acts) : null);

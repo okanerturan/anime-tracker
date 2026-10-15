@@ -345,7 +345,7 @@ function rateStrip(allItems, onRated) {
     }));
     const skip = h('button', { type: 'button', class: 'icon-btn', 'aria-label': `Skip rating ${x.title}`, title: 'Skip' }, icon('close'));
     skip.addEventListener('click', () => { skipRating(x.malId); el.remove(); onRated?.(); });
-    el = showRow({ show: x, sub: `Finished ${ago(x.finishedAt)}`, actions: [stars, skip] });
+    el = showRow({ show: x, sub: `Finished ${ago(x.finishedAt)}`, actions: [stars, skip], wrapActions: true });
     return el;
   };
   return h('section', { class: 'section rate-strip' },
