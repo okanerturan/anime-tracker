@@ -4,11 +4,22 @@ import { openAnime } from '../drawer.js';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function bars(values, labels, fmt = (v) => v) {
+// Few bars: each carries its value. Many bars: one readout line that shows the peak, and the bar
+// under the pointer (or keyboard focus) while you look at one.
+function bars(values, labels, fmt = (v) => Number(v).toLocaleString(), names = labels) {
   const max = Math.max(...values, 1);
+  const few = values.length <= 12;
+  const peak = values.indexOf(Math.max(...values));
+  const readout = few ? null : h('p', { class: 'bar-readout num', 'aria-live': 'polite' });
+  const showPeak = () => { if (readout) readout.textContent = peak >= 0 ? `Peak: ${names[peak]} · ${fmt(values[peak])}` : ''; };
+  showPeak();
   return h('div', { class: 'chart' },
-    h('div', { class: 'bars', role: 'img', 'aria-label': labels.map((l, i) => `${l}: ${fmt(values[i])}`).join(', ') },
-      values.map((v, i) => h('div', { class: 'bar', title: `${labels[i]}: ${fmt(v)}`, style: { '--h': `${(100 * v) / max}%` } }))),
+    readout,
+    h('div', { class: `bars ${few ? 'bars--valued' : ''}`, role: 'img', 'aria-label': labels.map((l, i) => `${l}: ${fmt(values[i])}`).join(', '), onpointerleave: showPeak },
+      values.map((v, i) => h('div', {
+        class: 'bar', style: { '--h': `${(100 * v) / max}%` },
+        onpointerenter: readout ? () => { readout.textContent = `${names[i]} · ${fmt(v)}`; } : null
+      }, few && v ? h('span', { class: 'bar-value num' }, fmt(v)) : null))),
     h('div', { class: 'bar-labels' }, labels.map((l) => h('span', {}, l))));
 }
 
@@ -162,10 +173,10 @@ export async function render(view) {
         s.week ? stat(`${s.week.thisEpisodes} ep${s.week.thisEpisodes === 1 ? '' : 's'}`, `this week · ${s.week.thisHours}\u00a0h · last week ${s.week.lastEpisodes} (${s.week.lastHours}\u00a0h)${s.week.thisEpisodes > s.week.lastEpisodes ? ' ↑' : s.week.thisEpisodes < s.week.lastEpisodes ? ' ↓' : ''}`) : null,
         s.streaks ? stat(`${s.streaks.current} day${s.streaks.current === 1 ? '' : 's'}`, `current streak · longest ${s.streaks.longest}${s.streaks.longestEnd ? ` (ending ${new Date(s.streaks.longestEnd).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})` : ''} · ${s.streaks.activeDays} watch days`) : null)),
     h('div', { class: 'panels' },
-      h('div', { class: 'panel' }, h('h3', {}, 'Hours per month'), bars(s.byMonth.map((m) => m.hours), s.byMonth.map((m) => (m.month.endsWith('-01') ? `’${m.month.slice(2, 4)}` : m.month.slice(5))), (v) => `${v} h`)),
+      h('div', { class: 'panel' }, h('h3', {}, 'Hours per month'), bars(s.byMonth.map((m) => m.hours), s.byMonth.map((m) => (m.month.endsWith('-01') ? `’${m.month.slice(2, 4)}` : m.month.slice(5))), (v) => `${v} h`, s.byMonth.map((m) => new Date(`${m.month}-15`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })))),
       h('div', { class: 'panel' }, h('h3', {}, 'Episodes per year'), bars(s.byYear.map((y) => y.episodes), s.byYear.map((y) => String(y.year))))),
     h('div', { class: 'panels' },
-      h('div', { class: 'panel' }, h('h3', {}, `When you watch (hour of day, ${s.timezone})`), s.bulkMarked ? h('div', { class: 'faint' }, `${s.bulkMarked} bulk "mark as watched" entries excluded`) : null, bars(s.byHour, s.byHour.map((_, i) => (i % 3 === 0 ? String(i) : '')))),
+      h('div', { class: 'panel' }, h('h3', {}, `When you watch (hour of day, ${s.timezone})`), s.bulkMarked ? h('div', { class: 'faint' }, `${s.bulkMarked} bulk "mark as watched" entries excluded`) : null, bars(s.byHour, s.byHour.map((_, i) => (i % 3 === 0 ? String(i) : '')), (v) => `${v} episodes`, s.byHour.map((_, i) => `${String(i).padStart(2, '0')}:00`))),
       h('div', { class: 'panel' }, h('h3', {}, 'Day of week'), bars(s.byWeekday, WEEKDAYS))),
     h('div', { class: 'panels' },
       h('div', { class: 'panel' }, h('h3', {}, 'Favourite genres'), hbars(s.taste.genres, { value: 'weight', suffix: '%' })),

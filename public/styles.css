@@ -933,6 +933,7 @@ input:user-invalid { border-color: oklch(0.65 0.2 25); }
 /* ---------- Insights ---------- */
 .stat-row {
   display: grid;
+  /* Four across (eight tiles = two even rows); two on phones (below). */
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
   gap: var(--space-s);
 }
@@ -1898,3 +1899,11 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 @media (hover: hover) and (pointer: fine) {
   .btn-danger-quiet:hover { color: var(--bad, oklch(0.7 0.17 25)); border-color: color-mix(in oklch, var(--line), var(--bad, oklch(0.7 0.17 25)) 50%); }
 }
+
+@container (min-width: 48rem) { .stat-row { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 52rem) { .stat-row { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* Bar values: printed on short charts, a readout line on long ones. */
+.bars .bar { position: relative; }
+.bar-value { position: absolute; inset-block-end: 100%; inset-inline: 0; padding-block-end: 0.2em; text-align: center; font-size: var(--step--2); color: var(--muted); white-space: nowrap; }
+.bars--valued { padding-block-start: 1.2em; }
+.bar-readout { margin: 0 0 var(--space-xs); font-size: var(--step--1); color: var(--muted); min-block-size: 1.4em; }
