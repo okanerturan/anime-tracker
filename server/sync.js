@@ -169,7 +169,7 @@ async function refreshCycle() {
     // Discover's season row: refresh here so a visitor never waits on AniList (the 12 h cache decides).
     try { await require('./insights').seasonal(); summary.seasonalWarmed = true; } catch (err) { summary.seasonalError = String(err.message || err); }
     // Phone notifications: episodes that aired since the last cycle, once each.
-    try { const up = await require('./insights').upNext(); summary.push = await require('./push').notifyNewEpisodes(up.continueWatching, [...up.newSeasons, ...require('./push').libraryPremieres()]); } catch (err) { summary.pushError = String(err.message || err); }
+    try { const up = await require('./insights').upNext(); summary.push = await require('./push').notifyNewEpisodes({ shows: require('./library').getWatchlist('release_desc'), seasons: up.newSeasons }); } catch (err) { summary.pushError = String(err.message || err); }
   } catch (err) {
     state.lastError = String(err.message || err);
     summary.error = state.lastError;

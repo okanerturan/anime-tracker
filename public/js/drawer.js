@@ -406,17 +406,18 @@ export async function openAnime(partial) {
         h('span', { class: 'name clamp-2', title: name }, name),
         check));
     // Touch: holding a check for half a second is the phone's Shift-click.
-    let held = false; let holdTimer = null;
+    // A time, not a flag: Android sends no click after a long press, and a flag left set would swallow the next tap.
+    let heldAt = 0; let holdTimer = null;
+    const stopHold = () => { clearTimeout(holdTimer); holdTimer = null; };
     check.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse' || ep.watched) return;
-      held = false;
-      holdTimer = setTimeout(() => { held = true; navigator.vibrate?.(15); check.dispatchEvent(new MouseEvent('click', { shiftKey: true, bubbles: true })); }, 500);
+      holdTimer = setTimeout(() => { holdTimer = null; heldAt = Date.now(); navigator.vibrate?.(15); check.dispatchEvent(new MouseEvent('click', { shiftKey: true, bubbles: true })); }, 500);
     });
-    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) check.addEventListener(t, () => clearTimeout(holdTimer));
-    check.addEventListener('contextmenu', (e) => { if (held || holdTimer) e.preventDefault(); });
+    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) check.addEventListener(t, stopHold);
+    check.addEventListener('contextmenu', (e) => { if (holdTimer || Date.now() - heldAt < 800) e.preventDefault(); });
     check.addEventListener('click', async (e) => {
       // The tap that ends a hold already marked the run; don't toggle on top of it.
-      if (held && !e.shiftKey) { held = false; return; }
+      if (!e.shiftKey && Date.now() - heldAt < 800) return;
       try {
         if (e.shiftKey && !ep.watched) {
           const r = await api.watchedThrough(item.malId, ep.episodeNumber);

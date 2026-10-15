@@ -17,6 +17,10 @@ async function keys() {
   const pair = await subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
   const publicKey = b64url(new Uint8Array(await subtle.exportKey('raw', pair.publicKey)));
   const privateJwk = await subtle.exportKey('jwk', pair.privateKey);
+  // Another request may have made a pair while this one awaited: keep the first, or a device
+  // subscribed with it would never receive anything.
+  const raced = state.get('pushKeys');
+  if (raced?.publicKey && raced?.privateJwk) return raced;
   state.set('pushKeys', { publicKey, privateJwk });
   return { publicKey, privateJwk };
 }
@@ -54,21 +58,20 @@ async function sendAll(message, { only = null } = {}) {
   const list = only ? all.filter((s) => s.endpoint === only) : all;
   if (!list.length) return { sent: 0 };
   const { publicKey, privateJwk } = await keys();
-  const keep = []; let sent = 0;
+  const gone = new Set(); let sent = 0;
   for (const s of list) {
     try {
       const aud = new URL(s.endpoint).origin;
       const jwt = await vapidJwt(aud, s.origin && /^https:\/\//.test(s.origin) ? s.origin : 'mailto:anime-tracker@localhost', privateJwk);
       const res = await fetch(s.endpoint, { method: 'POST', headers: { Authorization: `vapid t=${jwt}, k=${publicKey}`, TTL: '86400', Urgency: 'normal', 'Content-Length': '0' } });
-      if (res.status === 404 || res.status === 410) continue; // unsubscribed or expired
-      keep.push(s);
+      if (res.status === 404 || res.status === 410) { gone.add(s.endpoint); continue; } // unsubscribed or expired
       if (res.ok) sent += 1;
-    } catch { keep.push(s); }
+    } catch {}
   }
-  // Devices outside this send stay as they were.
-  const untouched = all.filter((s) => !list.includes(s));
-  saveSubscriptions([...untouched, ...keep]);
-  return { sent, devices: untouched.length + keep.length };
+  // Re-read: a device may have subscribed or unsubscribed while the pushes were in flight.
+  const now = subscriptions().filter((s) => !gone.has(s.endpoint));
+  if (gone.size) saveSubscriptions(now);
+  return { sent, devices: now.length };
 }
 
 /**
@@ -90,22 +93,41 @@ function episodeLine(x) {
   return `Episode ${newest} is out.${behind}`;
 }
 
-async function notifyNewEpisodes(items, seasons = [], { now: nowAt = new Date() } = {}) {
-  // Nothing is marked as told during quiet hours, so the first check after 8:00 picks it all up.
-  if (quietHours(nowAt) && subscriptions().length) return { sent: 0, quiet: true };
-  // (Own field name: state.get() overwrites `at` with the row's save time.)
-  const checked = state.get('pushChecked')?.checkedAt;
-  const last = checked ? new Date(checked).getTime() : Date.now();
-  const now = Date.now();
-  state.set('pushChecked', { checkedAt: new Date(now).toISOString() });
-  const fresh = (items || []).filter((x) => x.latestAiredAt && new Date(x.latestAiredAt).getTime() > last && new Date(x.latestAiredAt).getTime() <= now);
-  // A new season of a show you watched, on (or up to 3 days after) its start date, once per season.
-  const today = new Date(now).toISOString().slice(0, 10);
-  const recent = new Date(now - 3 * 86400e3).toISOString().slice(0, 10);
+/**
+ * After each refresh: what's new since the last check, judged by each show's aired-episode count
+ * (AniList's next airing episode). Counting works without the extension and without exact air times:
+ * - a show you're watching (not held or dropped) whose count went up: new episode;
+ * - a show on your list going from 0 to 1+: premiere;
+ * - a sequel of something you watched that's now airing (not in your library): new season, once.
+ * The first run only records counts, so turning notifications on doesn't announce the back catalogue.
+ */
+async function notifyNewEpisodes({ shows = [], seasons = [], now = new Date() } = {}) {
+  // Nothing is recorded during quiet hours, so the first check after 8:00 picks it all up.
+  if (quietHours(now) && subscriptions().length) return { sent: 0, quiet: true };
+  const prev = state.get('pushAired')?.counts || null;
+  const counts = {};
+  const fresh = []; const premieres = [];
+  for (const x of shows) {
+    if (x.listStatus || x.airedEpisodes == null) continue;
+    counts[x.malId] = x.airedEpisodes;
+    const before = prev?.[x.malId];
+    if (before == null || x.airedEpisodes <= before) continue;
+    const title = x.titleEnglish || x.title;
+    if ((x.progress ?? x.watchedCount ?? 0) > 0) {
+      fresh.push({ malId: x.malId, title, aired: x.airedEpisodes, nextEpisode: x.nextEpisode, nextEpisodeUrl: x.nextEpisodeUrlIsExact ? x.nextEpisodeUrl : null });
+    } else if (before === 0) premieres.push({ malId: x.malId, title, premiere: true });
+  }
+  state.set('pushAired', { counts: { ...(prev || {}), ...counts } });
+  // New seasons: AniList flips a show to RELEASING once episode 1 is out, so the status (not a
+  // date-only start date in another time zone) says it has started. Started in the last 14 days, once each.
+  const recent = new Date(now.getTime() - 14 * 86400e3).toISOString().slice(0, 10);
   const told = new Set(state.get('pushSeasons')?.ids || []);
-  const seen = new Set(fresh.map((x) => x.malId));
-  const premieres = (seasons || []).filter((s) => !seen.has(s.malId) && (seen.add(s.malId), true) && !s.inLibrary && s.startDate && s.startDate <= today && s.startDate >= recent && !told.has(s.malId));
-  if (premieres.length) state.set('pushSeasons', { ids: [...told, ...premieres.map((s) => s.malId)].slice(-200) });
+  const taken = new Set([...fresh, ...premieres].map((x) => x.malId));
+  const started = (seasons || []).filter((s) => !s.inLibrary && !taken.has(s.malId) && !told.has(s.malId)
+    && s.status && s.status !== 'NOT_YET_RELEASED' && s.startDate && s.startDate >= recent);
+  if (started.length) state.set('pushSeasons', { ids: [...told, ...started.map((s) => s.malId)].slice(-200) });
+  if (!prev) return { sent: 0, firstRun: true };
+  premieres.push(...started);
   if (!subscriptions().length || (!fresh.length && !premieres.length)) return { sent: 0, fresh: fresh.length, premieres: premieres.length };
   if (!fresh.length) {
     const p = premieres[0];
@@ -122,19 +144,8 @@ async function notifyNewEpisodes(items, seasons = [], { now: nowAt = new Date() 
       // A "Play" button (Android/desktop) straight to your next episode on Crunchyroll.
       ...(fresh[0].nextEpisodeUrl && /^https:\/\/www\.crunchyroll\.com\//.test(fresh[0].nextEpisodeUrl) ? { playUrl: fresh[0].nextEpisodeUrl, playLabel: `Play E${fresh[0].nextEpisode}` } : {}) }
     : { title: `${fresh.length} new episodes`, body: `${names.join(', ')}${fresh.length > 3 ? ` and ${fresh.length - 3} more` : ''}`, url: '/#/up-next' };
-  if (premieres.length) message.body += ` · New season: ${premieres.map((s) => s.title).slice(0, 2).join(', ')}`;
+  if (premieres.length) message.body += ` · New: ${premieres.map((s) => s.title).slice(0, 2).join(', ')}`;
   return { ...(await sendAll(message)), fresh: fresh.length, premieres: premieres.length };
 }
 
-/** Shows you added before they aired (not held or dropped) whose start date has come; shaped like newSeasons cards. */
-function libraryPremieres() {
-  const { db } = require('./db');
-  const recent = new Date(Date.now() - 3 * 86400e3).toISOString().slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
-  return db.prepare(`SELECT w.mal_id AS malId, COALESCE(m.title_english, m.title) AS title, m.start_date AS startDate
-    FROM watchlist w JOIN media m ON m.mal_id = w.mal_id
-    WHERE w.list_status IS NULL AND m.start_date BETWEEN ? AND ?`).all(recent, today)
-    .map((r) => ({ ...r, inLibrary: false, premiere: true }));
-}
-
-module.exports = { episodeLine, quietHours, libraryPremieres, keys, subscribe, unsubscribe, subscriptions, sendAll, notifyNewEpisodes, vapidJwt, b64url, fromB64url };
+module.exports = { episodeLine, quietHours, keys, subscribe, unsubscribe, subscriptions, sendAll, notifyNewEpisodes, vapidJwt, b64url, fromB64url };

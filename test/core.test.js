@@ -319,28 +319,35 @@ test('web push: VAPID token verifies, requests are well-formed, gone subscriptio
     const ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, push.fromB64url(s64), new TextEncoder().encode(`${h64}.${p64}`));
     assert.ok(ok, 'ES256 signature verifies with the public key');
     // New-episode detection: only episodes that aired since the last check.
-    const hourAgo = new Date(Date.now() - 3600e3).toISOString();
-    require('../server/state').set('pushChecked', { checkedAt: hourAgo });
-    const aired = new Date(Date.now() - 600e3).toISOString();
     const noon = new Date(); noon.setHours(12, 0, 0, 0);
     const night = new Date(); night.setHours(3, 0, 0, 0);
     assert.equal(push.quietHours(night), true);
     assert.equal(push.quietHours(noon), false);
-    assert.equal((await push.notifyNewEpisodes([{ title: 'X', malId: 3, latestAiredAt: new Date().toISOString() }], [], { now: night })).quiet, true);
-    const r2 = await push.notifyNewEpisodes([{ title: 'Old', malId: 1, latestAiredAt: '2020-01-01T00:00:00Z' }, { title: 'Fresh Show', malId: 2, nextEpisode: 5, nextEpisodeUrl: 'https://www.crunchyroll.com/watch/ABC/ep5', latestAiredAt: aired }], [], { now: noon });
-    assert.equal(r2.fresh, 1);
+    assert.equal((await push.notifyNewEpisodes({ shows: [], now: night })).quiet, true);
     assert.equal(push.episodeLine({ aired: 8, nextEpisode: 4 }), "Episode 8 is out. You're on episode 4.");
     assert.equal(push.episodeLine({ aired: 5, nextEpisode: 5 }), 'Episode 5 is out.');
-    assert.equal(require('../server/state').get('pushLatest').title, 'New episode: Fresh Show');
-    assert.equal(require('../server/state').get('pushLatest').playLabel, 'Play E5');
-    const r3 = await push.notifyNewEpisodes([{ title: 'Fresh Show', malId: 2, latestAiredAt: aired }], [], { now: noon });
-    assert.equal(r3.fresh, 0, 'the same episode is not announced twice');
+    const show = (o) => ({ malId: 1, title: 'Watching', airedEpisodes: 4, watchedCount: 4, listStatus: null, nextEpisode: 5, ...o });
     const today = new Date().toISOString().slice(0, 10);
-    const season = { malId: 99, title: 'Show Season 2', after: 'Show', inLibrary: false, startDate: today };
-    const r4 = await push.notifyNewEpisodes([], [season, { malId: 98, title: 'Old S2', startDate: '2020-01-01' }], { now: noon });
-    assert.equal(r4.premieres, 1);
+    const base = [show(), show({ malId: 2, title: 'Upcoming', airedEpisodes: 0, watchedCount: 0 }), show({ malId: 3, title: 'Held', listStatus: 'on_hold' })];
+    const first = await push.notifyNewEpisodes({ shows: base, seasons: [{ malId: 99, title: 'Old start', status: 'RELEASING', startDate: today }], now: noon });
+    assert.equal(first.firstRun, true, 'the first run only records counts');
+    // Episode 5 of the watched show is out (count 4 -> 5): announced, with a Play button.
+    const ep = await push.notifyNewEpisodes({ shows: [show({ airedEpisodes: 5, nextEpisodeUrl: 'https://www.crunchyroll.com/watch/ABC/ep5', nextEpisodeUrlIsExact: true }), base[1], show({ malId: 3, title: 'Held', listStatus: 'on_hold', airedEpisodes: 9 })], now: noon });
+    assert.equal(ep.fresh, 1, 'held shows are not announced');
+    assert.equal(require('../server/state').get('pushLatest').title, 'New episode: Watching');
+    assert.equal(require('../server/state').get('pushLatest').playLabel, 'Play E5');
+    assert.equal((await push.notifyNewEpisodes({ shows: [show({ airedEpisodes: 5 })], now: noon })).fresh, 0, 'announced once');
+    // Premiere: a show on the list goes from 0 to 1 aired.
+    const pr = await push.notifyNewEpisodes({ shows: [show({ airedEpisodes: 5 }), show({ malId: 2, title: 'Upcoming', airedEpisodes: 1, watchedCount: 0 })], now: noon });
+    assert.equal(pr.premieres, 1);
+    assert.equal(require('../server/state').get('pushLatest').title, 'Premiere: Upcoming');
+    // New season: only once it's airing (status), and once; one recorded at the first run stays quiet.
+    const season = { malId: 100, title: 'Show Season 2', after: 'Show', inLibrary: false, status: 'NOT_YET_RELEASED', startDate: today };
+    assert.equal((await push.notifyNewEpisodes({ shows: [], seasons: [season, { malId: 99, title: 'Old start', status: 'RELEASING', startDate: today }], now: noon })).premieres, 0, 'not before it airs');
+    const ns = await push.notifyNewEpisodes({ shows: [], seasons: [{ ...season, status: 'RELEASING' }], now: noon });
+    assert.equal(ns.premieres, 1);
     assert.equal(require('../server/state').get('pushLatest').title, 'New season: Show Season 2');
-    assert.equal((await push.notifyNewEpisodes([], [season], { now: noon })).premieres, 0, 'a premiere is announced once');
+    assert.equal((await push.notifyNewEpisodes({ shows: [], seasons: [{ ...season, status: 'RELEASING' }], now: noon })).premieres, 0, 'a new season is announced once');
   } finally { global.fetch = realFetch; }
 });
 

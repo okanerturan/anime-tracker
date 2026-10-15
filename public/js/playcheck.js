@@ -31,7 +31,13 @@ export async function checkPlay() {
   const q = /[!?]$/.test(p.title || '') ? '' : '?';
   // Up for 20 s: you've just come back to the app and may not be looking at the corner yet.
   toast(`Finished E${p.episode} of ${p.title}${q}`, { label: 'Mark watched', ms: 20000, onClick: async () => {
-    try { await api.watchedThrough(p.malId, p.episode); toast(`E${p.episode} of ${p.title} marked watched`); bus.emit('library-changed'); }
-    catch (err) { toast(err.message); }
+    // Just that episode: you may have played one out of order, and the ones before it stay as they are.
+    try {
+      await api.toggleWatched(p.malId, p.episode, true);
+      bus.emit('library-changed');
+      toast(`E${p.episode} of ${p.title} marked watched`, { label: 'Undo', onClick: async () => {
+        try { await api.toggleWatched(p.malId, p.episode, false); bus.emit('library-changed'); } catch (err) { toast(err.message); }
+      } });
+    } catch (err) { toast(err.message); }
   } });
 }

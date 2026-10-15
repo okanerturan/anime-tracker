@@ -99,18 +99,18 @@ function epCard(item, mode, onChange) {
   // Watched it elsewhere, or the sync hasn't caught up: tick the next episode without opening the show.
   const tick = ((mode === 'continue' || mode === 'stalled') && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched. Shift-click (or hold, on touch) marks every aired episode.` }, icon('check')) : null;
   // Touch has no Shift: holding the tick for half a second marks every aired episode.
-  let held = false; let holdTimer = null;
+  // A time, not a flag: Android sends no click after a long press, and a flag left set would swallow the next tap.
+  let heldAt = 0; let holdTimer = null;
   if (tick) {
     tick.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse' || !item.aired || item.aired <= item.nextEpisode) return;
-      held = false;
-      holdTimer = setTimeout(() => { held = true; navigator.vibrate?.(15); tick.dispatchEvent(new MouseEvent('click', { shiftKey: true, bubbles: true })); }, 500);
+      holdTimer = setTimeout(() => { holdTimer = null; heldAt = Date.now(); navigator.vibrate?.(15); tick.dispatchEvent(new MouseEvent('click', { shiftKey: true, bubbles: true })); }, 500);
     });
-    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) tick.addEventListener(t, () => clearTimeout(holdTimer));
-    tick.addEventListener('contextmenu', (e) => e.preventDefault());
+    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) tick.addEventListener(t, () => { clearTimeout(holdTimer); holdTimer = null; });
+    tick.addEventListener('contextmenu', (e) => { if (holdTimer || Date.now() - heldAt < 800) e.preventDefault(); });
   }
   if (tick) tick.addEventListener('click', async (e) => {
-    if (held && !e.shiftKey) { held = false; return; }
+    if (!e.shiftKey && Date.now() - heldAt < 800) return;
     tick.disabled = true;
     // Shift: caught up elsewhere, mark everything that has aired.
     const through = e.shiftKey && item.aired ? item.aired : item.nextEpisode;
@@ -438,10 +438,10 @@ export async function render(view) {
 async function refresh(view) {
   const [data, cr] = await Promise.all([api.upNext(), api.crStatus().catch(() => null)]);
   writeSnapshot(data, cr);
-  draw(view, data, cr);
+  draw(view, data, cr, { fresh: true });
 }
 
-function draw(view, data, cr) {
+function draw(view, data, cr, { fresh = false } = {}) {
   // A paused Crunchyroll episode that is a show's next episode is shown on that show's card instead.
   const paused = new Map((cr?.inProgress || []).filter((p) => p.malId).map((p) => [`${p.malId}:${p.episodeNumber}`, p]));
   const used = new Set();
@@ -508,7 +508,8 @@ function draw(view, data, cr) {
   let tonightEl = tonight(data.continueWatching, inProgress) || h('div', { hidden: true });
   tonightEl.dataset.pool = 'all';
   // Home-screen shortcut "Play tonight's pick" (#/up-next?play=1): go straight to the episode, once.
-  if (/[?&]play=1/.test(location.hash)) {
+  // Only on fresh data: the saved first paint may be a day old (an episode you've since watched).
+  if (fresh && /[?&]play=1/.test(location.hash)) {
     history.replaceState(null, '', '#/up-next');
     const go = tonightEl.querySelector('a.btn.primary[href^="http"]');
     if (go) { location.assign(go.href); return; }
