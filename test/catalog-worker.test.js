@@ -161,3 +161,52 @@ test('a waiting season is matched when its search finishes, and its plays apply 
   assert.ok(fake.calls.includes('full:5002') && fake.calls.includes('full:5000'), `fetched what the offset needed: ${fake.calls.join(' ')}`);
   assert.equal(catalogDb.prepare('SELECT COUNT(*) n FROM catalog_waiters').get().n, 0, 'nothing left waiting');
 });
+
+test('claims: one report does nothing, agreement promotes, disagreement is flagged, AniList data wins', () => {
+  const claims = require('../server/catalog/claims');
+  const { withAccount } = require('../server/db');
+  catalogDb.exec('DELETE FROM cr_series_claims; DELETE FROM cr_season_claims');
+  catalogDb.prepare("INSERT OR REPLACE INTO media (mal_id, title, cr_series_id) VALUES (601, 'Claimed', NULL), (602, 'Known', 'GKNOWN')").run();
+  const cr = () => catalogDb.prepare('SELECT cr_series_id FROM media WHERE mal_id = 601').get().cr_series_id;
+  assert.equal(withAccount('a1', () => claims.claimSeries('GNEW', 601)).promoted, false);
+  assert.equal(cr(), null, 'one account is not enough');
+  assert.equal(withAccount('a2', () => claims.claimSeries('GNEW', 601)).promoted, true);
+  assert.equal(cr(), 'GNEW', 'two agreeing accounts promote it');
+  withAccount('a1', () => claims.claimSeries('GOTHER', 602)); withAccount('a2', () => claims.claimSeries('GOTHER', 602));
+  assert.equal(catalogDb.prepare('SELECT cr_series_id FROM media WHERE mal_id = 602').get().cr_series_id, 'GKNOWN', 'never replaces what AniList gave');
+  withAccount('a1', () => claims.claimSeries('GSPLIT', 601)); const split = withAccount('a2', () => claims.claimSeries('GSPLIT', 999));
+  assert.equal(split.conflict, true);
+  assert.ok(claims.reviewList().series.some((r) => r.id === 'GSPLIT'), 'disagreement goes to the review list');
+  // Seasons: three agree → consensus; a dissent removes it.
+  for (const a of ['s1', 's2']) withAccount(a, () => claims.claimSeason('GSEASONX', 700, 12));
+  assert.equal(claims.seasonConsensus('GSEASONX'), null, 'two are not enough for a season');
+  withAccount('s3', () => claims.claimSeason('GSEASONX', 700, 12));
+  assert.deepEqual(claims.seasonConsensus('GSEASONX'), { mal: 700, offset: 12 });
+  withAccount('s4', () => claims.claimSeason('GSEASONX', 701, 0));
+  assert.equal(claims.seasonConsensus('GSEASONX'), null, 'a disagreement stops the consensus');
+  claims.purge('season', 'GSEASONX');
+  assert.equal(catalogDb.prepare("SELECT COUNT(*) n FROM cr_season_claims WHERE season_id = 'GSEASONX'").get().n, 0);
+});
+
+test('a season three accounts agreed on maps a new account\'s plays with zero searches', async () => {
+  reset(); catalogDb.exec('DELETE FROM catalog_waiters; DELETE FROM cr_season_claims');
+  const claims = require('../server/catalog/claims');
+  const { withAccount, db: adb } = require('../server/db');
+  const crunchyroll = require('../server/crunchyroll');
+  catalogDb.prepare("INSERT OR REPLACE INTO media (mal_id, title, episodes, status) VALUES (800, 'Agreed Show S3', 12, 'FINISHED')").run();
+  for (const a of ['c1', 'c2', 'c3']) withAccount(a, () => claims.claimSeason('GAGREED', 800, 24));
+  const plays = [25, 26].map((e) => ({ id: `ag-${e}`, episodeId: `AG${e}`, seasonId: 'GAGREED', seriesTitle: 'Agreed Show', seasonTitle: 'Agreed Show Season 3', episodeNumber: e, datePlayed: new Date(Date.now() - e * 60e3).toISOString(), fullyWatched: true, playhead: 1400, durationS: 1440 }));
+  await withAccount('newcomer', () => crunchyroll.ingest(plays));
+  const watched = withAccount('newcomer', () => adb.prepare('SELECT episode_number FROM episode_sync WHERE mal_id = 800 AND watched = 1 ORDER BY 1').all().map((r) => r.episode_number));
+  assert.deepEqual(watched, [1, 2], 'Crunchyroll 25-26 land as 1-2 via the agreed offset');
+  assert.equal(catalogDb.prepare("SELECT COUNT(*) n FROM catalog_jobs WHERE type = 'search'").get().n, 0, 'no search needed');
+});
+
+test('fixing a season on the Sync page counts as that account\'s vote', async () => {
+  catalogDb.exec('DELETE FROM cr_season_claims');
+  const { withAccount } = require('../server/db');
+  const crunchyroll = require('../server/crunchyroll');
+  await withAccount('fixer', () => crunchyroll.remapSeason('GFIXED', 950, 12));
+  const vote = catalogDb.prepare("SELECT mal_id, ep_offset, account_id FROM cr_season_claims WHERE season_id = 'GFIXED'").get();
+  assert.deepEqual(vote, { mal_id: 950, ep_offset: 12, account_id: 'fixer' });
+});

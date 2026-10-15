@@ -161,6 +161,8 @@ async function resolveWaitingSeason(seasonKey, sample, minEpisode, cands) {
   const rule = r?.rule || { mal: 0, offset: 0, source: 'unresolved', needsReview: true };
   if (r?.media && !library.isInLibrary(r.media.idMal)) library.addToLibrary(anilist.toLibraryAnime(r.media));
   insertRuleStmt.run(seasonKey, 0, 100000, rule.mal, rule.offset, rule.source, sample.series_title, sample.season_title, rule.needsReview ? 1 : 0);
+  // A confident match is this account's vote; a guess waits for the account to confirm it.
+  if (rule.mal && !rule.needsReview) require('./catalog/claims').claimSeason(seasonKey, rule.mal, rule.offset);
   await ingest([]); // the waiting plays of this season now have a rule
   return { done: true, malId: rule.mal };
 }
@@ -224,6 +226,14 @@ async function ingest(rawRows, { source = 'extension' } = {}) {
       let rule = ruleFromTitles(seasonRows, index);
       // Hosted mode (D10): ingest never waits on the network. An unknown season becomes a search job
       // for the catalog worker; its plays stay pending until the season is resolved.
+      // Hosted mode: what 3+ other accounts agreed on for this exact season comes before any search.
+      if (!rule && require('./db').MULTI) {
+        const agreed = require('./catalog/claims').seasonConsensus(seasonKey);
+        if (agreed) {
+          rule = { mal: agreed.mal, offset: agreed.offset, source: 'consensus', needsReview: false };
+          if (!library.isInLibrary(agreed.mal)) ensureInLibrary(agreed.mal);
+        }
+      }
       if (!rule && require('./db').MULTI) {
         const minEp = Math.min(...seasonRows.map((r) => r.episode_number).filter((n) => n != null), Infinity);
         require('./catalog/worker').waitForSearch(seasonQuery(sample), seasonKey, { series_title: sample.series_title, season_title: sample.season_title }, Number.isFinite(minEp) ? minEp : 1);
@@ -409,6 +419,8 @@ async function remapSeason(seasonId, malId, offset = 0) {
     ensureInLibrary(malId);
     await anilist.fetchFullByMalIds([malId]).catch(() => {});
   }
+  // A fix on the Sync page is this account's vote for the mapping (hosted mode, 5.13).
+  if (require('./db').MULTI) require('./catalog/claims').claimSeason(seasonId, malId, offset);
   return ingest([], { source: 'manual' });
 }
 
@@ -450,6 +462,11 @@ function dismissPlay(episodeId, undo = false) {
 
 function confirmSeason(seasonId) {
   db.prepare('UPDATE cr_season_map SET needs_review = 0 WHERE season_id = ?').run(seasonId);
+  // Confirming a guess on the Sync page is this account's vote for it (hosted mode, 5.13).
+  if (require('./db').MULTI) {
+    const r = db.prepare('SELECT mal_id, ep_offset FROM cr_season_map WHERE season_id = ? AND mal_id > 0 LIMIT 1').get(seasonId);
+    if (r) require('./catalog/claims').claimSeason(seasonId, r.mal_id, r.ep_offset);
+  }
   return { ok: true };
 }
 

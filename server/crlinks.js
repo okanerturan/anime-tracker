@@ -125,7 +125,10 @@ function applyResults(results) {
     if (!malId || !Array.isArray(r.candidates)) continue;
     const id = pick(malId, r.candidates);
     if (id === null) continue;
-    saveStmt.run(id, malId);
+    // Hosted mode: one account's extension finding a series id is a claim; it reaches the catalog
+    // once another account agrees (and never replaces an id AniList gave).
+    if (require('./db').MULTI) { if (id) require('./catalog/claims').claimSeries(id, malId); }
+    else saveStmt.run(id, malId);
     if (id) found += 1; else missing += 1;
   }
   return { found, missing };
