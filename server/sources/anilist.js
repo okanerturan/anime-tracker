@@ -1,7 +1,7 @@
 'use strict';
 // AniList GraphQL client: primary metadata source (titles, airing, episodes, relations, recommendations).
 // AniList allows ~30 requests/minute right now; we space requests and honour Retry-After.
-const { db, catalog, hasAccount } = require('../db');
+const { db, catalog, hasAccount, MULTI } = require('../db');
 const { sleep, dateFromParts } = require('../util');
 const appState = require('../state');
 const sha1 = require('../../worker/sha1');
@@ -205,6 +205,13 @@ const FULL_QUERY = `query($ids:[Int]){Page(perPage:25){media(idMal_in:$ids,type:
 
 async function fetchFullByMalIds(malIds, onProgress) {
   const ids = [...new Set(malIds.map(Number).filter(Boolean))];
+  // Hosted mode (D3, D4): catalog data comes only from the catalog worker, under one budget for
+  // everyone. Ask for it and return; the shows fill in when the worker has fetched them.
+  if (MULTI) {
+    const worker = require('../catalog/worker');
+    for (const id of ids) worker.enqueue('full', { malId: id }, { recency: 1 });
+    return { requested: ids.length, found: 0, deferred: ids.length, missing: [], queued: true };
+  }
   const query = FULL_QUERY;
   const found = new Set();
   for (let i = 0; i < ids.length; i += 25) {

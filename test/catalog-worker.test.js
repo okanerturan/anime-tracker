@@ -98,3 +98,16 @@ test('a block pauses catalog updates (the app keeps serving) and retries after 6
 });
 
 test.after(() => { db.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
+
+test('in hosted mode, asking for show details queues jobs instead of calling AniList', async () => {
+  reset();
+  const anilist = require('../server/sources/anilist');
+  const realFetch = global.fetch; let called = 0;
+  global.fetch = async () => { called += 1; throw new Error('no network in this test'); };
+  try {
+    const r = await anilist.fetchFullByMalIds([11, 12, 11]);
+    assert.equal(r.queued, true); assert.equal(r.deferred, 2);
+    assert.equal(called, 0, 'no AniList call from a request');
+    assert.deepEqual(catalogDb.prepare("SELECT key FROM catalog_jobs ORDER BY key").all().map((x) => x.key), ['full:11', 'full:12']);
+  } finally { global.fetch = realFetch; }
+});

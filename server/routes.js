@@ -136,6 +136,8 @@ const routes = {
   'GET /api/anilist/relay': (req, res) => sendJSON(res, 200, anilist.takeRelayJobs()),
   'POST /api/anilist/relay': async (req, res) => {
     requireClientHeader(req);
+    // Hosted mode: a browser's answer must never become everyone's catalog (D3); the worker fetches.
+    if (require('./db').MULTI) return sendJSON(res, 403, { error: 'The relay is only for the single-user tracker.' });
     const body = await parseBody(req);
     const stored = anilist.applyRelayAnswers(Array.isArray(body.answers) ? body.answers.slice(0, 40) : []);
     for (const id of stored) if (library.isInLibrary(id)) sync.enqueue(id);
