@@ -1737,3 +1737,11 @@ table.simple .num-col { text-align: end; }
 .since-line { margin-block-start: calc(-1 * var(--space-s)); color: var(--muted); font-size: var(--step--1); }
 .since-line b { color: var(--text); font-weight: 600; }
 .since-line .link-btn { color: var(--text); text-decoration: underline; text-decoration-color: color-mix(in oklch, var(--accent) 60%, transparent); text-underline-offset: 0.2em; }
+
+/* Discover: "Not interested" is a corner ×, top-left (the match % sits top-right). */
+.rec-hide { place-self: start start; }
+@media (hover: hover) and (pointer: fine) {
+  .rec-card .rec-hide { opacity: 0; }
+  .rec-card:hover .rec-hide, .rec-card:focus-within .rec-hide { opacity: 1; }
+}
+@media (hover: hover) and (pointer: fine) { .rec-hide:hover { background: color-mix(in oklch, var(--surface-2), var(--bad, oklch(0.65 0.18 25)) 35%); color: var(--text); } }

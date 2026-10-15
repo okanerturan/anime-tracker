@@ -15,7 +15,7 @@ function addButton(anime, inLibrary) {
 }
 
 function watchedButton(malId, title, onDone) {
-  const btn = h('button', { type: 'button', class: 'btn small', title: 'Watched it on another service: add it as fully watched' }, 'Watched');
+  const btn = h('button', { type: 'button', class: 'btn small', title: 'Seen it already (anywhere): add it to your library as fully watched' }, 'Seen it');
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
@@ -71,7 +71,8 @@ function filterBar(onChange) {
 }
 
 function recCard(r, onDismiss) {
-  const dismiss = h('button', { type: 'button', class: 'btn small ghost', 'aria-label': `Not interested in ${r.title}`, title: 'Not interested' }, 'Hide');
+  // Not interested: a small × in the poster's corner (shown on hover with a mouse, always on touch).
+  const dismiss = h('button', { type: 'button', class: 'icon-btn card-tick rec-hide', 'aria-label': `Not interested in ${r.title}`, title: 'Not interested' }, icon('close'));
   dismiss.addEventListener('click', async () => {
     await api.dismiss(r.malId);
     onDismiss();
@@ -80,6 +81,7 @@ function recCard(r, onDismiss) {
   const open = () => openAnime({ malId: r.malId, title: r.title, image: r.image });
   return h('article', { class: 'card rec-card' },
     media({ src: r.image, alt: '', kind: 'poster', badges: [
+      dismiss,
       r.crunchyrollUrl ? h('a', { class: 'play-overlay', href: r.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${r.title} on Crunchyroll`, title: 'Open on Crunchyroll' }, icon('play'), h('span', {}, 'Crunchyroll')) : null,
       r.match != null ? h('div', { class: 'badge-end' }, h('span', { class: 'pill accent num' }, `${r.match}% match`)) : null] }),
     cardLink(r.title, open, { href: r.siteUrl || `https://myanimelist.net/anime/${r.malId}` }),
@@ -89,7 +91,7 @@ function recCard(r, onDismiss) {
     h('p', { class: 'card-sub clamp-3' }, r.note ? r.note : r.because.length ? ['Because you watched ', ...(r.becauseShows || r.because.map((t) => ({ title: t }))).flatMap((b, i, arr) => [
       b.malId ? h('a', { class: 'because-link', href: `#/library?anime=${b.malId}`, onclick: (e) => { e.preventDefault(); openAnime({ malId: b.malId, title: b.title }); } }, b.title) : b.title,
       i < arr.length - 1 ? ', ' : ''])] : ''),
-    h('div', { class: 'card-actions' }, addButton({ malId: r.malId, title: r.title, titleEnglish: r.title, totalEpisodes: r.episodes }, r.inLibrary), watchedButton(r.malId, r.title, onDismiss), dismiss));
+    h('div', { class: 'card-actions card-actions--pair' }, addButton({ malId: r.malId, title: r.title, titleEnglish: r.title, totalEpisodes: r.episodes }, r.inLibrary), watchedButton(r.malId, r.title, onDismiss)));
 }
 
 function searchPanel(initial = '') {
