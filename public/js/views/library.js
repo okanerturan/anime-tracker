@@ -22,10 +22,10 @@ const EMPTY = {
   rated: 'No ratings yet. Open a show from the library and tap a star; ratings steer your recommendations.'
 };
 const DAY = 86400000;
-const state = { filter: 'all', query: '', sort: 'activity_desc', items: null };
+const state = { filter: 'all', query: '', sort: 'activity_desc', group: false, items: null };
 // Remember the last filter and sort per browser.
-try { const saved = JSON.parse(localStorage.getItem('library:view') || 'null'); if (saved) { state.filter = saved.filter || state.filter; state.sort = saved.sort || state.sort; } } catch {}
-const remember = () => { try { localStorage.setItem('library:view', JSON.stringify({ filter: state.filter, sort: state.sort })); } catch {} };
+try { const saved = JSON.parse(localStorage.getItem('library:view') || 'null'); if (saved) { state.filter = saved.filter || state.filter; state.sort = saved.sort || state.sort; state.group = Boolean(saved.group); } } catch {}
+const remember = () => { try { localStorage.setItem('library:view', JSON.stringify({ filter: state.filter, sort: state.sort, group: state.group })); } catch {} };
 bus.on('library-changed', () => { state.items = null; });
 
 // Last known list per sort, so the page paints before the network answers.
@@ -70,7 +70,8 @@ function progressState(x) {
   return { key: 'watching', label: `${left} new`, left };
 }
 
-function card(x) {
+/** `inSeries`: with "Group seasons" on, how many library entries share this card's series. */
+function card(x, inSeries = 1) {
   const aired = x.airedEpisodes ?? x.episodesCount;
   const title = x.titleEnglish || x.title;
   const st = progressState(x);
@@ -91,13 +92,14 @@ function card(x) {
     }
     catch (err) { tick.disabled = false; toast(err.message); }
   });
-  return h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''}` },
+  return h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''} ${inSeries > 1 ? 'is-stack' : ''}` },
     media({ src: x.imageUrl, alt: '', kind: 'poster', badges: [h('div', { class: 'badge-end' }, badge), play, tick] }),
     progress(aired ? Math.min((x.progress ?? x.watchedCount), aired) / aired : 0),
     cardLink(title, () => openAnime({ ...x, title, image: x.imageUrl }), { href: `https://myanimelist.net/anime/${x.malId}` }),
     h('div', { class: 'card-meta' },
       statusPill(x.status),
-      h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
+      inSeries > 1 ? h('span', { title: 'Seasons, movies and OVAs of this series in your library. Open it to see them all.' }, `${inSeries} in series`)
+        : h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
       x.rating ? h('span', { class: 'num rating', title: `Your rating: ${x.rating}/5` }, `★${x.rating}`) : null,
       h('span', { class: 'num push-end' }, `${(x.progress ?? x.watchedCount)}/${aired ?? '?'}`)),
     state.filter === 'unfinished' ? triage(x, title) : null);
@@ -177,8 +179,16 @@ export async function render(view) {
       const hrs = Math.round(minutes / 60);
       tail = minutes ? ` · ~${hrs >= 1 ? `${hrs} h` : `${Math.round(minutes)} min`} to finish them all` : '';
     }
-    count.textContent = `${list.length} of ${state.items.length}${tail}`;
-    fill(grid, list.length ? list.map(card)
+    // Group seasons: one card per series, the entry this sort puts first (most recently watched, etc.).
+    let sizes = null;
+    if (state.group) {
+      sizes = new Map();
+      for (const x of state.items) sizes.set(x.series ?? x.malId, (sizes.get(x.series ?? x.malId) || 0) + 1);
+      const seen = new Set();
+      list = list.filter((x) => { const k = x.series ?? x.malId; if (seen.has(k)) return false; seen.add(k); return true; });
+    }
+    count.textContent = `${list.length}${state.group ? ' series' : ''} of ${state.items.length}${state.group ? ' shows' : ''}${tail}`;
+    fill(grid, list.length ? list.map((x) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1))
       : h('div', { class: 'empty' }, h('b', {}, 'Nothing here'), h('span', {}, state.query ? `No show matches “${state.query}”.` : EMPTY[state.filter] || 'Nothing matches.')));
   };
   const search = h('input', { type: 'search', class: 'search', placeholder: 'Filter by title or genre…', value: state.query, 'aria-label': 'Filter library' });
@@ -198,6 +208,8 @@ export async function render(view) {
   }));
   const sort = h('select', { 'aria-label': 'Sort' }, [['activity_desc', 'Recently watched'], ['left_asc', 'Fewest episodes left'], ['rating_desc', 'Your rating'], ['release_desc', 'Newest release'], ['release_asc', 'Oldest release'], ['added_desc', 'Recently added'], ['title_asc', 'Title A–Z']]
     .map(([v, l]) => h('option', { value: v, selected: state.sort === v }, l)));
+  const groupBtn = h('button', { type: 'button', class: 'chip-toggle group-toggle', 'aria-pressed': String(state.group), title: 'Show one card per series instead of one per season' }, 'Group seasons');
+  groupBtn.addEventListener('click', () => { state.group = !state.group; groupBtn.setAttribute('aria-pressed', String(state.group)); remember(); draw(); });
   sort.addEventListener('change', async () => {
     state.sort = sort.value;
     remember();
@@ -229,7 +241,7 @@ export async function render(view) {
     bulk.disabled = false;
   });
   view.replaceChildren(h('section', { class: 'section' },
-    h('div', { class: 'section-head' }, h('h2', {}, 'Library'), count, h('div', { class: 'push-end library-tools' }, search, h('a', { class: 'btn small ghost', href: '/api/library.csv', download: '' }, 'Export CSV'), sort)),
+    h('div', { class: 'section-head' }, h('h2', {}, 'Library'), count, h('div', { class: 'push-end library-tools' }, search, groupBtn, h('a', { class: 'btn small ghost', href: '/api/library.csv', download: '' }, 'Export CSV'), sort)),
     h('div', { class: 'toolbar' }, chips),
     bulk,
     grid));

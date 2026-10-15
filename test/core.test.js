@@ -225,3 +225,10 @@ test('alternate titles are stored (Latin-alphabet ones only) and returned with t
   const x = library.getWatchlist('title_asc').find((s) => s.malId === 840);
   assert.deepEqual(x.synonyms, ['JJK', 'Sorcery Fight']);
 });
+
+test('seasons linked as sequel and prequel share a series id in the library', () => {
+  for (const [id, t] of [[850, 'Series S1'], [851, 'Series S2'], [852, 'Series S3'], [853, 'Unrelated']]) library.addToLibrary({ malId: id, title: t, totalEpisodes: 12 });
+  relate(851, 850, 'PREQUEL'); relate(851, 852, 'SEQUEL');
+  const by = Object.fromEntries(library.getWatchlist('title_asc').filter((x) => x.malId >= 850 && x.malId <= 853).map((x) => [x.malId, x.series]));
+  assert.equal(by[850], 850); assert.equal(by[851], 850); assert.equal(by[852], 850); assert.equal(by[853], 853);
+});

@@ -80,6 +80,14 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
     ORDER BY ${ORDER[sort] || ORDER.release_desc}
   `).all();
   const nextStmt = db.prepare(`SELECT episode_number AS n, url FROM episode_sync WHERE mal_id = ? AND episode_number > COALESCE((SELECT MAX(episode_number) FROM episode_sync WHERE mal_id = ? AND watched = 1), 0) ORDER BY episode_number LIMIT 1`);
+  // Series grouping: seasons in your library linked as sequel/prequel share one id (the lowest MAL id).
+  const parent = new Map(rows.map((r) => [r.malId, r.malId]));
+  const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+  for (const e of db.prepare(`SELECT mal_id AS a, related_mal_id AS b FROM media_relation WHERE relation_type IN ('SEQUEL','PREQUEL','PARENT')`).all()) {
+    if (!parent.has(e.a) || !parent.has(e.b)) continue;
+    const ra = find(e.a); const rb = find(e.b);
+    if (ra !== rb) parent.set(Math.max(ra, rb), Math.min(ra, rb));
+  }
   return rows.map((r) => {
     const aired = airedCount({ status: r.status, next_airing_episode: r.nextAiringEpisode, episodes: r.mediaEpisodes });
     const next = r.watchedCount && r.watchedCount < (aired ?? r.episodesCount) ? nextStmt.get(r.malId, r.malId) : null;
@@ -94,6 +102,7 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
     }
     return {
       malId: r.malId,
+      series: find(r.malId),
       synonyms: parseJSONField(r.synonyms, []),
       episodeMinutes: r.episodeMinutes || null,
       nextEpisode: next?.n ?? null,

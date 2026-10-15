@@ -1727,3 +1727,8 @@ table.simple :is(.date-col, .num-col) { white-space: nowrap; overflow-wrap: norm
 table.simple .num-col { text-align: end; }
 /* The line that stands in for episodes that haven't aired yet spans the whole episode grid. */
 .ep-later { grid-column: 1 / -1; padding-block: var(--space-xs); }
+
+/* Library "Group seasons": a card standing for several entries gets a stacked edge behind it,
+   drawn into the grid gap so the card itself keeps its place in the grid. */
+.card.is-stack { box-shadow: 0.3rem -0.3rem 0 -1px var(--surface), 0.3rem -0.3rem 0 0 var(--line), 0.6rem -0.6rem 0 -2px var(--surface), 0.6rem -0.6rem 0 -1px var(--line); }
+.group-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
