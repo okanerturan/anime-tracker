@@ -33,6 +33,7 @@ function yearsSection(years) {
         stat(`${y.hours}\u00a0h`, `${y.episodes.toLocaleString()} episodes`),
         stat(String(y.shows), 'shows'),
         y.busiestMonth ? stat(MONTHS[y.busiestMonth.month - 1], `busiest month · ${y.busiestMonth.hours}\u00a0h`) : null),
+      y.leanedInto?.length ? h('p', { class: 'muted' }, `Compared with your usual taste, ${y.year} leaned into `, h('b', {}, y.leanedInto.join(' and ')), '.') : null,
       h('h3', {}, `Most watched in ${y.year}`),
       h('ol', { class: 'year-top' }, y.top.map((t) => h('li', {},
         t.malId ? h('a', { class: 'row-link', href: `#/insights?anime=${t.malId}`, onclick: (e) => { e.preventDefault(); openAnime({ malId: t.malId, title: t.title }); } }, t.title) : h('span', {}, t.title),

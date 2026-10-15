@@ -365,7 +365,9 @@ function study() {
   const bulkTimes = new Set();
   for (let i = 1; i < order.length; i += 1) if (order[i] - order[i - 1] < 8 * 60000) { bulkTimes.add(order[i]); bulkTimes.add(order[i - 1]); }
   let bulk = 0;
+  const titleGenres = new Map(); // series title -> genres, for each year's top genres
   for (const p of plays) {
+    if (p.genres && !titleGenres.has(p.series_title)) titleGenres.set(p.series_title, parseJSONField(p.genres, []));
     const d = new Date(p.date_played);
     const mins = (p.duration_s || 1440) / 60;
     minutes += mins;
@@ -468,7 +470,16 @@ function study() {
       return {
         year: y, episodes: byYear[y].episodes, hours: Math.round(byYear[y].hours), shows: byYear[y].shows.size,
         busiestMonth: months[0] ? { month: Number(months[0][0].slice(5)), hours: Math.round(months[0][1]) } : null,
-        top: [...byYear[y].perShow.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([title, episodes]) => ({ title, episodes, malId: showIds.get(title) || null }))
+        top: [...byYear[y].perShow.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([title, episodes]) => ({ title, episodes, malId: showIds.get(title) || null })),
+        // What the year leaned into: genres with a clearly bigger share of that year's shows than of
+        // all your shows (each show counts once, however many episodes).
+        leanedInto: (() => {
+          const share = (titles) => { const c = new Map(); let n = 0; for (const t of titles) { n += 1; for (const g of titleGenres.get(t) || []) c.set(g, (c.get(g) || 0) + 1); } return { c, n: Math.max(1, n) }; };
+          const yr = share(byYear[y].perShow.keys()); const all = share(titleGenres.keys());
+          if (yr.n < 5) return [];
+          return [...yr.c.entries()].map(([g, k]) => [g, k / yr.n - (all.c.get(g) || 0) / all.n]).filter(([, d]) => d >= 0.08)
+            .sort((a, b) => b[1] - a[1]).slice(0, 2).map(([g]) => g);
+        })()
       };
     }),
     byMonth: Object.entries(byMonth).sort().slice(-24).map(([month, hours]) => ({ month, hours: Math.round(hours * 10) / 10 })),
