@@ -3,7 +3,7 @@ import { runRelay } from './anilist-relay.js';
 import { openQuickSwitcher } from './quickopen.js';
 import { checkPlay } from './playcheck.js';
 import { bus } from './bus.js';
-import { h, fill, relTime, icon } from './ui.js';
+import { h, fill, relTime, icon, toast } from './ui.js';
 import { closeDrawer, openAnime } from './drawer.js';
 import * as upnext from './views/upnext.js';
 import * as library from './views/library.js';
@@ -87,6 +87,29 @@ const THEME_GLYPH = { dark: '☾', light: '☀', system: '◐' };
 const findBtn = document.getElementById('find-btn');
 findBtn?.append(icon('search'));
 findBtn?.addEventListener('click', () => openQuickSwitcher());
+
+// Sync now: shown once the extension (set to this tracker) says hello through its page bridge, so a
+// stale "Synced 3 days ago" can be fixed from here instead of the extension's popup.
+const syncBtn = h('button', { type: 'button', class: 'icon-btn sync-btn', hidden: true, 'aria-label': 'Sync with Crunchyroll now', title: 'Sync with Crunchyroll now' }, icon('sync'));
+document.getElementById('topbar-status')?.after(syncBtn);
+const toBridge = (type) => window.postMessage({ source: 'anime-tracker-page', type }, location.origin);
+syncBtn.addEventListener('click', () => {
+  syncBtn.disabled = true; syncBtn.classList.add('is-busy');
+  toBridge('sync-now');
+});
+window.addEventListener('message', (e) => {
+  if (e.source !== window || e.origin !== location.origin || e.data?.source !== 'anime-tracker-ext') return;
+  if (e.data.type === 'hello') syncBtn.hidden = false;
+  if (e.data.type !== 'sync-done') return;
+  syncBtn.disabled = false; syncBtn.classList.remove('is-busy');
+  if (!e.data.ok) { toast(`Sync failed: ${e.data.error || 'unknown error'}`); return; }
+  toast(e.data.marked ? `Synced: ${e.data.marked} newly watched episode${e.data.marked === 1 ? '' : 's'}` : 'Synced: nothing new since last time');
+  clearCache();
+  bus.emit('library-changed');
+  if (!document.querySelector('dialog[open]')) route({ refresh: true });
+  updateStatus();
+});
+toBridge('ping');
 const themeBtn = document.getElementById('theme-btn');
 function paintThemeButton() {
   const t = document.documentElement.dataset.theme || 'dark';

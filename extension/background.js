@@ -168,6 +168,17 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       reply({ shouldSync: stale, since, wantSeasons, wantSeries });
     } else if (msg.type === 'page-data') {
       reply(await syncNow({ data: msg.data, reason: 'page' }));
+    } else if (msg.type === 'bridge-hello' || msg.type === 'page-sync') {
+      // Only the tracker this extension syncs to may ask (page-sync-bridge.js runs on any workers.dev page).
+      const cfg = await get();
+      let mine = false;
+      try { mine = Boolean(sender.origin) && new URL(cfg.trackerUrl).origin === sender.origin; } catch {}
+      if (!mine) reply({ ok: false });
+      else if (msg.type === 'bridge-hello') reply({ ok: true });
+      else {
+        const r = await syncNow({ reason: 'page' });
+        reply(r.ok ? { ok: true, marked: r.result?.marked ?? 0 } : { ok: false, error: r.error });
+      }
     } else if (msg.type === 'sync-now') {
       reply(await syncNow({ full: Boolean(msg.full), reason: msg.full ? 'full' : 'manual' }));
     } else if (msg.type === 'get-state') {

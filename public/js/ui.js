@@ -27,7 +27,8 @@ const ICONS = {
   right: 'M9 6l6 6-6 6',
   chev: 'M9 6l6 6-6 6',
   play: 'M8 5.5v13l10.5-6.5z',
-  search: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5L20 20'
+  search: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5L20 20',
+  sync: 'M19.5 9.5A8 8 0 0 0 5.2 7.2M4.5 4v3.5H8M4.5 14.5a8 8 0 0 0 14.3 2.3M19.5 20v-3.5H16'
 };
 /** replaceChildren that skips null/false (the DOM would print them as text) and flattens arrays. */
 export function fill(el, ...children) {
