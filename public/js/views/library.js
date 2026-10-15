@@ -93,7 +93,13 @@ function card(x, inSeries = 1, eager = false) {
   const aired = x.airedEpisodes ?? x.episodesCount;
   const title = x.titleEnglish || x.title;
   const st = progressState(x);
-  const badge = h('span', { class: `pill state-${st.key} num` }, st.label);
+  // Upcoming: the start date is what matters ("Jan 2027"; the day once it's known and near).
+  const startLabel = st.key === 'upcoming' && x.releaseDate ? (() => {
+    const d = new Date(x.releaseDate); if (Number.isNaN(d.getTime())) return null;
+    const far = (d.getTime() - Date.now()) / 86400000 > 60;
+    return d.toLocaleDateString(undefined, /-01$/.test(x.releaseDate) && far ? { month: 'short', year: 'numeric' } : { day: 'numeric', month: 'short' });
+  })() : null;
+  const badge = h('span', { class: `pill state-${st.key} num`, title: startLabel ? `Starts ${startLabel}` : null }, startLabel || st.label);
   // Finished, and the next season is out but untouched: a button on the poster that opens it.
   const sequel = st.key === 'completed' && x.sequel
     ? h('button', { type: 'button', class: 'play-overlay sequel-pill', title: `Open ${x.sequel.title}`, onclick: (e) => { e.stopPropagation(); openAnime({ malId: x.sequel.malId, title: x.sequel.title }); } },
@@ -120,11 +126,11 @@ function card(x, inSeries = 1, eager = false) {
     progress(aired ? Math.min((x.progress ?? x.watchedCount), aired) / aired : 0),
     cardLink(title, () => openAnime({ ...x, title, image: x.imageUrl }), { href: `https://myanimelist.net/anime/${x.malId}` }),
     h('div', { class: 'card-meta' },
-      statusPill(x.status),
+      st.key === 'upcoming' ? null : statusPill(x.status),
       inSeries > 1 ? h('span', { title: 'Seasons, movies and OVAs of this series in your library. Open it to see them all.' }, `${inSeries} in series`)
         : h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
       x.rating ? h('span', { class: 'num rating', title: `Your rating: ${x.rating}/5` }, `★${x.rating}`) : null,
-      h('span', { class: 'num push-end' }, `${(x.progress ?? x.watchedCount)}/${aired ?? '?'}`)),
+      st.key === 'upcoming' && !(x.progress ?? x.watchedCount) ? null : h('span', { class: 'num push-end' }, `${(x.progress ?? x.watchedCount)}/${aired ?? '?'}`)),
     state.filter === 'unfinished' ? triage(x, title) : null);
   // In select mode a click anywhere on the card toggles it (capture phase, before links and buttons).
   el.addEventListener('click', (e) => {

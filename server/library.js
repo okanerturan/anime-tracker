@@ -386,6 +386,20 @@ function unmarkEpisodes(malId, episodes) {
   return { ok: true, changed };
 }
 
+/**
+ * Unmark "watched" episodes of seasons AniList says haven't aired: plays from an earlier season that
+ * an old import copied onto the sequel. Only plays over a week old, in case AniList's status lags.
+ */
+function repairUnreleasedWatches() {
+  const rows = db.prepare(`SELECT e.mal_id, e.episode_number FROM episode_sync e JOIN media m ON m.mal_id = e.mal_id
+    WHERE e.watched = 1 AND m.status = 'NOT_YET_RELEASED' AND e.watched_at < ?`).all(new Date(Date.now() - 7 * 86400e3).toISOString());
+  const byShow = new Map();
+  for (const r of rows) byShow.set(r.mal_id, [...(byShow.get(r.mal_id) || []), r.episode_number]);
+  let changed = 0;
+  for (const [malId, eps] of byShow) changed += unmarkEpisodes(malId, eps).changed;
+  return { shows: byShow.size, episodes: changed };
+}
+
 const LIST_STATUSES = [null, 'on_hold', 'dropped'];
 
 /** Put a show on hold, drop it, or make it active again (status null). */
@@ -490,6 +504,7 @@ function importMalList(entries) {
 
 module.exports = {
   unmarkEpisodes,
+  repairUnreleasedWatches,
   listStatusOf,
   importMalList,
   suspiciousProgress,

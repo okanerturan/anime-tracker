@@ -370,3 +370,19 @@ test('seasonal: an AniList failure after the cache expires keeps the last list',
     assert.ok(state.get(key).list.length, 'cache kept');
   } finally { anilist.gql = realGql; }
 });
+
+test('unreleased seasons: old copied plays are unmarked, recent ones and released shows are kept', () => {
+  addShow(960, 'Sequel Not Out', { status: 'NOT_YET_RELEASED', start_date: null });
+  addShow(961, 'Out Already', { status: 'FINISHED' });
+  const old = new Date(Date.now() - 400 * 86400e3).toISOString();
+  const recent = new Date(Date.now() - 86400e3).toISOString();
+  const mark = (id, n, at) => db.prepare(`INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, watched, watched_at) VALUES (?, ?, 1, ?)`).run(id, n, at);
+  mark(960, 1, old); mark(960, 2, old); mark(960, 3, recent); mark(961, 1, old);
+  const r = library.repairUnreleasedWatches();
+  assert.equal(r.episodes, 2);
+  const w = (id, n) => db.prepare('SELECT watched FROM episode_sync WHERE mal_id = ? AND episode_number = ?').get(id, n).watched;
+  assert.equal(w(960, 1), 0);
+  assert.equal(w(960, 3), 1, 'a play from yesterday waits (AniList status may lag)');
+  assert.equal(w(961, 1), 1, 'released shows are untouched');
+  assert.equal(library.repairUnreleasedWatches().episodes, 0, 'idempotent');
+});

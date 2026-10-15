@@ -140,13 +140,17 @@ function ensureInLibrary(malId) {
     releaseDate: media?.start_date || null, totalEpisodes: media?.episodes ?? null });
 }
 
-const startDateStmt = db.prepare('SELECT start_date FROM media WHERE mal_id = ?');
+const startDateStmt = db.prepare('SELECT start_date, status FROM media WHERE mal_id = ?');
 
 function applyRow(row) {
   if (!row.mal_id || !row.mal_episode || row.mal_episode < 1) return 'unmapped';
   if (!isWatchedPlay({ fullyWatched: row.fully_watched, playhead: row.playhead, durationS: row.duration_s })) return 'partial';
   // Premiere guard: a play from before the show aired belongs to a different season, so it never counts here.
-  const start = startDateStmt.get(row.mal_id)?.start_date;
+  const media = startDateStmt.get(row.mal_id);
+  // A season that hasn't aired can't have been watched (old imports put earlier seasons' plays on
+  // sequels with no start date yet, where the date check below can't help).
+  if (media?.status === 'NOT_YET_RELEASED') return 'before-premiere';
+  const start = media?.start_date;
   if (start && row.date_played && new Date(row.date_played).getTime() < new Date(start).getTime() - 2 * 86400000) return 'before-premiere';
   const existing = getEpStmt.get(row.mal_id, row.mal_episode);
   if (existing) {
