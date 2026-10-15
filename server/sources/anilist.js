@@ -1,7 +1,7 @@
 'use strict';
 // AniList GraphQL client: primary metadata source (titles, airing, episodes, relations, recommendations).
 // AniList allows ~30 requests/minute right now; we space requests and honour Retry-After.
-const { db } = require('../db');
+const { db, catalog, hasAccount } = require('../db');
 const { sleep, dateFromParts } = require('../util');
 const appState = require('../state');
 const sha1 = require('../../worker/sha1');
@@ -39,11 +39,11 @@ function markUnblocked() {
 }
 
 const relayKey = (query, variables) => sha1(`${query}\n${JSON.stringify(variables)}`);
-const relayGetStmt = db.prepare('SELECT data, answered_at FROM anilist_relay WHERE key = ?');
-const relayRequestStmt = db.prepare(`INSERT INTO anilist_relay (key, query, variables) VALUES (?, ?, ?)
+const relayGetStmt = catalog.prepare('SELECT data, answered_at FROM anilist_relay WHERE key = ?');
+const relayRequestStmt = catalog.prepare(`INSERT INTO anilist_relay (key, query, variables) VALUES (?, ?, ?)
   ON CONFLICT(key) DO UPDATE SET requested_at = CURRENT_TIMESTAMP`);
-const relayAnswerStmt = db.prepare(`UPDATE anilist_relay SET data = ?, answered_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE key = ?`);
-const pendingIdStmt = db.prepare('INSERT OR IGNORE INTO anilist_pending_ids (mal_id) VALUES (?)');
+const relayAnswerStmt = catalog.prepare(`UPDATE anilist_relay SET data = ?, answered_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE key = ?`);
+const pendingIdStmt = catalog.prepare('INSERT OR IGNORE INTO anilist_pending_ids (mal_id) VALUES (?)');
 
 /** A relayed answer for this exact request, or queue it for the browser and throw. */
 function fromRelay(query, variables) {
@@ -108,7 +108,7 @@ const FULL_FIELDS = `${NODE_FIELDS} bannerImage siteUrl description(asHtml:false
   relations{edges{relationType node{${NODE_FIELDS}}}}
   recommendations(sort:RATING_DESC,perPage:15){nodes{rating mediaRecommendation{${NODE_FIELDS}}}}`;
 
-const upsertMediaStmt = db.prepare(`
+const upsertMediaStmt = catalog.prepare(`
 INSERT INTO media (mal_id, anilist_id, title, title_english, format, status, episodes, duration, season_year,
   start_date, start_day_known, genres, tags, average_score, popularity, cover_url, banner_url, color, site_url,
   next_airing_episode, next_airing_at, streaming_episodes, external_links, description, synonyms, is_full, fetched_at)
@@ -131,10 +131,10 @@ ON CONFLICT(mal_id) DO UPDATE SET
   is_full=MAX(media.is_full, excluded.is_full),
   fetched_at=CASE WHEN excluded.is_full=1 OR media.is_full=0 THEN CURRENT_TIMESTAMP ELSE media.fetched_at END
 `);
-const deleteRelationsStmt = db.prepare('DELETE FROM media_relation WHERE mal_id = ?');
-const insertRelationStmt = db.prepare('INSERT OR IGNORE INTO media_relation (mal_id, related_mal_id, relation_type) VALUES (?, ?, ?)');
-const deleteRecsStmt = db.prepare('DELETE FROM media_rec WHERE mal_id = ?');
-const insertRecStmt = db.prepare('INSERT OR REPLACE INTO media_rec (mal_id, rec_mal_id, rating) VALUES (?, ?, ?)');
+const deleteRelationsStmt = catalog.prepare('DELETE FROM media_relation WHERE mal_id = ?');
+const insertRelationStmt = catalog.prepare('INSERT OR IGNORE INTO media_relation (mal_id, related_mal_id, relation_type) VALUES (?, ?, ?)');
+const deleteRecsStmt = catalog.prepare('DELETE FROM media_rec WHERE mal_id = ?');
+const insertRecStmt = catalog.prepare('INSERT OR REPLACE INTO media_rec (mal_id, rec_mal_id, rating) VALUES (?, ?, ?)');
 const updateSynopsisStmt = db.prepare(`UPDATE anime SET synopsis = ? WHERE mal_id = ? AND (synopsis IS NULL OR synopsis = '' OR synopsis = 'No synopsis available.')`);
 
 function mediaRow(m, isFull) {
@@ -169,11 +169,12 @@ function mediaRow(m, isFull) {
   };
 }
 
-const storeFull = db.transaction((list) => {
+// Catalog rows in one catalog transaction; the synopsis copy in the account's own library row after
+// it (hosted mode: only when there is an account, e.g. not from a background catalog job).
+const storeCatalog = catalog.transaction((list) => {
   for (const m of list) {
     if (!m.idMal) continue;
     upsertMediaStmt.run(mediaRow(m, true));
-    if (m.description) updateSynopsisStmt.run(m.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim(), m.idMal);
     deleteRelationsStmt.run(m.idMal);
     for (const edge of m.relations?.edges || []) {
       const node = edge.node;
@@ -190,6 +191,14 @@ const storeFull = db.transaction((list) => {
     }
   }
 });
+function storeFull(list) {
+  storeCatalog(list);
+  if (!hasAccount()) return;
+  for (const m of list) {
+    if (m?.idMal && m.description) updateSynopsisStmt.run(m.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim(), m.idMal);
+  }
+}
+
 
 /** Fetch full metadata (incl. relations + recommendations) for MAL ids, 25 per request. */
 const FULL_QUERY = `query($ids:[Int]){Page(perPage:25){media(idMal_in:$ids,type:ANIME){${FULL_FIELDS}}}}`;
@@ -203,7 +212,7 @@ async function fetchFullByMalIds(malIds, onProgress) {
     let data;
     if (isBlocked()) {
       // Blocked: queue every remaining id for the browser relay rather than failing.
-      db.transaction(() => { for (const id of ids.slice(i)) pendingIdStmt.run(id); })();
+      catalog.transaction(() => { for (const id of ids.slice(i)) pendingIdStmt.run(id); })();
       return { requested: ids.length, found: found.size, deferred: ids.length - i, missing: [] };
     }
     try { data = await gql(query, { ids: chunk }); }
@@ -267,13 +276,13 @@ function applyRelayAnswers(answers) {
       storeFull(list);
       stored.push(...list.map((m) => m.idMal));
       // Ids AniList doesn't know are dropped too, or they would be requested forever.
-      const del = db.prepare('DELETE FROM anilist_pending_ids WHERE mal_id = ?');
+      const del = catalog.prepare('DELETE FROM anilist_pending_ids WHERE mal_id = ?');
       for (const id of requested) del.run(id);
     } else {
       relayAnswerStmt.run(JSON.stringify(a.data), a.id);
     }
   }
-  db.prepare(`DELETE FROM anilist_relay WHERE requested_at < datetime('now','-3 days')`).run();
+  catalog.prepare(`DELETE FROM anilist_relay WHERE requested_at < datetime('now','-3 days')`).run();
   return stored;
 }
 

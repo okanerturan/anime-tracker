@@ -3,7 +3,7 @@
 // link, a series the extension found with Crunchyroll's own search, then a related season's series
 // (Crunchyroll keeps every season on one series page). Failing all that, a search link whose query fits
 // Crunchyroll's 30-character search box.
-const { db } = require('./db');
+const { db, catalog } = require('./db');
 const { normalizeTitle, parseJSONField } = require('./util');
 
 const SERIES_RE = /crunchyroll\.com\/(?:[a-z-]+\/)?series\/([A-Z0-9]+)/i;
@@ -100,7 +100,8 @@ function wanted(limit = 25) {
   return out;
 }
 
-const saveStmt = db.prepare('UPDATE media SET cr_series_id = ?, cr_checked_at = CURRENT_TIMESTAMP WHERE mal_id = ?');
+// A user's extension reporting a series id: catalog data (hosted mode will need claims with votes, task 5.x).
+const saveStmt = catalog.prepare('UPDATE media SET cr_series_id = ?, cr_checked_at = CURRENT_TIMESTAMP WHERE mal_id = ?');
 
 /** Pick the Crunchyroll series matching a show from search candidates ([{id, title}]); '' when none does. */
 function pick(malId, candidates) {

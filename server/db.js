@@ -115,4 +115,18 @@ const db = {
 /** Hosted mode: the catalog worker's read-write connection to the shared catalog (null in single-user mode). */
 const catalogDb = catalogConn;
 
-module.exports = { db, catalogDb, ROOT, DATA_DIR, IMAGE_DIR, ACCOUNTS_DIR, CATALOG_FILE, MULTI, withAccount, accountContext };
+/**
+ * Where shared-catalog statements go: the catalog's own connection in hosted mode, the one database
+ * in single-user mode. Same API as `db`, so catalog code reads the same in both.
+ */
+const catalog = MULTI ? {
+  prepare: (sql) => catalogConn.prepare(sql),
+  transaction: (fn) => catalogConn.transaction(fn),
+  exec: (sql) => catalogConn.exec(sql),
+  pragma: (...args) => catalogConn.pragma(...args)
+} : db;
+
+/** True when there is an account to write per-person data for (always, in single-user mode). */
+const hasAccount = () => !MULTI || Boolean(accountContext.getStore()?.accountId);
+
+module.exports = { db, catalog, hasAccount, catalogDb, ROOT, DATA_DIR, IMAGE_DIR, ACCOUNTS_DIR, CATALOG_FILE, MULTI, withAccount, accountContext };

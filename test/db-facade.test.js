@@ -67,3 +67,15 @@ test('accounts read the shared catalog through the attachment, and never write i
   assert.throws(() => withAccount('7', () => db.prepare('UPDATE media SET title = ? WHERE mal_id = ?').run('x', 700)), /catalog worker/);
   assert.throws(() => withAccount('7', () => db.prepare('INSERT OR REPLACE INTO catalog.media_rec (mal_id, rec_mal_id, rating) VALUES (1, 2, 3)').run()), /catalog worker/);
 });
+
+test('an AniList answer lands in the shared catalog, and the synopsis in the account that asked', () => {
+  const anilist = require('../server/sources/anilist');
+  const { catalogDb } = require('../server/db');
+  withAccount('8', () => db.prepare('INSERT INTO anime (mal_id, title) VALUES (?, ?)').run(800, 'Asked For'));
+  const media = { idMal: 800, id: 9800, title: { romaji: 'Asked For', english: 'Asked For' }, format: 'TV', status: 'FINISHED', episodes: 12,
+    description: 'A <b>shared</b> synopsis.', genres: ['Action'], tags: [], externalLinks: [], relations: { edges: [] }, recommendations: { nodes: [] }, coverImage: {} };
+  withAccount('8', () => anilist.applyRelayAnswers([{ id: 'full:800', data: { Page: { media: [media] } } }]));
+  assert.equal(catalogDb.prepare('SELECT title FROM media WHERE mal_id = 800').get()?.title, 'Asked For', 'catalog row written');
+  assert.equal(withAccount('8', () => db.prepare('SELECT synopsis FROM anime WHERE mal_id = 800').get().synopsis), 'A shared synopsis.');
+  assert.equal(withAccount('7', () => db.prepare('SELECT title FROM media WHERE mal_id = 800').get()?.title), 'Asked For', 'every account sees it');
+});

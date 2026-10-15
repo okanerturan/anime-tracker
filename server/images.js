@@ -6,7 +6,7 @@ const fs = require('fs');
 const { execFileSync } = require('child_process');
 const path = require('path');
 const crypto = require('crypto');
-const { db, IMAGE_DIR } = require('./db');
+const { db, catalog, IMAGE_DIR } = require('./db');
 const { sleep } = require('./util');
 
 const ALLOWED_HOSTS = [
@@ -17,10 +17,10 @@ const RETRY_FAILED_AFTER_MS = 24 * 3600 * 1000;
 const EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/avif': '.avif' };
 
 const getStmt = db.prepare('SELECT * FROM image_cache WHERE url = ?');
-const putStmt = db.prepare(`INSERT INTO image_cache (url, file, mime, bytes, fetched_at, failed_at)
+const putStmt = catalog.prepare(`INSERT INTO image_cache (url, file, mime, bytes, fetched_at, failed_at)
   VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)
   ON CONFLICT(url) DO UPDATE SET file=excluded.file, mime=excluded.mime, bytes=excluded.bytes, fetched_at=excluded.fetched_at, failed_at=NULL`);
-const failStmt = db.prepare(`INSERT INTO image_cache (url, failed_at) VALUES (?, CURRENT_TIMESTAMP)
+const failStmt = catalog.prepare(`INSERT INTO image_cache (url, failed_at) VALUES (?, CURRENT_TIMESTAMP)
   ON CONFLICT(url) DO UPDATE SET failed_at=CURRENT_TIMESTAMP`);
 
 const inflight = new Map();

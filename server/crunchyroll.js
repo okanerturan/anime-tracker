@@ -6,7 +6,7 @@
 //   1. a season rule in cr_season_map (season id + episode range -> MAL id + offset)
 //   2. episode-title match against episode titles already in the library
 //   3. AniList search on "series + season" (auto rule, flagged for review)
-const { db } = require('./db');
+const { db, catalog } = require('./db');
 const anilist = require('./sources/anilist');
 const library = require('./library');
 const sync = require('./sync');
@@ -277,7 +277,7 @@ async function applySeasonEpisodes(seasons) {
   for (const season of seasons || []) {
     if (!season?.seasonId || !Array.isArray(season.episodes)) continue;
     summary.seasons += 1;
-    db.prepare('INSERT OR REPLACE INTO cr_season_fetch (season_id, fetched_at) VALUES (?, CURRENT_TIMESTAMP)').run(season.seasonId);
+    catalog.prepare('INSERT OR REPLACE INTO cr_season_fetch (season_id, fetched_at) VALUES (?, CURRENT_TIMESTAMP)').run(season.seasonId);
     for (const ep of season.episodes) {
       try {
       if (ep.episodeNumber == null) continue;
