@@ -11,6 +11,7 @@ import * as insights from './views/insights.js';
 import * as sync from './views/sync.js';
 
 const VIEWS = { 'up-next': upnext, library, discover, insights, sync };
+const VIEW_NAMES = { 'up-next': 'Up Next', library: 'Library', discover: 'Discover', insights: 'Insights', sync: 'Sync' };
 const view = document.getElementById('view');
 
 async function route() {
@@ -23,7 +24,10 @@ async function route() {
   // Each navigation renders into its own container. A page whose data arrives after you've moved
   // on draws into a container that is no longer on screen, never over the page you're looking at.
   const slot = h('div', { class: 'view-slot' });
-  view.replaceChildren(slot);
+  // The page's name for screen readers (a visually hidden h1) and for the browser tab and history.
+  const pageName = VIEW_NAMES[name] || 'Up Next';
+  document.title = `${pageName} · Anime Tracker`;
+  view.replaceChildren(h('h1', { class: 'sr-only' }, pageName), slot);
   try {
     await mod.render(slot);
     // Deep link: #/<view>?anime=<malId> opens that show's detail panel.

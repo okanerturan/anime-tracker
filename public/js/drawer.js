@@ -251,7 +251,14 @@ export async function openAnime(partial) {
         h('div', { class: 'section-head' }, h('h2', {}, 'Episodes'), summary, h('span', { class: 'sub' }, 'Shift-click a check to mark everything up to it'), markAllBtn),
         epContainer)));
 
-  if (!dialog().open) dialog().showModal();
+  // While a show is open its name leads the tab title (also when moving to a related season);
+  // closing puts the page's title back.
+  if (!dialog().open) {
+    const pageTitle = document.title;
+    dialog().addEventListener('close', () => { document.title = pageTitle; }, { once: true });
+    dialog().showModal();
+  }
+  document.title = `${item.title} · Anime Tracker`;
   closeBtn.focus();
   // Show "Show more" only when the synopsis is actually clamped.
   if (synopsis) requestAnimationFrame(() => { if (synopsis.scrollHeight <= synopsis.clientHeight + 2) more.hidden = true; });
