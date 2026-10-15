@@ -1625,3 +1625,21 @@ a.week-item { text-decoration: none; color: inherit; }
 .ep-upcoming-media { --ratio: 16 / 9; display: grid; place-items: center; background: color-mix(in oklch, var(--surface-2) 60%, var(--bg)); }
 .ep-upcoming-media > .badge-start { place-self: start start; margin: var(--space-xs); grid-area: 1 / 1; }
 .ep-upcoming-when { grid-area: 1 / 1; color: var(--muted); font-weight: 600; font-size: var(--step--1); }
+
+/* ⌘K quick switcher */
+.quickopen {
+  inline-size: min(92vw, 34rem);
+  margin-block-start: 12vh;
+  padding: var(--space-xs);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-outer);
+  background: var(--surface);
+  color: var(--text);
+}
+.quickopen::backdrop { background: var(--scrim); }
+.quickopen > .search { inline-size: 100%; font-size: var(--step-0); }
+.quickopen-list { list-style: none; margin: var(--space-2xs) 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.quickopen-list > li { display: grid; grid-template-columns: 1.75rem minmax(0, 1fr) auto; gap: var(--space-xs); align-items: center; padding: 0.35rem 0.5rem; border-radius: var(--radius); cursor: pointer; }
+.quickopen-list > li > img { inline-size: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 0.25rem; }
+.quickopen-list > li.is-active { background: var(--surface-2); outline: 1px solid var(--line); }
+.quickopen-empty { display: block !important; padding: var(--space-s) !important; cursor: default !important; }

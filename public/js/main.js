@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { runRelay } from './anilist-relay.js';
+import { openQuickSwitcher } from './quickopen.js';
 import { bus } from './bus.js';
 import { h, fill, relTime } from './ui.js';
 import { closeDrawer, openAnime } from './drawer.js';
@@ -46,6 +47,8 @@ async function updateStatus() {
 
 // "/" jumps to the page's search or filter box, like on GitHub; "?" opens the shortcut sheet.
 document.addEventListener('keydown', (e) => {
+  // ⌘K / Ctrl+K: quick switcher, from anywhere (even inside a text box).
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); if (!document.getElementById('quickopen')?.open) openQuickSwitcher(); return; }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (/^(input|textarea|select)$/i.test(document.activeElement?.tagName || '')) return;
   if (e.key === '?') { e.preventDefault(); const help = document.getElementById('help'); if (!help.open) help.showModal(); return; }
