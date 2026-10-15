@@ -1,5 +1,6 @@
 import { api } from '../api.js';
 import { bus } from '../bus.js';
+import { showRow } from '../components.js';
 import { h, section, ago, toast, FORMAT_LABEL, icon } from '../ui.js';
 
 /** AniList's {year, month, day} as YYYY-MM-DD, or null when any part is missing. */
@@ -243,10 +244,8 @@ export async function render(view) {
         const stray = h('button', { type: 'button', class: 'btn small ghost' }, `Remove stray E${x.aired}`);
         // You really did skip to the end: stop flagging it (and clear the Sync badge).
         const keep = h('button', { type: 'button', class: 'btn small ghost' }, 'Leave as is');
-        const row = h('div', { class: 'rate-item odd-item' },
-          h('img', { src: x.image || '', alt: '', loading: 'lazy' }),
-          h('div', { class: 'rate-text' }, h('span', { class: 'week-item-title one-line', title: x.title }, x.title), h('span', { class: 'week-item-sub num' }, `${x.watched} of ${x.aired} ticked, including the finale`)),
-          h('div', { class: 'odd-actions' }, all, stray, keep));
+        // Open the show to check its episodes before deciding.
+        const row = showRow({ show: { malId: x.malId, title: x.title, image: x.image }, sub: `${x.watched} of ${x.aired} ticked, including the finale`, actions: [all, stray, keep], stack: true });
         // Both fixes hide the row and offer Undo, which reverses exactly what they changed.
         const restore = () => { row.hidden = false; all.disabled = stray.disabled = keep.disabled = false; bus.emit('library-changed'); };
         keep.addEventListener('click', async () => {
@@ -283,12 +282,9 @@ export async function render(view) {
             toast(`Hid ${s.seriesTitle}`, { label: 'Undo', onClick: async () => { try { await api.crHideSampled(s.seasonId, true); row.hidden = false; } catch (err) { toast(err.message); } } });
           } catch (err) { toast(err.message); }
         });
-        const row = h('div', { class: 'rate-item' },
-          h('img', { src: s.thumb || '', alt: '', loading: 'lazy' }),
-          h('div', { class: 'rate-text' },
-            h('span', { class: 'week-item-title one-line', title: `${s.seriesTitle} · ${s.seasonTitle || ''}` }, s.seriesTitle),
-            h('span', { class: 'week-item-sub one-line' }, `${s.seasonTitle && s.seasonTitle !== s.seriesTitle ? `${s.seasonTitle} · ` : ''}${s.plays} play${s.plays === 1 ? '' : 's'} · ${ago(s.lastPlayed)}`)),
-          btn, hide);
+        // Not in the tracker yet: the show opens on Crunchyroll.
+        const row = showRow({ href: s.seriesId ? `https://www.crunchyroll.com/series/${s.seriesId}` : null, image: s.thumb, title: s.seriesTitle,
+          sub: `${s.seasonTitle && s.seasonTitle !== s.seriesTitle ? `${s.seasonTitle} · ` : ''}${s.plays} play${s.plays === 1 ? '' : 's'} · ${ago(s.lastPlayed)}`, actions: [btn, hide] });
         btn.addEventListener('click', async () => {
           btn.disabled = true; btn.textContent = 'Finding…';
           try { const r = await api.crTrack(s.seasonId); toast(r.needsReview ? `Added ${r.title}; check the match above` : `Added ${r.title}`); row.remove(); }

@@ -332,7 +332,7 @@ function status() {
   for (const p of inProgress) p.thumb = images.localUrl(p.thumb);
   // Seasons you sampled that aren't tracked: no rule yet, or a rule that says "skip" (mal_id 0).
   const sampled = db.prepare(`
-    SELECT h.season_id AS seasonId, h.series_title AS seriesTitle, h.season_title AS seasonTitle, COUNT(*) AS plays,
+    SELECT h.season_id AS seasonId, MAX(h.series_id) AS seriesId, h.series_title AS seriesTitle, h.season_title AS seasonTitle, COUNT(*) AS plays,
            MAX(h.date_played) AS lastPlayed, MAX(h.thumb_url) AS thumb,
            SUM(h.fully_watched = 1 OR (h.duration_s > 0 AND 1.0 * h.playhead / h.duration_s >= 0.8)) AS watchedPlays
     FROM cr_history h LEFT JOIN cr_season_map r ON r.season_id = h.season_id

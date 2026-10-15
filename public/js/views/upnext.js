@@ -3,6 +3,7 @@ import { h, fill, icon, media, progress, carousel, cardLink, relTime, ago, toast
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 import { rememberPlay } from '../playcheck.js';
+import { showRow } from '../components.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 /** "~46 min" / "~2 h 10 min" for n episodes of a given length; null when the length is unknown. */
@@ -328,11 +329,7 @@ function caughtUpRow(items) {
   if (!items.length) return null;
   return h('section', { class: 'section' },
     h('div', { class: 'section-head' }, h('h2', {}, 'Caught up'), h('span', { class: 'sub' }, `${plural(items.length, 'airing show')} with nothing new yet`)),
-    capped(h('div', { class: 'quiet-list' }, items.map((x) => h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
-      h('img', { src: x.image, alt: '', loading: 'lazy' }),
-      h('span', { class: 'week-item-text' },
-        h('span', { class: 'week-item-title one-line' }, x.title),
-        h('span', { class: 'week-item-sub num' }, x.nextAiringAt ? `E${x.nextAiringEpisode} ${relTime(x.nextAiringAt)}` : 'next episode not scheduled')))))));
+    capped(h('div', { class: 'quiet-list' }, items.map((x) => showRow({ show: x, sub: x.nextAiringAt ? `E${x.nextAiringEpisode} ${relTime(x.nextAiringAt)}` : 'next episode not scheduled' })))));
 }
 
 /** "You just finished X": five stars right there, because ratings are what make Discover good. */
@@ -345,7 +342,7 @@ function rateStrip(allItems, onRated) {
   const items = allItems.filter((x) => !skipped.has(x.malId));
   if (!items.length) return null;
   const row = (x) => {
-    const el = h('div', { class: 'rate-item' });
+    let el = null;
     const stars = h('div', { class: 'stars', role: 'group', 'aria-label': `Rate ${x.title}` }, [1, 2, 3, 4, 5].map((n) => {
       const b = h('button', { type: 'button', class: 'star', 'aria-label': `${n} star${n > 1 ? 's' : ''}` }, '★');
       b.addEventListener('click', async () => {
@@ -357,12 +354,7 @@ function rateStrip(allItems, onRated) {
     }));
     const skip = h('button', { type: 'button', class: 'icon-btn', 'aria-label': `Skip rating ${x.title}`, title: 'Skip' }, icon('close'));
     skip.addEventListener('click', () => { skipRating(x.malId); el.remove(); onRated?.(); });
-    fill(el,
-      h('img', { src: x.image, alt: '', loading: 'lazy' }),
-      h('div', { class: 'rate-text' },
-        h('span', { class: 'week-item-title one-line', title: x.title }, x.title),
-        h('span', { class: 'week-item-sub' }, `Finished ${ago(x.finishedAt)} · ${plural(x.episodes, 'episode')}`)),
-      stars, skip);
+    el = showRow({ show: x, sub: `Finished ${ago(x.finishedAt)} · ${plural(x.episodes, 'episode')}`, actions: [stars, skip] });
     return el;
   };
   return h('section', { class: 'section rate-strip' },
@@ -414,13 +406,7 @@ function comingSoonRow(items) {
           toast(`${x.title} is on your list. You'll get a notification when it starts (if notifications are on).`);
         } catch (err) { remind.disabled = false; toast(err.message); }
       });
-      return h('div', { class: 'soon-row' },
-        h('button', { type: 'button', class: 'week-item', onclick: () => openAnime(x), title: x.title },
-          h('img', { src: x.image, alt: '', loading: 'lazy' }),
-          h('span', { class: 'week-item-text' },
-            h('span', { class: 'week-item-title one-line' }, x.title),
-            h('span', { class: 'week-item-sub one-line' }, `${when(x.startDate)}${x.after ? ` · after ${x.after}` : ''}`))),
-        remind);
+      return showRow({ show: x, sub: `${when(x.startDate)}${x.after ? ` · after ${x.after}` : ''}`, actions: [remind] });
     }))));
 }
 
@@ -513,7 +499,7 @@ function draw(view, data, cr, { fresh = false } = {}) {
           h('a', { class: 'btn', href: '#/library' }, 'Library')))));
     return;
   }
-  const rateSection = rateStrip(data.recentlyFinished || [], () => { if (!rateSection.querySelector('.rate-item')) rateSection.remove(); });
+  const rateSection = rateStrip(data.recentlyFinished || [], () => { if (!rateSection.querySelector('.show-row')) rateSection.remove(); });
   // Your original ask: shows you left one or two episodes before the end. They get their own shelf
   // instead of hiding in the collapsed "paused a while ago" list.
   const leftOf = (x) => (x.leftInSeason != null ? x.leftInSeason : x.remaining);

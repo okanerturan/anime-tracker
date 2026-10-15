@@ -1492,31 +1492,6 @@ select {
 
 /* Compact rows (rate strip, sampled, odd progress). The poster's corners follow the row's:
    inner radius = outer radius - padding. */
-.rate-item {
-  --row-pad: var(--space-xs);
-  display: grid;
-  grid-template-columns: 2.75rem minmax(0, 1fr) auto auto;
-  column-gap: var(--space-s);
-  row-gap: var(--space-xs);
-  align-items: center;
-  padding: var(--row-pad);
-  padding-inline-end: var(--space-s);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-outer);
-  background: var(--surface);
-}
-
-.rate-item > img { inline-size: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: max(0.25rem, calc(var(--radius-outer) - var(--row-pad))); background: var(--surface-2); }
-.rate-item:has(> .btn) { grid-template-columns: 2.75rem minmax(0, 1fr) auto; }
-.rate-item:has(> .btn):has(> .icon-btn) { grid-template-columns: 2.75rem minmax(0, 1fr) auto auto; column-gap: var(--space-xs); }
-.rate-text { display: flex; flex-direction: column; gap: 0.3em; min-inline-size: 0; }
-.rate-item .star { font-size: var(--step-0); }
-.rate-item .icon-btn { inline-size: 1.75rem; block-size: 1.75rem; border-color: transparent; background: transparent; color: var(--faint); }
-.rate-item.is-done { border-color: var(--good); }
-@media (prefers-reduced-motion: no-preference) {
-  .rate-item { transition: border-color 200ms var(--ease-out), opacity 300ms var(--ease-out); }
-  .rate-item.is-done { opacity: 0.5; }
-}
 
 /* The selected filter keeps its fill inside the rail (the rail's transparent-chip rule outranked it) */
 .chips.segmented > .chip-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
@@ -1666,10 +1641,6 @@ a.week-item { text-decoration: none; color: inherit; }
 .quickopen-list > li.is-active { background: var(--surface-2); outline: 1px solid var(--line); }
 .quickopen-empty { display: block !important; padding: var(--space-s) !important; cursor: default !important; }
 /* Odd progress: poster on the left for both rows, the buttons line up under the text. */
-.odd-item { grid-template-columns: 2.75rem minmax(0, 1fr); align-items: start; padding-block-end: var(--space-s); }
-.odd-item > img { grid-row: span 2; }
-.odd-item > .rate-text { align-self: center; }
-.odd-actions { grid-column: 2; display: flex; gap: var(--space-xs); flex-wrap: wrap; }
 
 /* Recently watched */
 .history { display: flex; flex-direction: column; }
@@ -1830,9 +1801,60 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 /* Holding a check (mark everything up to it) shouldn't select text or open the iOS callout. */
 .check, .card-tick { -webkit-touch-callout: none; user-select: none; touch-action: manipulation; }
 
-/* Coming soon: the row opens the show; "Remind me" sits beside it (a button can't hold another). */
-.soon-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-xs); }
 .soon-on-list { font-size: var(--step--2); color: var(--muted); white-space: nowrap; padding-inline: var(--space-2xs); }
 /* Unfinished split: label and count spaced like the filter bar's chips. */
 .unfinished-parts .chip-toggle { display: inline-flex; align-items: baseline; gap: 0.45em; }
 .unfinished-parts .chip-toggle:disabled { opacity: 0.4; cursor: default; }
+
+/* ---- showRow (components.js): every compact show row. The poster+title is one target that
+   opens the show; actions sit beside it, or under the title with --stack. ---- */
+.show-row {
+  --row-pad: var(--space-xs);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-xs);
+  padding-inline-end: var(--space-s);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-outer);
+  background: var(--surface);
+}
+.show-row-open {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  column-gap: var(--space-s);
+  align-items: center;
+  min-inline-size: 0;
+  padding: var(--row-pad);
+  border: 0;
+  border-radius: var(--radius-outer);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+.show-row-open.is-static { cursor: default; }
+.show-row-open > img { inline-size: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: max(0.25rem, calc(var(--radius-outer) - var(--row-pad))); background: var(--surface-2); }
+.show-row-text { display: flex; flex-direction: column; gap: 0.3em; min-inline-size: 0; }
+.show-row-title { font-size: var(--step--1); font-weight: 600; }
+.show-row-sub { font-size: var(--step--2); color: var(--muted); }
+.show-row-actions { display: flex; align-items: center; gap: var(--space-xs); }
+.show-row-actions .star { font-size: var(--step-0); }
+.show-row-actions .icon-btn { inline-size: 1.75rem; block-size: 1.75rem; border-color: transparent; background: transparent; color: var(--faint); }
+.show-row-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+  .show-row-open:not(.is-static):hover { background: color-mix(in oklch, var(--surface), var(--accent) 10%); }
+  .show-row-open:not(.is-static):hover .show-row-title { color: var(--accent-text); }
+}
+.show-row-open:not(.is-static):active { transform: scale(0.99); }
+/* Several actions: under the title, lined up with the text (poster column + gap). */
+.show-row--stack { grid-template-columns: minmax(0, 1fr); padding-inline-end: 0; }
+.show-row--stack > .show-row-actions { flex-wrap: wrap; padding-inline: calc(var(--row-pad) + 2.75rem + var(--space-s)) var(--space-s); padding-block-end: var(--space-s); }
+.show-row.is-done { border-color: var(--good); }
+@media (prefers-reduced-motion: no-preference) {
+  .show-row-open { transition: background-color 140ms var(--ease-out), transform 140ms var(--ease-out); }
+  .show-row { transition: border-color 200ms var(--ease-out), opacity 300ms var(--ease-out); }
+  .show-row.is-done { opacity: 0.5; }
+}
