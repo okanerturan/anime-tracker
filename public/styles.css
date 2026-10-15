@@ -1619,3 +1619,9 @@ a.week-item { text-decoration: none; color: inherit; }
   html { scroll-padding-block-start: calc(var(--header-h) * 2); }
 }
 .show-all { justify-self: start; align-self: start; }
+
+/* Placeholder for the next episode of an airing show */
+.ep-upcoming { border-style: dashed; }
+.ep-upcoming-media { --ratio: 16 / 9; display: grid; place-items: center; background: color-mix(in oklch, var(--surface-2) 60%, var(--bg)); }
+.ep-upcoming-media > .badge-start { place-self: start start; margin: var(--space-xs); grid-area: 1 / 1; }
+.ep-upcoming-when { grid-area: 1 / 1; color: var(--muted); font-weight: 600; font-size: var(--step--1); }

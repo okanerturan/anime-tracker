@@ -293,8 +293,15 @@ export async function openAnime(partial) {
     const tiles = eps.map((e) => { const t = tile(e); if (folded && e.watched && e.episodeNumber < cut) t.hidden = true; return t; });
     const unfold = folded ? h('button', { type: 'button', class: 'btn ghost unfold' }, next ? `Show ${foldCount} watched episodes` : `Show all ${eps.length} episodes`) : null;
     if (unfold) unfold.addEventListener('click', () => { tiles.forEach((t) => { t.hidden = false; }); unfold.remove(); });
-    fill(epContainer, unfold, ...(eps.length ? tiles
-      : [h('div', { class: 'empty' }, unreleased ? `${premiereText()}. Episodes appear here once they air.` : 'No episodes yet. Try “Refresh episodes”.')]));
+    // Airing: a placeholder tile for the next episode with its air time.
+    const nextAirTile = airsAt && item.nextAiringEpisode && !eps.some((e) => e.episodeNumber >= item.nextAiringEpisode)
+      ? h('article', { class: 'card ep-tile ep-upcoming' },
+          h('div', { class: 'media ep-upcoming-media' }, h('span', { class: 'pill dark badge-start num' }, `E${item.nextAiringEpisode}`),
+            h('span', { class: 'ep-upcoming-when' }, new Date(airsAt).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' }))),
+          h('div', { class: 'ep-row' }, h('span', { class: 'name' }, `Airs ${relTime(airsAt)}`)))
+      : null;
+    const emptyNote = h('div', { class: 'empty' }, unreleased ? `${premiereText()}. Episodes appear here once they air.` : 'No episodes yet. Try “Refresh episodes”.');
+    fill(epContainer, unfold, eps.length ? tiles : (nextAirTile ? null : emptyNote), nextAirTile);
     updateSummary();
     nextEp = next;
     renderPlay();
