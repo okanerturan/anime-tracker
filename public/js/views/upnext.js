@@ -488,4 +488,29 @@ function draw(view, data, cr) {
       data.newSeasons.map((x) => epCard(x, 'season')), 'No unwatched sequels.'),
     stalledRest.length ? collapsible('Paused a while ago', `${plural(stalledRest.length, 'show')} you stopped partway. Hold or drop them to clear this list`, stalledRest, 'stalled', { href: '#/library?filter=unfinished&review=1', label: 'Review them in the Library (hold or drop) →' }) : null,
     data.onHold?.length ? collapsible('On hold', `${plural(data.onHold.length, 'show')}${data.dropped ? ` · ${data.dropped} dropped (see Library)` : ''}`, data.onHold, 'hold') : null);
+  addFoldButtons(view);
+}
+
+// Sections you can fold away (remembered per browser). Tonight's pick and Continue watching stay.
+const FOLD_KEY = 'upnext:folded';
+const FOLDABLE = ['Finish what you started', 'Just finished', 'Started on Crunchyroll', 'This week', 'Caught up', 'Coming soon', 'New seasons available'];
+function addFoldButtons(view) {
+  let folded = [];
+  try { folded = JSON.parse(localStorage.getItem(FOLD_KEY) || '[]'); } catch {}
+  for (const sec of view.querySelectorAll(':scope > .section, :scope > section.section')) {
+    const head = sec.querySelector(':scope > .section-head');
+    const name = head?.querySelector('h2')?.textContent?.trim();
+    const key = name && FOLDABLE.find((f) => name.startsWith(f));
+    if (!key || head.querySelector('.fold-btn')) continue;
+    const isFolded = () => folded.includes(key);
+    const btn = h('button', { type: 'button', class: 'fold-btn', 'aria-expanded': String(!folded.includes(key)) });
+    const paint = () => { const f = folded.includes(key); sec.classList.toggle('is-folded', f); btn.textContent = f ? 'Show' : 'Hide'; btn.setAttribute('aria-expanded', String(!f)); btn.title = f ? `Show ${name}` : `Hide ${name}`; };
+    btn.addEventListener('click', () => {
+      folded = isFolded() ? folded.filter((k) => k !== key) : [...folded, key];
+      try { localStorage.setItem(FOLD_KEY, JSON.stringify(folded)); } catch {}
+      paint();
+    });
+    head.append(btn);
+    paint();
+  }
 }
