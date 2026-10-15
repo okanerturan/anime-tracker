@@ -1777,3 +1777,12 @@ table.simple .num-col { text-align: end; }
 
 /* Tips about Shift-click and hovering mean nothing on a touch screen. */
 @media (hover: none) { .pointer-only { display: none; } }
+
+/* Your years on a phone: the three numbers stay on one row; long titles shorten instead of
+   pushing the episode count onto its own line. */
+.year-top li > :first-child { display: inline-block; max-inline-size: calc(100% - 4.5em); overflow: clip; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+@media (max-width: 30rem) {
+  .year-review .stat-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-xs); }
+  .year-review .stat { padding: var(--space-xs); }
+  .year-review .stat .v { font-size: var(--step-1); }
+}
