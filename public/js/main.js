@@ -3,7 +3,7 @@ import { runRelay } from './anilist-relay.js';
 import { openQuickSwitcher } from './quickopen.js';
 import { checkPlay } from './playcheck.js';
 import { bus } from './bus.js';
-import { h, fill, relTime } from './ui.js';
+import { h, fill, relTime, icon } from './ui.js';
 import { closeDrawer, openAnime } from './drawer.js';
 import * as upnext from './views/upnext.js';
 import * as library from './views/library.js';
@@ -83,6 +83,10 @@ document.getElementById('help').addEventListener('click', (e) => { if (e.target.
 // Theme: dark (default) -> light -> system
 const THEMES = ['dark', 'light', 'system'];
 const THEME_GLYPH = { dark: '☾', light: '☀', system: '◐' };
+// The ⌘K switcher, for fingers too: a search button in the header (phones have no ⌘).
+const findBtn = document.getElementById('find-btn');
+findBtn?.append(icon('search'));
+findBtn?.addEventListener('click', () => openQuickSwitcher());
 const themeBtn = document.getElementById('theme-btn');
 function paintThemeButton() {
   const t = document.documentElement.dataset.theme || 'dark';

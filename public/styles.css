@@ -1637,7 +1637,7 @@ a.week-item { text-decoration: none; color: inherit; }
   .topbar { flex-wrap: wrap; column-gap: var(--space-xs); row-gap: 0; padding-inline: var(--space-s); }
   .topbar > .tabs { order: 3; flex: 1 0 100%; min-inline-size: 0; margin-inline: calc(-1 * var(--space-xs)); }
   .topbar > .topbar-status { margin-inline-start: auto; font-size: var(--step--2); min-inline-size: 0; overflow: clip; text-overflow: ellipsis; white-space: nowrap; }
-  .topbar > .theme-btn { flex: none; }
+  .topbar > .theme-btn, .topbar > .find-btn { flex: none; }
   html { scroll-padding-block-start: calc(var(--header-h) * 2); }
 }
 .show-all { justify-self: start; align-self: start; }

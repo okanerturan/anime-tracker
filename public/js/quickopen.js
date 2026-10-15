@@ -48,7 +48,7 @@ export function openQuickSwitcher() {
     document.body.append(dlg);
     dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
   }
-  const input = h('input', { type: 'search', class: 'search', placeholder: 'Open a show, or type a command (sync, calendar, theme)…', 'aria-label': 'Show title', autocomplete: 'off' });
+  const input = h('input', { type: 'search', class: 'search', placeholder: 'Find a show or command…', 'aria-label': 'Show title', autocomplete: 'off' });
   const list = h('ul', { class: 'quickopen-list', role: 'listbox' });
   let results = []; let active = 0;
   const searchAniList = () => { dlg.close(); location.hash = `#/discover?q=${encodeURIComponent(input.value.trim())}`; };
