@@ -465,9 +465,19 @@ function suspiciousProgress() {
     JOIN episode_sync e ON e.mal_id = a.mal_id
     GROUP BY a.mal_id
     HAVING watched > 0 AND furthest >= 4`).all();
+  const accepted = new Set(require('./state').get('oddAccepted')?.ids || []);
   return rows.map((r) => ({ ...r, aired: airedCount({ status: r.status, next_airing_episode: r.next_airing_episode, episodes: r.episodes }) ?? r.rows_ }))
-    .filter((r) => r.aired >= 4 && r.furthest >= r.aired && r.watched / r.aired < 0.5)
+    .filter((r) => !accepted.has(r.malId) && r.aired >= 4 && r.furthest >= r.aired && r.watched / r.aired < 0.5)
     .map((r) => ({ malId: r.malId, title: r.title, image: images.localUrl(r.cover), watched: r.watched, aired: r.aired }));
+}
+
+/** "Leave as is" on an odd-progress show (you really did skip ahead): stop flagging it. `undo` flags it again. */
+function acceptOddProgress(malId, undo = false) {
+  const state = require('./state');
+  const ids = new Set(state.get('oddAccepted')?.ids || []);
+  if (undo) ids.delete(Number(malId)); else ids.add(Number(malId));
+  state.set('oddAccepted', { ids: [...ids].slice(-500) });
+  return { ok: true };
 }
 
 /**
@@ -509,6 +519,7 @@ function importMalList(entries) {
 module.exports = {
   unmarkEpisodes,
   repairUnreleasedWatches,
+  acceptOddProgress,
   listStatusOf,
   importMalList,
   suspiciousProgress,

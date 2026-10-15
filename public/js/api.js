@@ -58,6 +58,7 @@ export const api = {
   seasonal: () => cached('/api/seasonal'),
   calendar: () => request('/api/calendar'),
   pushKey: () => request('/api/push/key'),
+  oddAccept: (malId, undo = false) => post('/api/library/odd-accept', { malId, undo }),
   pushSubscribe: (subscription) => post('/api/push/subscribe', { subscription }),
   pushUnsubscribe: (endpoint) => post('/api/push/unsubscribe', { endpoint }),
   pushTest: (endpoint) => post('/api/push/test', { endpoint }),

@@ -391,3 +391,14 @@ test('unreleased seasons: old copied plays are unmarked, recent ones and release
   assert.equal(w(961, 21), 0);
   assert.equal(w(961, 12), 1);
 });
+
+test('odd progress: Leave as is stops flagging a show, Undo flags it again', () => {
+  addShow(970, 'Skipped To The End', { episodes: 12 });
+  for (let n = 1; n <= 12; n += 1) db.prepare('INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, watched, watched_at) VALUES (?, ?, ?, ?)').run(970, n, n === 1 || n === 12 ? 1 : 0, n === 1 || n === 12 ? new Date().toISOString() : null);
+  const flagged = () => library.suspiciousProgress().some((x) => x.malId === 970);
+  assert.ok(flagged());
+  library.acceptOddProgress(970);
+  assert.ok(!flagged());
+  library.acceptOddProgress(970, true);
+  assert.ok(flagged());
+});

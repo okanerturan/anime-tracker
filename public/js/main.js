@@ -138,6 +138,8 @@ relayTimer = setTimeout(relayTick, 3000);
 bus.on('relay-now', relayTick);
 // Anything that changes the library (including relayed AniList data) makes cached views stale.
 bus.on('library-changed', clearCache);
+// The Sync badge counts things to fix: recount right after one is fixed, not a minute later.
+bus.on('library-changed', () => setTimeout(updateStatus, 300));
 bus.on('recommendations-changed', clearCache);
 
 // Offline shell (see sw.js). Registered after load so it never competes with the first paint.

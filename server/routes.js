@@ -228,6 +228,12 @@ const routes = {
     return sendJSON(res, 200, summary);
   },
   'GET /api/library/suspicious': (req, res) => sendJSON(res, 200, library.suspiciousProgress()),
+  'POST /api/library/odd-accept': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    if (!Number(body.malId)) return sendJSON(res, 400, { error: 'malId required' });
+    return sendJSON(res, 200, library.acceptOddProgress(body.malId, Boolean(body.undo)));
+  },
   'GET /api/crunchyroll/series-info': (req, res, url) => sendJSON(res, 200, require('./crlinks').showsForSeries(String(url.searchParams.get('seriesId') || ''))),
   'POST /api/crunchyroll/dismiss-play': async (req, res) => {
     requireClientHeader(req);

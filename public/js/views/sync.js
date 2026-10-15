@@ -241,12 +241,21 @@ export async function render(view) {
       h('div', { class: 'quiet-list' }, odd.map((x) => {
         const all = h('button', { type: 'button', class: 'btn small' }, 'I watched it all');
         const stray = h('button', { type: 'button', class: 'btn small ghost' }, `Remove stray E${x.aired}`);
+        // You really did skip to the end: stop flagging it (and clear the Sync badge).
+        const keep = h('button', { type: 'button', class: 'btn small ghost' }, 'Leave as is');
         const row = h('div', { class: 'rate-item odd-item' },
           h('img', { src: x.image || '', alt: '', loading: 'lazy' }),
           h('div', { class: 'rate-text' }, h('span', { class: 'week-item-title one-line', title: x.title }, x.title), h('span', { class: 'week-item-sub num' }, `${x.watched} of ${x.aired} ticked, including the finale`)),
-          h('div', { class: 'odd-actions' }, all, stray));
+          h('div', { class: 'odd-actions' }, all, stray, keep));
         // Both fixes hide the row and offer Undo, which reverses exactly what they changed.
-        const restore = () => { row.hidden = false; all.disabled = stray.disabled = false; bus.emit('library-changed'); };
+        const restore = () => { row.hidden = false; all.disabled = stray.disabled = keep.disabled = false; bus.emit('library-changed'); };
+        keep.addEventListener('click', async () => {
+          all.disabled = stray.disabled = keep.disabled = true;
+          try {
+            await api.oddAccept(x.malId); row.hidden = true; bus.emit('library-changed');
+            toast(`${x.title} left as it is`, { label: 'Undo', onClick: async () => { try { await api.oddAccept(x.malId, true); restore(); } catch (err) { toast(err.message); } } });
+          } catch (err) { all.disabled = stray.disabled = keep.disabled = false; toast(err.message); }
+        });
         all.addEventListener('click', async () => {
           all.disabled = stray.disabled = true;
           try {
