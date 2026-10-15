@@ -485,6 +485,11 @@ async function seasonal({ refresh = false } = {}) {
   const dismissed = new Set(db.prepare('SELECT mal_id FROM rec_dismissed').all().map((r) => r.mal_id));
   const simOf = (m) => similarity(profile, { genres: JSON.stringify(m.genres || []), tags: JSON.stringify((m.tags || []).filter((t) => !t.isMediaSpoiler).map((t) => ({ name: t.name, rank: t.rank }))) });
   const candidates = cached.list.filter((m) => !owned.has(m.idMal) && !dismissed.has(m.idMal));
+  // Shows you sampled on Crunchyroll but never tracked: "you tried episode N".
+  const { normalizeTitle } = require('./util');
+  const tried = new Map();
+  for (const r of db.prepare(`SELECT series_title AS t, MAX(episode_number) AS ep FROM cr_history WHERE COALESCE(mal_id, 0) = 0 GROUP BY series_title`).all()) tried.set(normalizeTitle(r.t), r.ep);
+  const triedEp = (m) => tried.get(normalizeTitle(m.title.english)) ?? tried.get(normalizeTitle(m.title.romaji)) ?? null;
   // Scale taste fit against the best fit this season, so the % separates shows instead of bunching at the top.
   const maxSim = Math.max(0.01, ...candidates.map(simOf));
   const items = candidates
@@ -498,7 +503,7 @@ async function seasonal({ refresh = false } = {}) {
         malId: m.idMal, title: m.title.english || m.title.romaji, image: images.localUrl(m.coverImage?.extraLarge || m.coverImage?.large),
         format: m.format, status: m.status, episodes: m.episodes, duration: m.duration, averageScore: m.averageScore, genres: m.genres || [],
         siteUrl: m.siteUrl, crunchyrollUrl: cr ? cr.url.replace(/^http:/, 'https:') : null, onCrunchyroll: Boolean(cr),
-        sequelOfUnwatched: Boolean(prequel && !owned.has(prequel)), continuesYours: Boolean(prequel && owned.has(prequel)),
+        sequelOfUnwatched: Boolean(prequel && !owned.has(prequel)), continuesYours: Boolean(prequel && owned.has(prequel)), triedEpisode: triedEp(m),
         match: Math.round((sim * 0.75 + quality * 0.25) * 100)
       };
     })

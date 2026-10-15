@@ -127,7 +127,7 @@ async function seasonalSection() {
   try { d = await api.seasonal(); } catch { return null; }
   if (!d.items.length) return null;
   const name = { WINTER: 'Winter', SPRING: 'Spring', SUMMER: 'Summer', FALL: 'Fall' }[d.season] || d.season;
-  const cards = d.items.map((x) => { const card = recCard({ ...x, year: d.year, because: [], becauseShows: [], note: x.continuesYours ? 'Continues a show you watched' : null }, () => card.remove()); return card; });
+  const cards = d.items.map((x) => { const card = recCard({ ...x, year: d.year, because: [], becauseShows: [], note: x.continuesYours ? 'Continues a show you watched' : x.triedEpisode ? `You tried episode ${x.triedEpisode} on Crunchyroll` : null }, () => card.remove()); return card; });
   return carousel(`Airing this season · ${name} ${d.year}`, 'New shows scored against what you actually finish', cards, '');
 }
 
