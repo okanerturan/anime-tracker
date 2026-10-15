@@ -89,8 +89,8 @@ function recCard(r, onDismiss) {
     h('div', { class: 'card-actions' }, addButton({ malId: r.malId, title: r.title, titleEnglish: r.title, totalEpisodes: r.episodes }, r.inLibrary), watchedButton(r.malId, r.title, onDismiss), dismiss));
 }
 
-function searchPanel() {
-  const input = h('input', { type: 'search', class: 'search', placeholder: 'Search AniList to add anything…', 'aria-label': 'Search AniList' });
+function searchPanel(initial = '') {
+  const input = h('input', { type: 'search', class: 'search', placeholder: 'Search AniList to add anything…', 'aria-label': 'Search AniList', value: initial });
   const results = h('div', { class: 'cards', style: { '--rows': '4' } });
   let timer = null;
   input.addEventListener('input', () => {
@@ -113,6 +113,7 @@ function searchPanel() {
       } catch (err) { results.replaceChildren(h('div', { class: 'empty' }, err.message)); }
     }, 350);
   });
+  if (initial) setTimeout(() => { input.dispatchEvent(new Event('input')); input.scrollIntoView({ block: 'center' }); input.focus(); }, 0);
   return [h('div', { class: 'toolbar' }, input), results];
 }
 
@@ -156,5 +157,5 @@ export async function render(view) {
       h('p', { class: 'muted' }, 'Shows you haven’t watched, from AniList community recommendations of shows you liked. Rate shows (open one from your Library) to steer this; dropped and 1–2 star shows count against their recommendations.'),
       filterBar(draw),
       grid),
-    section('Find anything', null, ...searchPanel()));
+    section('Find anything', null, ...searchPanel(new URLSearchParams(location.hash.split('?')[1] || '').get('q') || '')));
 }

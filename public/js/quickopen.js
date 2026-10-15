@@ -30,7 +30,16 @@ export function openQuickSwitcher() {
   const input = h('input', { type: 'search', class: 'search', placeholder: 'Open a show…', 'aria-label': 'Show title', autocomplete: 'off' });
   const list = h('ul', { class: 'quickopen-list', role: 'listbox' });
   let results = []; let active = 0;
+  const searchAniList = () => { dlg.close(); location.hash = `#/discover?q=${encodeURIComponent(input.value.trim())}`; };
   const draw = () => {
+    const q = input.value.trim();
+    // Nothing in the library: offer AniList search as the (only) result.
+    if (items && !results.length && q.length >= 2) {
+      const li = h('li', { role: 'option', 'aria-selected': 'true', class: 'is-active quickopen-search' }, h('span', { 'aria-hidden': 'true' }, '⌕'), h('span', { class: 'one-line' }, `Search AniList for “${q}”`), h('span', { class: 'muted' }, 'Enter'));
+      li.addEventListener('mousedown', (e) => { e.preventDefault(); searchAniList(); });
+      fill(list, li);
+      return;
+    }
     fill(list, results.length ? results.map((x, i) => {
       const li = h('li', { role: 'option', 'aria-selected': String(i === active), class: i === active ? 'is-active' : '' },
         h('img', { src: x.imageUrl, alt: '' }),
@@ -47,6 +56,7 @@ export function openQuickSwitcher() {
     if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, results.length - 1); draw(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); draw(); }
     else if (e.key === 'Enter' && results[active]) { e.preventDefault(); choose(results[active]); }
+    else if (e.key === 'Enter' && !results.length && input.value.trim().length >= 2) { e.preventDefault(); searchAniList(); }
   });
   fill(dlg, input, list);
   dlg.showModal();
