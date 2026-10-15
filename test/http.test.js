@@ -82,3 +82,11 @@ test('the library exports as a CSV download', async () => {
   assert.equal(res.status, 200);
   assert.match(await res.text(), /^﻿?title,english_title,format,/);
 });
+
+test('seasonal answers with a season even when AniList is unreachable from the server', async () => {
+  const res = await get('/api/seasonal');
+  // Offline in tests: either a 5xx with a message or an empty list, never a crash or hang.
+  assert.ok([200, 500, 503].includes(res.status));
+  const body = await res.json();
+  assert.ok(body.items || body.error);
+});

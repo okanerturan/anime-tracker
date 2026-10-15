@@ -1,13 +1,14 @@
 // Thin API client. Mutating calls carry X-Tracker-Client so the server can reject cross-site posts.
 import { answerNow } from './anilist-relay.js';
 
-async function request(url, options = {}, retried = false) {
+async function request(url, options = {}, relayRounds = 0) {
   const res = await fetch(url, options);
   const body = await res.json().catch(() => ({}));
   // The server is blocked by AniList and needs this exact request: run it from the browser, then retry.
-  if (res.status === 503 && body.code === 'anilist_blocked' && body.relay && !retried) {
+  // A request can need several AniList answers (e.g. two pages), so allow a few relay rounds.
+  if (res.status === 503 && body.code === 'anilist_blocked' && body.relay && relayRounds < 4) {
     await answerNow(body.relay);
-    return request(url, options, true);
+    return request(url, options, relayRounds + 1);
   }
   // Signed out (cookie cleared or expired on the hosted tracker): go to the login page instead of
   // leaving every view saying "unauthorized". The local server never answers 401.
@@ -36,6 +37,7 @@ export const api = {
   recommendations: (refresh) => request(`/api/recommendations${refresh ? '?refresh=1' : ''}`),
   dismiss: (malId, undo = false) => post('/api/recommendations/dismiss', { malId, undo }),
   study: () => request('/api/study'),
+  seasonal: () => request('/api/seasonal'),
   history: (before) => request(`/api/history${before ? `?before=${encodeURIComponent(before)}` : ''}`),
   crStatus: () => request('/api/crunchyroll/status'),
   crDismissPlay: (episodeId, undo = false) => post('/api/crunchyroll/dismiss-play', { episodeId, undo }),

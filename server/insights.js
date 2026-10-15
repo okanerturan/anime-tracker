@@ -453,6 +453,61 @@ function study() {
   };
 }
 
+/** The anime season (AniList's WINTER/SPRING/SUMMER/FALL) a date falls in. */
+function seasonOf(d = new Date()) {
+  const m = d.getUTCMonth();
+  return { season: ['WINTER', 'WINTER', 'WINTER', 'SPRING', 'SPRING', 'SPRING', 'SUMMER', 'SUMMER', 'SUMMER', 'FALL', 'FALL', 'FALL'][m], year: d.getUTCFullYear() };
+}
+
+/**
+ * This season's airing anime, scored against your taste profile. Fetched from AniList once every
+ * 12 hours (through the browser relay when AniList blocks the server) and kept in app_state.
+ */
+async function seasonal({ refresh = false } = {}) {
+  const { season, year } = seasonOf();
+  const key = `seasonal:${season}:${year}`;
+  let cached = appState.get(key);
+  if (refresh || !cached?.list || Date.now() - new Date(cached.at).getTime() > 12 * 3600e3) {
+    const query = `query($s:MediaSeason,$y:Int,$p:Int){Page(page:$p,perPage:50){media(season:$s,seasonYear:$y,type:ANIME,isAdult:false,sort:POPULARITY_DESC,format_in:[TV,TV_SHORT,ONA]){
+      id idMal title{romaji english} format status episodes duration genres averageScore popularity coverImage{extraLarge large} siteUrl
+      tags{name rank isMediaSpoiler} externalLinks{site url type} relations{edges{relationType node{idMal}}}}}}`;
+    const list = [];
+    for (const p of [1, 2]) {
+      const data = await anilist.gql(query, { s: season, y: year, p });
+      list.push(...(data?.Page?.media || []).filter((m) => m.idMal));
+    }
+    appState.set(key, { list });
+    cached = { list, at: new Date().toISOString() };
+  }
+  const rows = libraryState();
+  const profile = tasteProfile(rows, engagementWeights(rows));
+  const owned = new Set(rows.map((r) => r.mal_id));
+  const dismissed = new Set(db.prepare('SELECT mal_id FROM rec_dismissed').all().map((r) => r.mal_id));
+  const simOf = (m) => similarity(profile, { genres: JSON.stringify(m.genres || []), tags: JSON.stringify((m.tags || []).filter((t) => !t.isMediaSpoiler).map((t) => ({ name: t.name, rank: t.rank }))) });
+  const candidates = cached.list.filter((m) => !owned.has(m.idMal) && !dismissed.has(m.idMal));
+  // Scale taste fit against the best fit this season, so the % separates shows instead of bunching at the top.
+  const maxSim = Math.max(0.01, ...candidates.map(simOf));
+  const items = candidates
+    // Sequels of shows you never watched are hard to start; keep first seasons and continuations of yours.
+    .map((m) => {
+      const prequel = (m.relations?.edges || []).find((e) => e.relationType === 'PREQUEL')?.node?.idMal || null;
+      const sim = simOf(m) / maxSim;
+      const quality = (m.averageScore || 60) / 100;
+      const cr = (m.externalLinks || []).find((l) => l.type === 'STREAMING' && /crunchyroll/i.test(l.site || ''));
+      return {
+        malId: m.idMal, title: m.title.english || m.title.romaji, image: images.localUrl(m.coverImage?.extraLarge || m.coverImage?.large),
+        format: m.format, status: m.status, episodes: m.episodes, duration: m.duration, averageScore: m.averageScore, genres: m.genres || [],
+        siteUrl: m.siteUrl, crunchyrollUrl: cr ? cr.url.replace(/^http:/, 'https:') : null, onCrunchyroll: Boolean(cr),
+        sequelOfUnwatched: Boolean(prequel && !owned.has(prequel)), continuesYours: Boolean(prequel && owned.has(prequel)),
+        match: Math.round((sim * 0.75 + quality * 0.25) * 100)
+      };
+    })
+    .filter((x) => !x.sequelOfUnwatched)
+    .sort((a, b) => b.match - a.match)
+    .slice(0, 30);
+  return { season, year, items };
+}
+
 /** Recent plays, newest first, one row per episode (dub copies collapsed), for the history list. */
 function history({ before = null, limit = 60 } = {}) {
   const rows = db.prepare(`
@@ -473,4 +528,4 @@ function history({ before = null, limit = 60 } = {}) {
   return { items: out, next: out.length >= limit ? out[out.length - 1].datePlayed : null };
 }
 
-module.exports = { upNext, recommendations, dismiss, study, invalidate, history };
+module.exports = { upNext, recommendations, dismiss, study, invalidate, history, seasonal };

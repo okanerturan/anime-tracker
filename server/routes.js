@@ -163,6 +163,7 @@ const routes = {
     res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="anime-library-${new Date().toISOString().slice(0, 10)}.csv"`, 'Cache-Control': 'no-store' });
     res.end('\ufeff' + lines.join('\r\n'));
   },
+  'GET /api/seasonal': async (req, res, url) => sendJSON(res, 200, await insights.seasonal({ refresh: url.searchParams.get('refresh') === '1' })),
   'GET /api/history': (req, res, url) => sendJSON(res, 200, insights.history({ before: url.searchParams.get('before') || null, limit: Math.min(200, Number(url.searchParams.get('limit')) || 60) })),
 
   'GET /api/crunchyroll/status': (req, res) => sendJSON(res, 200, crunchyroll.status()),

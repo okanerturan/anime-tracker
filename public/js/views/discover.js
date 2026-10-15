@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { h, icon, media, section, toast, cardLink, FORMAT_LABEL } from '../ui.js';
+import { h, icon, media, section, carousel, toast, cardLink, FORMAT_LABEL } from '../ui.js';
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 
@@ -85,7 +85,7 @@ function recCard(r, onDismiss) {
     h('p', { class: 'card-meta' }, [r.year, FORMAT_LABEL[r.format] || r.format, r.episodes ? `${r.episodes} eps` : null,
       r.episodes && r.duration ? (() => { const m = r.episodes * r.duration; return m < 60 ? `~${m} min` : `~${Math.round(m / 60)} h`; })() : null,
       r.averageScore ? `★ ${r.averageScore}` : null].filter(Boolean).join(' · ')),
-    h('p', { class: 'card-sub clamp-3' }, r.because.length ? ['Because you watched ', ...(r.becauseShows || r.because.map((t) => ({ title: t }))).flatMap((b, i, arr) => [
+    h('p', { class: 'card-sub clamp-3' }, r.note ? r.note : r.because.length ? ['Because you watched ', ...(r.becauseShows || r.because.map((t) => ({ title: t }))).flatMap((b, i, arr) => [
       b.malId ? h('a', { class: 'because-link', href: `#/library?anime=${b.malId}`, onclick: (e) => { e.preventDefault(); openAnime({ malId: b.malId, title: b.title }); } }, b.title) : b.title,
       i < arr.length - 1 ? ', ' : ''])] : ''),
     h('div', { class: 'card-actions' }, addButton({ malId: r.malId, title: r.title, titleEnglish: r.title, totalEpisodes: r.episodes }, r.inLibrary), watchedButton(r.malId, r.title, onDismiss), dismiss));
@@ -121,8 +121,19 @@ function searchPanel(initial = '') {
 
 bus.on('recommendations-changed', () => { const view = document.getElementById('view'); if (location.hash.startsWith('#/discover')) render(view); });
 
+/** This season's airing anime that fit your taste, as a carousel at the top of Discover. */
+async function seasonalSection() {
+  let d;
+  try { d = await api.seasonal(); } catch { return null; }
+  if (!d.items.length) return null;
+  const name = { WINTER: 'Winter', SPRING: 'Spring', SUMMER: 'Summer', FALL: 'Fall' }[d.season] || d.season;
+  const cards = d.items.map((x) => { const card = recCard({ ...x, year: d.year, because: [], becauseShows: [], note: x.continuesYours ? 'Continues a show you watched' : null }, () => card.remove()); return card; });
+  return carousel(`Airing this season · ${name} ${d.year}`, 'New shows scored against what you actually finish', cards, '');
+}
+
 export async function render(view) {
   view.replaceChildren(h('div', { class: 'skeleton' }));
+  const seasonalPromise = seasonalSection();
   const data = await api.recommendations();
   const grid = h('div', { class: 'cards', style: { '--rows': '5' } });
   const count = h('span', { class: 'sub num' });
@@ -142,7 +153,9 @@ export async function render(view) {
     catch (err) { toast(err.message); }
     refresh.disabled = false; refresh.textContent = 'Recompute';
   });
-  view.replaceChildren(
+  const seasonalEl = await seasonalPromise;
+  view.replaceChildren(...[
+    seasonalEl,
     section('Your taste', 'Weighted by how much of each show you watched, how recently, and your star ratings',
       h('div', { class: 'taste' },
         h('div', { class: 'taste-group' },
@@ -159,5 +172,5 @@ export async function render(view) {
       h('p', { class: 'muted' }, 'Shows you haven’t watched, from AniList community recommendations of shows you liked. Rate shows (open one from your Library) to steer this; dropped and 1–2 star shows count against their recommendations.'),
       filterBar(draw),
       grid),
-    section('Find anything', null, ...searchPanel(new URLSearchParams(location.hash.split('?')[1] || '').get('q') || '')));
+    section('Find anything', null, ...searchPanel(new URLSearchParams(location.hash.split('?')[1] || '').get('q') || ''))].filter(Boolean));
 }
