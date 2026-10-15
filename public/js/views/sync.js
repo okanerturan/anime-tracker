@@ -173,8 +173,22 @@ export async function render(view) {
           h('img', { src: x.image || '', alt: '', loading: 'lazy' }),
           h('div', { class: 'rate-text' }, h('span', { class: 'week-item-title one-line', title: x.title }, x.title), h('span', { class: 'week-item-sub num' }, `${x.watched} of ${x.aired} ticked, including the finale`)),
           h('div', { class: 'odd-actions' }, all, stray));
-        all.addEventListener('click', async () => { all.disabled = stray.disabled = true; try { await api.watchedThrough(x.malId, x.aired); toast(`${x.title}: all ${x.aired} marked watched`); row.remove(); } catch (err) { all.disabled = stray.disabled = false; toast(err.message); } });
-        stray.addEventListener('click', async () => { all.disabled = stray.disabled = true; try { await api.toggleWatched(x.malId, x.aired, false); toast(`${x.title}: E${x.aired} unmarked`); row.remove(); } catch (err) { all.disabled = stray.disabled = false; toast(err.message); } });
+        // Both fixes hide the row and offer Undo, which reverses exactly what they changed.
+        const restore = () => { row.hidden = false; all.disabled = stray.disabled = false; bus.emit('library-changed'); };
+        all.addEventListener('click', async () => {
+          all.disabled = stray.disabled = true;
+          try {
+            const r = await api.watchedThrough(x.malId, x.aired); row.hidden = true; bus.emit('library-changed');
+            toast(`${x.title}: all ${x.aired} marked watched`, { label: 'Undo', onClick: async () => { try { await api.unmark(x.malId, r.episodes || []); restore(); } catch (err) { toast(err.message); } } });
+          } catch (err) { all.disabled = stray.disabled = false; toast(err.message); }
+        });
+        stray.addEventListener('click', async () => {
+          all.disabled = stray.disabled = true;
+          try {
+            await api.toggleWatched(x.malId, x.aired, false); row.hidden = true; bus.emit('library-changed');
+            toast(`${x.title}: E${x.aired} unmarked`, { label: 'Undo', onClick: async () => { try { await api.toggleWatched(x.malId, x.aired, true); restore(); } catch (err) { toast(err.message); } } });
+          } catch (err) { all.disabled = stray.disabled = false; toast(err.message); }
+        });
         return row;
       }))) : null,
     cr.sampled?.length ? section('Sampled, not tracked', `${cr.sampled.length} Crunchyroll seasons you tried but never finished an episode of. Track one to add it to your library.`,

@@ -86,6 +86,10 @@ let toastTimer = null;
 /** A short message; with `action` ({ label, onClick }) it carries one button, e.g. Undo. */
 export function toast(text, action = null) {
   const el = document.getElementById('toast');
+  // A modal panel makes the rest of the page unclickable, so while one is open the message lives
+  // inside it; otherwise an Undo shown over the panel could be seen but not pressed.
+  const host = document.querySelector('dialog[open]') || document.body;
+  if (el.parentElement !== host) { try { el.hidePopover(); } catch {} host.append(el); }
   if (action) {
     const btn = h('button', { type: 'button', class: 'toast-action' }, action.label);
     btn.addEventListener('click', () => { action.onClick(); el.hidePopover?.(); });

@@ -211,10 +211,20 @@ export async function openAnime(partial) {
     const last = Math.max(0, ...[...epContainer.querySelectorAll('.ep-tile')].map((t) => Number(t.dataset.episode) || 0));
     if (!last) return;
     markAllBtn.disabled = true;
-    try { await api.watchedThrough(item.malId, last); await load(); bus.emit('library-changed'); toast(`All ${last} episodes marked watched`); }
+    try {
+      const r = await api.watchedThrough(item.malId, last); await load(); bus.emit('library-changed');
+      toast(`All ${last} episodes marked watched`, undoMarks(r));
+    }
     catch (err) { toast(err.message); }
     markAllBtn.disabled = false;
   });
+
+  /** Undo for bulk ticks: unmark exactly the episodes that call changed, then redraw. */
+  function undoMarks(r) {
+    return { label: 'Undo', onClick: async () => {
+      try { await api.unmark(item.malId, r.episodes || []); if (dialog().open) await load(); bus.emit('library-changed'); } catch (err) { toast(err.message); }
+    } };
+  }
 
   /** "12 eps · ~4 h 48 min", or "~1 h 12 min left" once started. */
   function runtimeChip() {
@@ -373,8 +383,9 @@ export async function openAnime(partial) {
     check.addEventListener('click', async (e) => {
       try {
         if (e.shiftKey && !ep.watched) {
-          await api.watchedThrough(item.malId, ep.episodeNumber);
+          const r = await api.watchedThrough(item.malId, ep.episodeNumber);
           await load();
+          if (r.episodes?.length > 1) toast(`${r.episodes.length} episodes marked watched, through E${ep.episodeNumber}`, undoMarks(r));
         } else {
           const r = await api.toggleWatched(item.malId, ep.episodeNumber, !ep.watched);
           ep.watched = r.watched;
