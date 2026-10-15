@@ -260,7 +260,10 @@ function wantedSeasons(limit = 30) {
 
 const epRowStmt = db.prepare('SELECT title, image_blob IS NOT NULL AS hasImage FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
 const setEpMetaStmt = db.prepare(`UPDATE episode_sync SET title = CASE WHEN title IS NULL OR title GLOB 'Episode [0-9]*' THEN ? ELSE title END,
-  aired = COALESCE(?, aired), url = CASE WHEN COALESCE(url,'') = '' THEN ? ELSE url END, updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?`);
+  aired = COALESCE(?, aired),
+  -- A Crunchyroll watch link beats a MyAnimeList or old slug link (those can't play the episode).
+  url = CASE WHEN COALESCE(url,'') = '' OR url NOT LIKE '%crunchyroll.com/watch/%' THEN COALESCE(NULLIF(?, ''), url) ELSE url END,
+  updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?`);
 const insertAiredStmt = db.prepare(`INSERT OR IGNORE INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, updated_at)
   VALUES (?, ?, 1, ?, ?, ?, 0, CURRENT_TIMESTAMP)`);
 const setEpImageStmt = db.prepare(`UPDATE episode_sync SET image_blob = ?, image_mime = ?, image_source = 'crunchyroll', updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?`);

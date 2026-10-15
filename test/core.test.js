@@ -402,3 +402,20 @@ test('odd progress: Leave as is stops flagging a show, Undo flags it again', () 
   library.acceptOddProgress(970, true);
   assert.ok(flagged());
 });
+
+test('season episode lists: a Crunchyroll watch link replaces a MyAnimeList link, an empty one keeps it', async () => {
+  addShow(980, 'Linked Late', { episodes: 3 });
+  rule('GLATE1', 980);
+  const put = (n, url) => db.prepare('INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, title, url, watched) VALUES (?, ?, ?, ?, 0)').run(980, n, `Ep ${n}`, url);
+  put(1, 'https://myanimelist.net/anime/980/x/episode/1');
+  put(2, 'https://myanimelist.net/anime/980/x/episode/2');
+  put(3, 'https://www.crunchyroll.com/watch/KEEP3/x');
+  await crunchyroll.applySeasonEpisodes([{ seasonId: 'GLATE1', episodes: [
+    { episodeNumber: 1, episodeId: 'NEW1', title: 'One' },
+    { episodeNumber: 2, title: 'Two' },
+    { episodeNumber: 3, episodeId: 'OTHER3', title: 'Three' }] }]);
+  const url = (n) => db.prepare('SELECT url FROM episode_sync WHERE mal_id = 980 AND episode_number = ?').get(n).url;
+  assert.equal(url(1), 'https://www.crunchyroll.com/watch/NEW1');
+  assert.equal(url(2), 'https://myanimelist.net/anime/980/x/episode/2', 'no id: the old link stays');
+  assert.equal(url(3), 'https://www.crunchyroll.com/watch/KEEP3/x', 'an existing watch link is kept');
+});

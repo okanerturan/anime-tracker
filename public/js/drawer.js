@@ -98,6 +98,8 @@ export async function openAnime(partial) {
     details = d;
     renderPlay();
     offerSequel();
+    // Episodes drawn before the show's Crunchyroll link was known: redraw so those tiles open it too.
+    if (episodesLoaded && epContainer.querySelector('.ep-row > span.name')) load().catch(() => {});
     // Shows known only as someone's sequel or recommendation lack full metadata; fetch it (through the
     // browser relay when AniList blocks the server) and reopen once it has arrived.
     if (d.partial && !partial._refetched) {
@@ -397,11 +399,18 @@ export async function openAnime(partial) {
     const playPill = ep.crunchyrollUrl
       ? h('a', { class: 'play-overlay ep-play', href: ep.crunchyrollUrl, target: '_blank', rel: 'noopener', onclick: () => { if (!ep.watched) rememberPlay(item, ep.episodeNumber); }, 'aria-label': `Watch episode ${ep.episodeNumber} on Crunchyroll` }, icon('play'), h('span', {}, 'Play'))
       : null;
+    // The whole tile opens the episode on Crunchyroll (its title link stretches over the tile; the
+    // check sits above it). Without this episode's own link yet, it opens the show's Crunchyroll page.
+    const showCr = details && !details.links.crunchyrollIsSearch ? details.links.crunchyroll : null;
+    const tileUrl = ep.crunchyrollUrl || showCr;
+    const nameEl = tileUrl
+      ? h('a', { class: 'card-link name clamp-2', href: tileUrl, target: '_blank', rel: 'noopener',
+          title: ep.crunchyrollUrl ? `${name} · play on Crunchyroll` : `${name} · this episode's own link isn't known yet, so this opens the show on Crunchyroll`,
+          onclick: () => { if (ep.crunchyrollUrl && !ep.watched) rememberPlay(item, ep.episodeNumber); } }, name)
+      : h('span', { class: 'name clamp-2', title: name }, name);
     const el = h('article', { class: `card ep-tile ${playPill ? 'has-play' : ''}`, 'data-watched': String(ep.watched), 'data-episode': String(ep.episodeNumber) },
       media({ src: ep.image, alt: '', badges: [h('span', { class: 'pill dark badge-start num' }, `E${ep.episodeNumber}`), playPill] }),
-      h('div', { class: 'ep-row' },
-        h('span', { class: 'name clamp-2', title: name }, name),
-        check));
+      h('div', { class: 'ep-row' }, nameEl, check));
     // Touch: holding a check for half a second is the phone's Shift-click.
     // A time, not a flag: Android sends no click after a long press, and a flag left set would swallow the next tap.
     let heldAt = 0; let holdTimer = null;
