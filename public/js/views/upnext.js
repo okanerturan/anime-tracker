@@ -66,7 +66,7 @@ function epCard(item, mode, onChange) {
         icon('play'), h('span', {}, playExact ? `Play E${item.nextEpisode}` : `Open on ${item.nextEpisodeSite || 'Crunchyroll'}`))
     : null);
   // Watched it elsewhere, or the sync hasn't caught up: tick the next episode without opening the show.
-  const tick = (mode === 'continue' && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched. Shift-click marks every aired episode.` }, icon('check')) : null;
+  const tick = ((mode === 'continue' || mode === 'stalled') && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched. Shift-click marks every aired episode.` }, icon('check')) : null;
   if (tick) tick.addEventListener('click', async (e) => {
     tick.disabled = true;
     // Shift: caught up elsewhere, mark everything that has aired.
