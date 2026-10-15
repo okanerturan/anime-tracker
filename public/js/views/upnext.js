@@ -366,7 +366,15 @@ function draw(view, data, cr) {
     const p = paused.get(`${item.malId}:${item.nextEpisode}`);
     if (p) { item.resume = p; used.add(p); }
   }
-  const inProgress = (cr?.inProgress || []).filter((p) => !used.has(p));
+  // One paused card per show: the list is newest first, so the first one is the latest episode.
+  const pausedShows = new Set();
+  const inProgress = (cr?.inProgress || []).filter((p) => {
+    if (used.has(p)) return false;
+    const key = p.malId || `t:${p.seriesTitle}`;
+    if (pausedShows.has(key)) return false;
+    pausedShows.add(key);
+    return true;
+  });
 
   // Remove the card in place so an open shelf stays open while you triage it; other shelves catch up on the next visit.
   // If the card was from a first paint that fresher data has since replaced, it's no longer on
@@ -403,6 +411,8 @@ function draw(view, data, cr) {
   // Your original ask: shows you left one or two episodes before the end. They get their own shelf
   // instead of hiding in the collapsed "paused a while ago" list.
   const leftOf = (x) => (x.leftInSeason != null ? x.leftInSeason : x.remaining);
+  // A show with a paused episode is already under "Started on Crunchyroll" with its resume button.
+  data.stalled = data.stalled.filter((x) => !pausedShows.has(x.malId));
   const finishable = data.stalled.filter((x) => leftOf(x) >= 1 && leftOf(x) <= 2).sort((a, b) => leftOf(a) - leftOf(b) || a.lastAgeDays - b.lastAgeDays);
   const finishIds = new Set(finishable.map((x) => x.malId));
   const stalledRest = data.stalled.filter((x) => !finishIds.has(x.malId));
