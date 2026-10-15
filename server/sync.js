@@ -167,7 +167,7 @@ async function refreshCycle() {
     state.phase = 'recommendations';
     try { await require('./insights').recommendations({ refresh: true }); summary.recommendationsWarmed = true; } catch (err) { summary.recommendationsError = String(err.message || err); }
     // Phone notifications: episodes that aired since the last cycle, once each.
-    try { const up = await require('./insights').upNext(); summary.push = await require('./push').notifyNewEpisodes(up.continueWatching, up.newSeasons); } catch (err) { summary.pushError = String(err.message || err); }
+    try { const up = await require('./insights').upNext(); summary.push = await require('./push').notifyNewEpisodes(up.continueWatching, [...up.newSeasons, ...require('./push').libraryPremieres()]); } catch (err) { summary.pushError = String(err.message || err); }
   } catch (err) {
     state.lastError = String(err.message || err);
     summary.error = state.lastError;

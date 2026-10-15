@@ -83,13 +83,16 @@ async function notifyNewEpisodes(items, seasons = []) {
   const today = new Date(now).toISOString().slice(0, 10);
   const recent = new Date(now - 3 * 86400e3).toISOString().slice(0, 10);
   const told = new Set(state.get('pushSeasons')?.ids || []);
-  const premieres = (seasons || []).filter((s) => !s.inLibrary && s.startDate && s.startDate <= today && s.startDate >= recent && !told.has(s.malId));
+  const seen = new Set(fresh.map((x) => x.malId));
+  const premieres = (seasons || []).filter((s) => !seen.has(s.malId) && (seen.add(s.malId), true) && !s.inLibrary && s.startDate && s.startDate <= today && s.startDate >= recent && !told.has(s.malId));
   if (premieres.length) state.set('pushSeasons', { ids: [...told, ...premieres.map((s) => s.malId)].slice(-200) });
   if (!subscriptions().length || (!fresh.length && !premieres.length)) return { sent: 0, fresh: fresh.length, premieres: premieres.length };
   if (!fresh.length) {
     const p = premieres[0];
     const message = premieres.length === 1
-      ? { title: `New season: ${p.title}`, body: p.after ? `The sequel to ${p.after} has started.` : 'It has started.', url: '/#/up-next' }
+      ? (p.premiere
+        ? { title: `Premiere: ${p.title}`, body: 'Episode 1 is out. It was on your list.', url: `/#/library?anime=${p.malId}` }
+        : { title: `New season: ${p.title}`, body: p.after ? `The sequel to ${p.after} has started.` : 'It has started.', url: '/#/up-next' })
       : { title: `${premieres.length} new seasons started`, body: premieres.slice(0, 3).map((s) => s.title).join(', '), url: '/#/up-next' };
     return { ...(await sendAll(message)), fresh: 0, premieres: premieres.length };
   }
@@ -101,4 +104,15 @@ async function notifyNewEpisodes(items, seasons = []) {
   return { ...(await sendAll(message)), fresh: fresh.length, premieres: premieres.length };
 }
 
-module.exports = { keys, subscribe, unsubscribe, subscriptions, sendAll, notifyNewEpisodes, vapidJwt, b64url, fromB64url };
+/** Shows you added before they aired (not held or dropped) whose start date has come; shaped like newSeasons cards. */
+function libraryPremieres() {
+  const { db } = require('./db');
+  const recent = new Date(Date.now() - 3 * 86400e3).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  return db.prepare(`SELECT w.mal_id AS malId, COALESCE(m.title_english, m.title) AS title, m.start_date AS startDate
+    FROM watchlist w JOIN media m ON m.mal_id = w.mal_id
+    WHERE w.list_status IS NULL AND m.start_date BETWEEN ? AND ?`).all(recent, today)
+    .map((r) => ({ ...r, inLibrary: false, premiere: true }));
+}
+
+module.exports = { libraryPremieres, keys, subscribe, unsubscribe, subscriptions, sendAll, notifyNewEpisodes, vapidJwt, b64url, fromB64url };
