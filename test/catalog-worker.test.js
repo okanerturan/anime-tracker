@@ -136,3 +136,28 @@ test('a 4,000-play first sync needs no network and finishes in under 5 seconds',
     assert.ok(deferred > 0, 'their plays wait for the search');
   } finally { global.fetch = realFetch; }
 });
+
+test('a waiting season is matched when its search finishes, and its plays apply without another sync', async () => {
+  reset(); catalogDb.exec('DELETE FROM catalog_waiters');
+  const { withAccount, db: adb } = require('../server/db');
+  const crunchyroll = require('../server/crunchyroll');
+  const node = (id, title, extra = {}) => ({ id: id + 90000, idMal: id, type: 'ANIME', format: 'TV', status: 'FINISHED', episodes: 12, title: { romaji: title, english: title }, startDate: { year: 2024, month: 1, day: 1 }, coverImage: {}, ...extra });
+  const play = (seasonId, title, ep, n) => ({ id: `${seasonId}-${ep}`, episodeId: `${seasonId}E${ep}`, seasonId, seriesTitle: title, seasonTitle: title, episodeNumber: ep, datePlayed: new Date(Date.now() - n * 60e3).toISOString(), fullyWatched: true, playhead: 1400, durationS: 1440 });
+  // Fake AniList: searches by title; full fetches with a prequel chain (Sequel Show -> Prequel Show).
+  const fake = { calls: [], request: async (q, vars) => {
+    fake.calls.push(vars.s ? `search:${vars.s}` : `full:${vars.ids.join(',')}`);
+    if (vars.s) return { status: 200, data: { Page: { media: /Sequel/.test(vars.s) ? [node(5002, 'Sequel Show Season 2')] : [node(5001, 'Fresh Show')] } } };
+    return { status: 200, data: { Page: { media: vars.ids.map((id) => (id === 5002
+      ? { ...node(5002, 'Sequel Show Season 2'), relations: { edges: [{ relationType: 'PREQUEL', node: node(5000, 'Sequel Show') }] }, recommendations: { nodes: [] }, tags: [], genres: [], externalLinks: [] }
+      : { ...node(id, 'Sequel Show'), relations: { edges: [] }, recommendations: { nodes: [] }, tags: [], genres: [], externalLinks: [] })) } } };
+  } };
+  await withAccount('30', () => crunchyroll.ingest([1, 2, 3].map((e) => play('GFRESH', 'Fresh Show', e, e)).concat([13, 14, 15].map((e) => play('GSEQ', 'Sequel Show Season 2', e, e + 10)))));
+  const watched = (mal) => withAccount('30', () => adb.prepare('SELECT episode_number FROM episode_sync WHERE mal_id = ? AND watched = 1 ORDER BY 1').all(mal).map((r) => r.episode_number));
+  assert.deepEqual(watched(5001), [], 'nothing applied before the search');
+  const w = worker.createWorker({ request: fake.request });
+  for (let i = 0; i < 8; i += 1) await w.tick();
+  assert.deepEqual(watched(5001), [1, 2, 3], 'Fresh Show: matched and applied by the worker');
+  assert.deepEqual(watched(5002), [1, 2, 3], 'Sequel Show S2: episodes 13-15 land as 1-3 once the prequel (12 eps) is known');
+  assert.ok(fake.calls.includes('full:5002') && fake.calls.includes('full:5000'), `fetched what the offset needed: ${fake.calls.join(' ')}`);
+  assert.equal(catalogDb.prepare('SELECT COUNT(*) n FROM catalog_waiters').get().n, 0, 'nothing left waiting');
+});

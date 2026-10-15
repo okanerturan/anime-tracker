@@ -28,9 +28,20 @@ function enqueue(type, payload, { recency = 0 } = {}) {
   enqueueStmt.run(key, type, JSON.stringify(payload), Math.max(0, Math.min(1, recency)) * 10);
   return key;
 }
+const waiterStmt = catalog.prepare('INSERT OR IGNORE INTO catalog_waiters (job_key, account_id, season_key, min_episode, sample) VALUES (?, ?, ?, ?, ?)');
+/** Hosted ingest: this account's season waits on an AniList search (one job however many wait). */
+function waitForSearch(query, seasonKey, sample, minEpisode) {
+  const { accountContext } = require('../db');
+  const accountId = accountContext.getStore()?.accountId;
+  const key = enqueue('search', { query }, { recency: 1 });
+  if (accountId) waiterStmt.run(key, String(accountId), seasonKey, minEpisode || 1, JSON.stringify(sample));
+  return key;
+}
+
 const nextJobs = (type, limit) => catalog.prepare(`SELECT key, payload, attempts FROM catalog_jobs WHERE status = 'queued' AND type = ?
   ORDER BY priority DESC, created_at LIMIT ?`).all(type, limit);
 const doneStmt = catalog.prepare("UPDATE catalog_jobs SET status = 'done', last_error = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE key = ?");
+const doneWithResultStmt = catalog.prepare("UPDATE catalog_jobs SET status = 'done', last_error = NULL, result = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE key = ?");
 const failStmt = catalog.prepare(`UPDATE catalog_jobs SET attempts = attempts + 1, last_error = ?,
   status = CASE WHEN attempts + 1 >= ? THEN 'quarantined' ELSE status END, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE key = ?`);
 
@@ -62,12 +73,32 @@ async function anilistRequest(query, variables) {
 // (Web Crypto for the holder name: this file is also bundled into the Cloudflare build.)
 const randomHex = () => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join('');
 
-function createWorker({ holder = `w-${randomHex()}`, request = anilistRequest, store = null, fullQuery = null, now = () => Date.now() } = {}) {
+function createWorker({ holder = `w-${randomHex()}`, request = anilistRequest, store = null, storeLight = null, fullQuery = null, now = () => Date.now() } = {}) {
   const sent = []; // request times in the last minute (5.3)
   let waitUntil = 0;
   const anilist = () => require('../sources/anilist');
   const save = store || ((list) => anilist().storeFull(list));
+  const saveLight = storeLight || ((list) => anilist().storeLight(list));
   const query = () => fullQuery || anilist().FULL_QUERY;
+  const searchQuery = () => anilist().SEARCH_QUERY;
+
+  /**
+   * Seasons waiting on a finished search: match each one in its account (no network) and apply its
+   * plays. A continuous-numbering season may first need prequel details: queue them, try again later.
+   */
+  async function resolveWaiting() {
+    const { withAccount } = require('../db');
+    const ready = catalog.prepare(`SELECT w.*, j.result FROM catalog_waiters w JOIN catalog_jobs j ON j.key = w.job_key
+      WHERE j.status IN ('done', 'quarantined') LIMIT 50`).all();
+    for (const w of ready) {
+      const cands = w.result ? JSON.parse(w.result) : [];
+      try {
+        const out = await withAccount(w.account_id, () => require('../crunchyroll').resolveWaitingSeason(w.season_key, JSON.parse(w.sample), w.min_episode, cands));
+        if (out.needFull) { for (const id of out.needFull) enqueue('full', { malId: id }, { recency: 1 }); continue; }
+      } catch { /* the account was deleted, or its data is broken: drop the wait */ }
+      catalog.prepare('DELETE FROM catalog_waiters WHERE job_key = ? AND account_id = ? AND season_key = ?').run(w.job_key, w.account_id, w.season_key);
+    }
+  }
 
   const paused = () => state.get('catalogPaused');
   function pause(reason) { state.set('catalogPaused', { reason: String(reason).slice(0, 200), until: new Date(now() + PAUSE_MS).toISOString() }); }
@@ -81,13 +112,16 @@ function createWorker({ holder = `w-${randomHex()}`, request = anilistRequest, s
     while (sent.length && t - sent[0] >= 60e3) sent.shift();
     if (sent.length >= BUDGET) return { ran: false, why: 'budget' };
 
-    // 5.4: one request carries up to 25 queued full fetches.
-    const jobs = nextJobs('full', 25);
-    if (!jobs.length) return { ran: false, why: 'idle' };
-    const ids = jobs.map((j) => JSON.parse(j.payload).malId);
+    // 5.4: one request carries up to 25 queued full fetches; with none queued, one search.
+    let jobs = nextJobs('full', 25);
+    const isSearch = !jobs.length;
+    if (isSearch) jobs = nextJobs('search', 1);
+    if (!jobs.length) { await resolveWaiting(); return { ran: false, why: 'idle' }; }
+    const ids = isSearch ? null : jobs.map((j) => JSON.parse(j.payload).malId);
     sent.push(t);
     let r;
-    try { r = await request(query(), { ids }); } catch (err) { r = { status: 0, errors: [{ message: err.message }] }; }
+    try { r = isSearch ? await request(searchQuery(), { s: JSON.parse(jobs[0].payload).query, n: 6 }) : await request(query(), { ids }); }
+    catch (err) { r = { status: 0, errors: [{ message: err.message }] }; }
     const message = (r.errors || []).map((e) => e.message).join('; ');
     if (r.status === 429) { waitUntil = t + (r.retryAfter || 30) * 1000; return { ran: true, why: '429' }; }
     if (r.status === 403 || /blocked/i.test(message)) { pause(message || `HTTP ${r.status}`); return { ran: true, why: 'blocked' }; }
@@ -99,9 +133,17 @@ function createWorker({ holder = `w-${randomHex()}`, request = anilistRequest, s
       return { ran: true, why: 'failed' };
     }
     if (state.get('catalogPaused')) state.set('catalogPaused', { reason: null, until: new Date(0).toISOString() });
-    const media = r.data?.Page?.media || [];
+    const media = (r.data?.Page?.media || []).filter((m) => m?.idMal);
+    if (isSearch) {
+      // Candidates go to the catalog as light rows and onto the job for the waiting accounts.
+      saveLight(media);
+      doneWithResultStmt.run(JSON.stringify(media), jobs[0].key);
+      await resolveWaiting();
+      return { ran: true, why: 'ok', search: true, candidates: media.length };
+    }
     save(media); // idempotent upserts (5.5)
     for (const j of jobs) doneStmt.run(j.key); // found or not: AniList answered, so the job is settled
+    await resolveWaiting(); // a fetched prequel may finish a waiting season's match
     return { ran: true, why: 'ok', stored: media.length, ids: ids.length };
   }
 
@@ -121,4 +163,4 @@ function status() {
   return { queued: counts.queued || 0, quarantined: counts.quarantined || 0, paused: p && Date.parse(p.until) > Date.now() ? p : null };
 }
 
-module.exports = { enqueue, lease, createWorker, status, BUDGET };
+module.exports = { enqueue, waitForSearch, lease, createWorker, status, BUDGET };

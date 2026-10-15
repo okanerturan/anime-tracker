@@ -106,32 +106,63 @@ function pickCandidate(query, cands) {
   return { media: tv || cands[0], confident: false };
 }
 
-async function ruleFromAniList(row, minEpisode) {
-  const query = seasonQuery(row);
-  const cands = await anilist.search(query, 6);
-  if (!cands.length) return null;
-  const { media, confident } = pickCandidate(query, cands);
-  if (!library.isInLibrary(media.idMal)) {
-    library.addToLibrary(anilist.toLibraryAnime(media));
-  }
+/**
+ * A season rule from AniList search candidates, using only what the catalog already has. Returns
+ * the rule, or { needFull: [malIds] } when the continuous-numbering offset needs prequel metadata
+ * that isn't fetched yet (the caller fetches it, or queues it, and asks again).
+ */
+function ruleFromCandidates(row, minEpisode, cands) {
+  if (!cands?.length) return null;
+  const { media, confident } = pickCandidate(seasonQuery(row), cands);
   // Continuous numbering: season 2 starting at "13" after a 12-episode season 1 means offset 12.
   let offset = 0;
   if (minEpisode > 1) {
-    await anilist.fetchFullByMalIds([media.idMal]).catch(() => {});
-    // The offset comes from the prequel chain; without its metadata a guess would be saved for good.
-    if (anilist.isBlocked() && !db.prepare('SELECT is_full FROM media WHERE mal_id = ?').get(media.idMal)?.is_full) throw new anilist.AniListBlockedError();
+    const full = (id) => db.prepare('SELECT is_full FROM media WHERE mal_id = ?').get(id)?.is_full;
+    if (!full(media.idMal)) return { needFull: [media.idMal], media };
     let sum = 0; let cur = media.idMal; const chain = [];
     for (let hops = 0; hops < 6; hops += 1) {
       const prev = db.prepare(`SELECT m.mal_id, m.episodes, m.is_full FROM media_relation r JOIN media m ON m.mal_id = r.related_mal_id
         WHERE r.mal_id = ? AND r.relation_type = 'PREQUEL' AND m.format IN ('TV','ONA','TV_SHORT') ORDER BY m.start_date DESC LIMIT 1`).get(cur);
       if (!prev || !prev.episodes) break;
+      if (!prev.is_full) return { needFull: [prev.mal_id], media };
       sum += prev.episodes; chain.push(sum); cur = prev.mal_id;
-      if (!prev.is_full) await anilist.fetchFullByMalIds([prev.mal_id]).catch(() => {});
     }
     // Use the largest prequel total that the first watched episode number lies beyond.
     offset = chain.filter((t) => minEpisode > t).pop() || 0;
   }
-  return { mal: media.idMal, offset, source: confident ? 'anilist' : 'anilist-guess', needsReview: !confident };
+  return { media, rule: { mal: media.idMal, offset, source: confident ? 'anilist' : 'anilist-guess', needsReview: !confident } };
+}
+
+/** Single-user mode: search AniList now and fetch what the offset needs as it goes. */
+async function ruleFromAniList(row, minEpisode) {
+  const cands = await anilist.search(seasonQuery(row), 6);
+  for (let round = 0; round < 8; round += 1) {
+    const r = ruleFromCandidates(row, minEpisode, cands);
+    if (!r) return null;
+    if (r.needFull) {
+      await anilist.fetchFullByMalIds(r.needFull).catch(() => {});
+      // Without the prequel metadata a guessed offset would be saved for good.
+      if (anilist.isBlocked() && !db.prepare('SELECT is_full FROM media WHERE mal_id = ?').get(r.needFull[0])?.is_full) throw new anilist.AniListBlockedError();
+      continue;
+    }
+    if (!library.isInLibrary(r.media.idMal)) library.addToLibrary(anilist.toLibraryAnime(r.media));
+    return r.rule;
+  }
+  return null;
+}
+
+/**
+ * Hosted mode: a search job finished; match this account's waiting season from its candidates and
+ * apply the plays that were waiting (no network). Returns { done } or { needFull } to try again later.
+ */
+async function resolveWaitingSeason(seasonKey, sample, minEpisode, cands) {
+  const r = ruleFromCandidates(sample, minEpisode, cands);
+  if (r?.needFull) return { needFull: r.needFull };
+  const rule = r?.rule || { mal: 0, offset: 0, source: 'unresolved', needsReview: true };
+  if (r?.media && !library.isInLibrary(r.media.idMal)) library.addToLibrary(anilist.toLibraryAnime(r.media));
+  insertRuleStmt.run(seasonKey, 0, 100000, rule.mal, rule.offset, rule.source, sample.series_title, sample.season_title, rule.needsReview ? 1 : 0);
+  await ingest([]); // the waiting plays of this season now have a rule
+  return { done: true, malId: rule.mal };
 }
 
 function ensureInLibrary(malId) {
@@ -194,7 +225,8 @@ async function ingest(rawRows, { source = 'extension' } = {}) {
       // Hosted mode (D10): ingest never waits on the network. An unknown season becomes a search job
       // for the catalog worker; its plays stay pending until the season is resolved.
       if (!rule && require('./db').MULTI) {
-        require('./catalog/worker').enqueue('search', { query: `${sample.series_title} ${sample.season_title || ''}`.trim(), seasonKey }, { recency: 1 });
+        const minEp = Math.min(...seasonRows.map((r) => r.episode_number).filter((n) => n != null), Infinity);
+        require('./catalog/worker').waitForSearch(seasonQuery(sample), seasonKey, { series_title: sample.series_title, season_title: sample.season_title }, Number.isFinite(minEp) ? minEp : 1);
         summary.deferred = (summary.deferred || 0) + seasonRows.length;
         continue;
       }
@@ -430,4 +462,4 @@ function hideSampled(seasonId, undo = false) {
   return { ok: true };
 }
 
-module.exports = { hideSampled, ingest, status, remapSeason, confirmSeason, trackSeason, dismissPlay, normalizeRow, applySeasonEpisodes, wantedSeasons };
+module.exports = { resolveWaitingSeason, ruleFromCandidates, hideSampled, ingest, status, remapSeason, confirmSeason, trackSeason, dismissPlay, normalizeRow, applySeasonEpisodes, wantedSeasons };

@@ -233,8 +233,11 @@ async function fetchFullByMalIds(malIds, onProgress) {
 }
 
 /** Search AniList; returns light-weight results with MAL ids. */
+const SEARCH_QUERY = `query($s:String,$n:Int){Page(perPage:$n){media(search:$s,type:ANIME){${NODE_FIELDS} description(asHtml:false) externalLinks{site url type}}}}`;
+/** Save search candidates as light catalog rows (no relations or recommendations). */
+const storeLight = catalog.transaction((list) => { for (const m of list) if (m?.idMal) upsertMediaStmt.run(mediaRow(m, false)); });
 async function search(text, perPage = 8) {
-  const query = `query($s:String,$n:Int){Page(perPage:$n){media(search:$s,type:ANIME){${NODE_FIELDS} description(asHtml:false) externalLinks{site url type}}}}`;
+  const query = SEARCH_QUERY;
   const data = await gql(query, { s: String(text).slice(0, 100), n: perPage });
   return (data?.Page?.media || []).filter((m) => m.idMal);
 }
@@ -302,4 +305,4 @@ function relayStatus() {
   };
 }
 
-module.exports = { FULL_QUERY, gql, fetchFullByMalIds, search, toLibraryAnime, storeFull, takeRelayJobs, applyRelayAnswers, relayStatus, isBlocked, AniListBlockedError };
+module.exports = { FULL_QUERY, SEARCH_QUERY, storeLight, gql, fetchFullByMalIds, search, toLibraryAnime, storeFull, takeRelayJobs, applyRelayAnswers, relayStatus, isBlocked, AniListBlockedError };

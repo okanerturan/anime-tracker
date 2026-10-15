@@ -152,8 +152,18 @@ CREATE TABLE IF NOT EXISTS catalog_jobs (
   status TEXT NOT NULL DEFAULT 'queued',   -- queued | done | quarantined
   attempts INTEGER NOT NULL DEFAULT 0,
   last_error TEXT,
+  result TEXT,                      -- search jobs: the candidates (JSON), for the accounts waiting on it
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+-- Which accounts wait on a search, for which of their Crunchyroll seasons.
+CREATE TABLE IF NOT EXISTS catalog_waiters (
+  job_key TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  season_key TEXT NOT NULL,
+  min_episode INTEGER NOT NULL DEFAULT 1,
+  sample TEXT NOT NULL,             -- { series_title, season_title }
+  PRIMARY KEY (job_key, account_id, season_key)
 );
 CREATE INDEX IF NOT EXISTS idx_catalog_jobs_next ON catalog_jobs(status, priority DESC, created_at);
 CREATE TABLE IF NOT EXISTS catalog_lease (
@@ -218,7 +228,7 @@ const ADDED_COLUMNS = [
 // recommendations, the image index, AniList job queues, Crunchyroll season fetch times) lives in
 // one catalog file; everything about a person lives in their account file. Single-user mode keeps
 // all of it in one file, as before.
-const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state', 'catalog_jobs', 'catalog_lease']);
+const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state', 'catalog_jobs', 'catalog_lease', 'catalog_waiters']);
 
 /** The table a CREATE TABLE / CREATE INDEX statement is about. */
 function tableOf(statement) {
