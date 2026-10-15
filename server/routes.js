@@ -296,7 +296,7 @@ const routes = {
     library: db.prepare('SELECT COUNT(*) n FROM watchlist').get().n,
     episodes: {
       ...db.prepare('SELECT COUNT(*) n, COALESCE(SUM(watched), 0) w FROM episode_sync INDEXED BY idx_episode_sync_progress').get(),
-      i: db.prepare('SELECT COUNT(*) i FROM episode_sync WHERE image_blob IS NOT NULL').get().i
+      i: db.prepare('SELECT COUNT(*) i FROM episode_sync WHERE image_blob IS NOT NULL OR image_url IS NOT NULL').get().i
     },
     images: images.stats()
   }),

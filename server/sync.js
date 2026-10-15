@@ -8,15 +8,18 @@ const jikan = require('./sources/jikan');
 const library = require('./library');
 const { sleep } = require('./util');
 const images = require('./images');
+// (Some functions below count images in a local `images`; this name always means the module.)
+const imagesMod = images;
 const appState = require('./state');
 
 const getMediaStmt = db.prepare('SELECT * FROM media WHERE mal_id = ?');
-const episodeRowsStmt = db.prepare('SELECT episode_number AS n, title, image_blob IS NOT NULL AS hasImage FROM episode_sync WHERE mal_id = ?');
+const episodeRowsStmt = db.prepare('SELECT episode_number AS n, title, (image_blob IS NOT NULL OR image_url IS NOT NULL) AS hasImage FROM episode_sync WHERE mal_id = ?');
 const insertPlaceholderStmt = db.prepare(`INSERT OR IGNORE INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, updated_at)
   VALUES (?, ?, 1, ?, '', NULL, 0, CURRENT_TIMESTAMP)`);
 const setTitleStmt = db.prepare(`UPDATE episode_sync SET title = ?, url = CASE WHEN COALESCE(url,'') = '' THEN ? ELSE url END, updated_at = CURRENT_TIMESTAMP
   WHERE mal_id = ? AND episode_number = ?`);
-const setImageStmt = db.prepare('UPDATE episode_sync SET image_blob = ?, image_mime = ?, image_source = ?, updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?');
+// Episode stills are stored as their source URL and served through the shared image cache (/img/…).
+const setImageStmt = db.prepare('UPDATE episode_sync SET image_url = ?, image_source = ?, updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?');
 const setTotalStmt = db.prepare('UPDATE anime SET total_episodes = COALESCE(?, total_episodes), release_date = COALESCE(release_date, ?) WHERE mal_id = ?');
 const markSyncedStmt = db.prepare('UPDATE watchlist SET synced_at = CURRENT_TIMESTAMP WHERE mal_id = ?');
 
@@ -35,14 +38,6 @@ function parseStreamingEpisodes(json) {
     if (!out.has(n)) out.set(n, { title: m[2].trim(), thumbnail: ep.thumbnail, url: ep.url });
   }
   return out;
-}
-
-async function downloadImage(url) {
-  const res = await fetch(url, { headers: { 'User-Agent': 'anime-tracker-local/2.0' }, signal: AbortSignal.timeout(20000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const mime = (res.headers.get('content-type') || 'image/jpeg').split(';')[0];
-  if (!mime.startsWith('image/')) throw new Error('not an image');
-  return images.optimizeBuffer(images.toBlob(await res.arrayBuffer()), mime);
 }
 
 /** Bring one library anime up to date using already-fetched AniList data (+ Jikan fallback). */
@@ -66,8 +61,8 @@ async function syncEpisodes(malId) {
     if (isPlaceholder(row.title) && s.title) { setTitleStmt.run(s.title, s.url || '', malId, row.n); titles += 1; }
     if (!row.hasImage && s.thumbnail) {
       try {
-        const img = await downloadImage(s.thumbnail);
-        setImageStmt.run(img.bytes, img.mime, 'anilist', malId, row.n);
+        if (!imagesMod.isAllowed(s.thumbnail)) throw new Error('image host not allowed');
+        setImageStmt.run(s.thumbnail, 'anilist', malId, row.n);
         images += 1;
       } catch {}
     }
@@ -92,7 +87,7 @@ async function syncEpisodes(malId) {
           const row = rows.find((r) => r.n === n);
           const url = v.images?.jpg?.image_url;
           if (row && !row.hasImage && url) {
-            try { const img = await downloadImage(url); setImageStmt.run(img.bytes, img.mime, 'jikan', malId, n); images += 1; } catch {}
+            if (imagesMod.isAllowed(url)) { setImageStmt.run(url, 'jikan', malId, n); images += 1; }
           }
         }
       }
@@ -153,7 +148,7 @@ async function refreshCycle() {
     const need = db.prepare(`
       SELECT w.mal_id AS id FROM watchlist w
       LEFT JOIN media m ON m.mal_id = w.mal_id
-      LEFT JOIN (SELECT mal_id, COUNT(*) c, SUM(image_blob IS NOT NULL) i,
+      LEFT JOIN (SELECT mal_id, COUNT(*) c, SUM(image_blob IS NOT NULL OR image_url IS NOT NULL) i,
                         SUM(title IS NULL OR title LIKE 'Episode %') p FROM episode_sync GROUP BY mal_id) e ON e.mal_id = w.mal_id
       WHERE w.synced_at IS NULL
          OR COALESCE(e.c,0) < COALESCE(CASE WHEN m.next_airing_episode IS NOT NULL THEN m.next_airing_episode - 1 ELSE m.episodes END, 0)

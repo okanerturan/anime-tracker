@@ -187,7 +187,10 @@ const ADDED_COLUMNS = [
   // Alternate titles from AniList (JSON array, short Latin-alphabet ones only: "JJK", "AoT").
   ['media', 'synonyms', 'synonyms TEXT'],
   // 1 when AniList gave the start day (month-only dates are stored as the 1st), 0 when it didn't.
-  ['media', 'start_day_known', 'start_day_known INTEGER']
+  ['media', 'start_day_known', 'start_day_known INTEGER'],
+  // An episode still's source URL: served through the shared image cache (/img/…) instead of a blob in
+  // every account's file. Rows that still hold an image_blob keep working through /api/episode-image.
+  ['episode_sync', 'image_url', 'image_url TEXT']
 ];
 
 // Hosted mode splits the tables: what is the same for everyone (show metadata, relations,

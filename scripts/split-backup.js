@@ -47,9 +47,13 @@ function open(file, part) {
   return db;
 }
 
+// Episode stills don't travel as bytes: hosted mode stores their source URL (the background sync
+// fills it in again for seasons that lack one), so account files stay a few MB.
+const SKIP = { episode_sync: new Set(['image_blob', 'image_mime']) };
+
 function copy(db, table, columns, rows) {
   const known = new Set(db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all().map((r) => r.name));
-  const keep = columns.map((c, i) => [c, i]).filter(([c]) => known.has(c));
+  const keep = columns.map((c, i) => [c, i]).filter(([c]) => known.has(c) && !SKIP[table]?.has(c));
   if (!keep.length || !rows.length) return 0;
   const stmt = db.prepare(`INSERT INTO "${table}" (${keep.map(([c]) => `"${c}"`).join(', ')}) VALUES (${keep.map(() => '?').join(', ')})`);
   db.transaction(() => { for (const r of rows) stmt.run(keep.map(([, i]) => r[i])); })();

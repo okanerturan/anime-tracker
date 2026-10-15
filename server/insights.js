@@ -41,7 +41,7 @@ function card(r, extra = {}) {
   };
 }
 
-const nextRowStmt = db.prepare('SELECT title, url, image_blob IS NOT NULL AS hasImage, updated_at FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
+const nextRowStmt = db.prepare('SELECT title, url, (image_blob IS NOT NULL OR image_url IS NOT NULL) AS hasImage, image_url, updated_at FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
 const latestAiredStmt = db.prepare(`SELECT MAX(aired) AS at FROM episode_sync WHERE mal_id = ? AND episode_number > ? AND aired IS NOT NULL AND aired <= strftime('%Y-%m-%dT%H:%M:%SZ','now')`);
 
 /** Buckets: continue watching, new episodes airing soon, new seasons available, stalled shows. */
@@ -81,7 +81,7 @@ function upNext() {
       totalEpisodes: r.episodes ?? null, leftInSeason: r.episodes ? Math.max(0, r.episodes - furthest) : null,
       episodeMinutes: r.duration || null,
       nextEpisode: nextEp, nextEpisodeTitle: nextRow?.title || null, nextEpisodeUrl: nextUrl, nextEpisodeSite: nextSite, nextEpisodeUrlIsExact: Boolean(nextRow?.url && /watch\//.test(nextRow.url)),
-      nextEpisodeImage: nextRow?.hasImage ? library.episodeImageUrl(r.mal_id, nextEp, nextRow.updated_at) : null,
+      nextEpisodeImage: nextRow?.hasImage ? library.episodeImageUrl(r.mal_id, nextEp, nextRow.updated_at, nextRow.image_url) : null,
       nextAiringEpisode: r.next_airing_episode, nextAiringAt: r.next_airing_at ? r.next_airing_at * 1000 : null
     });
     if (r.list_status === 'on_hold') { onHold.push({ ...info, lastAgeDays: Math.round(lastAgeDays) }); continue; }

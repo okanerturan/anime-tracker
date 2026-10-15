@@ -255,12 +255,12 @@ function wantedSeasons(limit = 30) {
       AND (f.fetched_at IS NULL OR f.fetched_at < datetime('now', CASE WHEN m.status = 'RELEASING' THEN '-20 hours' ELSE '-14 days' END))
       AND (
       m.status = 'RELEASING'
-      OR EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND (e.image_blob IS NULL OR e.title IS NULL OR e.title GLOB 'Episode [0-9]*'
+      OR EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND ((e.image_blob IS NULL AND e.image_url IS NULL) OR e.title IS NULL OR e.title GLOB 'Episode [0-9]*'
         OR COALESCE(e.url, '') NOT LIKE '%crunchyroll.com/watch/%')))
     GROUP BY r.season_id ORDER BY last DESC LIMIT ?`).all(limit).map((r) => r.id);
 }
 
-const epRowStmt = db.prepare('SELECT title, image_blob IS NOT NULL AS hasImage FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
+const epRowStmt = db.prepare('SELECT title, (image_blob IS NOT NULL OR image_url IS NOT NULL) AS hasImage FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
 const setEpMetaStmt = db.prepare(`UPDATE episode_sync SET title = CASE WHEN title IS NULL OR title GLOB 'Episode [0-9]*' THEN ? ELSE title END,
   aired = COALESCE(?, aired),
   -- A Crunchyroll watch link beats a MyAnimeList or old slug link (those can't play the episode).
@@ -268,7 +268,7 @@ const setEpMetaStmt = db.prepare(`UPDATE episode_sync SET title = CASE WHEN titl
   updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?`);
 const insertAiredStmt = db.prepare(`INSERT OR IGNORE INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, updated_at)
   VALUES (?, ?, 1, ?, ?, ?, 0, CURRENT_TIMESTAMP)`);
-const setEpImageStmt = db.prepare(`UPDATE episode_sync SET image_blob = ?, image_mime = ?, image_source = 'crunchyroll', updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?`);
+const setEpImageUrlStmt = db.prepare(`UPDATE episode_sync SET image_url = ?, image_source = 'crunchyroll', updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?`);
 
 /** Apply full Crunchyroll season episode lists (titles, thumbnails, air dates) sent by the extension. */
 async function applySeasonEpisodes(seasons) {
@@ -304,15 +304,10 @@ async function applySeasonEpisodes(seasons) {
       if (!row) continue;
       if (ep.title && (!row.title || /^Episode \d+$/.test(row.title))) summary.titles += 1;
       setEpMetaStmt.run(ep.title || null, ep.airDate || null, url, malId, episodeNumber);
+      // Store where the still lives; the shared image cache fetches it once for everyone (/img/…).
       if (!row.hasImage && ep.thumb && images.isAllowed(ep.thumb)) {
-        try {
-          const res = await fetch(ep.thumb, { signal: AbortSignal.timeout(20000) });
-          if (res.ok) {
-            const out = images.optimizeBuffer(images.toBlob(await res.arrayBuffer()), (res.headers.get('content-type') || 'image/jpeg').split(';')[0]);
-            setEpImageStmt.run(out.bytes, out.mime, malId, episodeNumber);
-            summary.images += 1;
-          }
-        } catch {}
+        setEpImageUrlStmt.run(ep.thumb, malId, episodeNumber);
+        summary.images += 1;
       }
       } catch (err) { summary.errors = (summary.errors || 0) + 1; }
     }

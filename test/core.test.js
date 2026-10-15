@@ -438,3 +438,19 @@ test('ingest: a recent play counts on a show still cached as not yet released (p
   const row = db.prepare('SELECT watched FROM episode_sync WHERE mal_id = 990 AND episode_number = 1').get();
   assert.equal(row?.watched, 1);
 });
+
+test('episode stills are stored as a source URL and served through the image cache, not as a blob', async () => {
+  const images = require('../server/images');
+  addShow(995, 'Stills Show', { episodes: 2 });
+  rule('GSTILL1', 995);
+  db.prepare('INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, title, watched) VALUES (995, 1, ?, 0)').run('Episode 1');
+  const thumb = 'https://imgsrv.crunchyroll.com/cdn-cgi/image/fit=contain,format=auto,quality=85,width=480/catalog/crunchyroll/abc.jpg';
+  await crunchyroll.applySeasonEpisodes([{ seasonId: 'GSTILL1', episodes: [{ episodeNumber: 1, episodeId: 'S1E1', title: 'First', thumb }] }]);
+  const row = db.prepare('SELECT image_blob, image_url FROM episode_sync WHERE mal_id = 995 AND episode_number = 1').get();
+  assert.equal(row.image_blob, null, 'no bytes in the account database');
+  if (images.isAllowed(thumb)) {
+    assert.equal(row.image_url, thumb);
+    const ep = library.getEpisodes(995).seasons.flatMap((s) => s.episodes).find((e) => e.episodeNumber === 1);
+    assert.ok(ep.image.startsWith('/img/'), `served through the image cache, got ${ep.image}`);
+  }
+});

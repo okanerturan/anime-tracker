@@ -201,7 +201,8 @@ function getAnime(malId) {
   };
 }
 
-function episodeImageUrl(malId, episodeNumber, updatedAt) {
+function episodeImageUrl(malId, episodeNumber, updatedAt, imageUrl = null) {
+  if (imageUrl) return images.localUrl(imageUrl);
   const v = updatedAt ? encodeURIComponent(String(updatedAt).replace(/\D/g, '')) : '0';
   return `/api/episode-image?malId=${malId}&episodeNumber=${episodeNumber}&v=${v}`;
 }
@@ -225,14 +226,14 @@ function buildPayload(malId, items) {
     aired: row.aired || null,
     watched: Boolean(row.watched),
     watchedAt: row.watchedAt || null,
-    image: row.hasImage ? episodeImageUrl(malId, row.episodeNumber, row.updatedAt) : ''
+    image: row.hasImage ? episodeImageUrl(malId, row.episodeNumber, row.updatedAt, row.imageUrl) : ''
   }));
   const watchedCount = episodes.filter((x) => x.watched).length;
   return { malId, episodesCount: episodes.length, watchedCount, unwatchedCount: Math.max(0, episodes.length - watchedCount), seasons: groupBySeason(episodes) };
 }
 
 const EP_COLUMNS = `e.mal_id AS malId, e.episode_number AS episodeNumber, e.season, e.title, e.url, e.aired,
-  e.watched, e.watched_at AS watchedAt, e.updated_at AS updatedAt, (e.image_blob IS NOT NULL) AS hasImage`;
+  e.watched, e.watched_at AS watchedAt, e.updated_at AS updatedAt, (e.image_blob IS NOT NULL OR e.image_url IS NOT NULL) AS hasImage, e.image_url AS imageUrl`;
 
 function getEpisodes(malId) {
   const rows = db.prepare(`SELECT ${EP_COLUMNS} FROM episode_sync e WHERE e.mal_id = ? ORDER BY e.season, e.episode_number`).all(malId);
