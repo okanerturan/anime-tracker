@@ -1721,7 +1721,12 @@ button.history-row { cursor: pointer; }
 .library-tools > .search { inline-size: clamp(12rem, 22vw, 18rem); flex: 0 1 auto; }
 .toolbar > .chips.segmented { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-inline-size: 100%; }
 .toolbar > .chips.segmented::-webkit-scrollbar { display: none; }
-@media (max-width: 40rem) { .library-tools > .search { inline-size: 100%; order: -1; } }
+@media (max-width: 40rem) {
+  .library-tools > .search { inline-size: 100%; order: -1; }
+  /* Phones: CSV export is a desktop task, so Group seasons and Sort share one row. */
+  .library-tools > a[href$=".csv"] { display: none; }
+  .library-tools > select { flex: 1 1 0; min-inline-size: 0; }
+}
 
 /* Small tables: dates and counts never break mid-value. */
 table.simple :is(.date-col, .num-col) { white-space: nowrap; overflow-wrap: normal; }
