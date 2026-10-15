@@ -250,3 +250,39 @@ test('the scheduled cycle runs for every account, each in its own file, and only
     assert.equal((await scheduler.runAll({ accountIds: ['k1'] })).skipped, 'lease', 'another holder blocks a second run');
   } finally { global.fetch = realFetch; }
 });
+
+test('hosted images go to R2 once under img/<sha1>, and a second request does not download again', async () => {
+  const images = require('../server/images');
+  const r2 = require('../server/catalog/r2');
+  Object.assign(process.env, { R2_ENDPOINT: 'https://fake-s3.test', R2_BUCKET: 'anime-tracker', R2_ACCESS_KEY_ID: 'test-key', R2_SECRET_ACCESS_KEY: 'test-secret' });
+  r2.reset();
+  const stored = new Map(); const calls = { image: 0, put: 0, signed: 0 };
+  const realFetch = global.fetch;
+  global.fetch = async (input, opts = {}) => {
+    const req = input instanceof Request ? input : new Request(input, opts);
+    const url = req.url;
+    if (url.startsWith('https://fake-s3.test/')) {
+      if (/AWS4-HMAC-SHA256 Credential=test-key\//.test(req.headers.get('authorization') || '')) calls.signed += 1;
+      const key = decodeURIComponent(url.replace('https://fake-s3.test/anime-tracker/', ''));
+      if (req.method === 'PUT') { calls.put += 1; stored.set(key, { body: Buffer.from(await req.arrayBuffer()), type: req.headers.get('content-type') }); return new Response(null, { status: 200 }); }
+      const hit = stored.get(key);
+      return hit ? new Response(hit.body, { status: 200, headers: { 'content-type': hit.type } }) : new Response(null, { status: 404 });
+    }
+    if (url.startsWith('https://s4.anilist.co/')) { calls.image += 1; return new Response(Buffer.from('fake-jpeg-bytes'), { status: 200, headers: { 'content-type': 'image/jpeg' } }); }
+    throw new Error(`unexpected fetch ${url}`);
+  };
+  try {
+    const poster = 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/test-poster.jpg';
+    const a = await images.ensure(poster);
+    const b = await images.ensure(poster);
+    const key = `img/${require('crypto').createHash('sha1').update(poster).digest('hex')}`;
+    assert.equal(a.file, `r2:${key}`); assert.equal(b.file, `r2:${key}`);
+    assert.equal(calls.image, 1, 'downloaded once'); assert.equal(calls.put, 1, 'written to R2 once');
+    assert.ok(calls.signed >= 1, 'requests to R2 are signed (SigV4)');
+    assert.equal(stored.get(key).type, 'image/jpeg');
+  } finally {
+    global.fetch = realFetch;
+    for (const k of ['R2_ENDPOINT', 'R2_BUCKET', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']) delete process.env[k];
+    r2.reset();
+  }
+});

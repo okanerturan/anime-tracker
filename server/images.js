@@ -79,9 +79,43 @@ function hashOf(url) {
   return crypto.createHash('sha1').update(url).digest('hex');
 }
 
+/**
+ * Hosted mode with R2: the image goes to R2 once (img/<sha1>, the key the front Worker serves) and
+ * the shared index remembers it as file 'r2:img/<sha1>'. Returns the index row (+ bytes when it
+ * just downloaded them, so the request that triggered it can answer at once).
+ */
+async function ensureR2(url) {
+  const r2 = require('./catalog/r2');
+  const key = `img/${hashOf(url)}`;
+  const row = getStmt.get(url);
+  if (row?.file === `r2:${key}`) return row;
+  if (row?.failed_at && Date.now() - new Date(row.failed_at + 'Z').getTime() < RETRY_FAILED_AFTER_MS) throw new Error('recently failed');
+  if (inflight.has(url)) return inflight.get(url);
+  const job = (async () => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const res = await fetch(url, { headers: { 'User-Agent': 'anime-tracker/2.0' }, signal: AbortSignal.timeout(20000) });
+        if (res.status === 429 || res.status >= 500) { await sleep(800 * (attempt + 1)); continue; }
+        if (!res.ok) break;
+        const mime = (res.headers.get('content-type') || 'image/jpeg').split(';')[0];
+        if (!mime.startsWith('image/')) break;
+        const bytes = Buffer.from(await res.arrayBuffer());
+        await r2.put(key, bytes, mime);
+        putStmt.run(url, `r2:${key}`, mime, bytes.length);
+        return { ...getStmt.get(url), bytes };
+      } catch { await sleep(800 * (attempt + 1)); }
+    }
+    failStmt.run(url);
+    throw new Error('fetch failed');
+  })();
+  inflight.set(url, job);
+  try { return await job; } finally { inflight.delete(url); }
+}
+
 /** Returns { file, mime } for a cached image, downloading it once if needed. */
 async function ensure(url) {
   if (!isAllowed(url)) throw new Error('host not allowed');
+  if (require('./db').MULTI && require('./catalog/r2').configured()) return ensureR2(url);
   const row = getStmt.get(url);
   if (row?.file && fs.existsSync(path.join(IMAGE_DIR, row.file))) return row;
   if (row?.failed_at && Date.now() - new Date(row.failed_at + 'Z').getTime() < RETRY_FAILED_AFTER_MS) {
@@ -138,6 +172,14 @@ async function handle(req, res, url) {
   const remote = url.searchParams.get('u') || '';
   try {
     const row = await ensure(remote);
+    if (String(row.file || '').startsWith('r2:')) {
+      // Hosted with R2: normally the front Worker serves these itself; this answers the first
+      // request (which triggered the download) or a request that reached the hub directly.
+      const body = row.bytes || (await require('./catalog/r2').get(row.file.slice(3)))?.body;
+      if (!body) throw new Error('missing in R2');
+      res.writeHead(200, { 'Content-Type': row.mime || 'image/jpeg', 'Cache-Control': 'public, max-age=31536000, immutable' });
+      return res.end(body);
+    }
     sendCached(req, res, row);
   } catch {
     if (isAllowed(remote)) { res.writeHead(302, { Location: remote, 'Cache-Control': 'no-store' }); return res.end(); }
