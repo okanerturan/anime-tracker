@@ -317,4 +317,6 @@ export async function render(view) {
   draw();
   paintBulk();
   liveDraw = () => { draw(); paintBulk(); };
+  // #/library?filter=unfinished&review=1 (from Up Next): open the review straight away.
+  if (params.get('review') === '1' && !select.on && !bulk.hidden) bulk.click();
 }

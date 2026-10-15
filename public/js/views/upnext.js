@@ -466,6 +466,6 @@ function draw(view, data, cr) {
     comingSoonRow(data.comingSoon || []),
     carousel('New seasons available', 'Sequels of shows you finished',
       data.newSeasons.map((x) => epCard(x, 'season')), 'No unwatched sequels.'),
-    stalledRest.length ? collapsible('Paused a while ago', `${plural(stalledRest.length, 'show')} you stopped partway. Hold or drop them to clear this list`, stalledRest, 'stalled', { href: '#/library?filter=unfinished&sort=left_asc', label: 'All of them in the Library, fewest left first →' }) : null,
+    stalledRest.length ? collapsible('Paused a while ago', `${plural(stalledRest.length, 'show')} you stopped partway. Hold or drop them to clear this list`, stalledRest, 'stalled', { href: '#/library?filter=unfinished&review=1', label: 'Review them in the Library (hold or drop) →' }) : null,
     data.onHold?.length ? collapsible('On hold', `${plural(data.onHold.length, 'show')}${data.dropped ? ` · ${data.dropped} dropped (see Library)` : ''}`, data.onHold, 'hold') : null);
 }
