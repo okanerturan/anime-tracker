@@ -3,6 +3,13 @@ import { bus } from '../bus.js';
 import { showRow } from '../components.js';
 import { h, section, ago, toast, FORMAT_LABEL, icon } from '../ui.js';
 
+/** True when dotted version a is older than b ("1.13.1" < "1.13.2"); a newer install is never told to update. */
+const olderThan = (a, b) => {
+  const x = String(a).split('.').map(Number); const y = String(b).split('.').map(Number);
+  for (let k = 0; k < Math.max(x.length, y.length); k += 1) if ((x[k] || 0) !== (y[k] || 0)) return (x[k] || 0) < (y[k] || 0);
+  return false;
+};
+
 /** AniList's {year, month, day} as YYYY-MM-DD, or null when any part is missing. */
 const fuzzyDate = (d) => (d && d.year && d.month && d.day ? `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}` : null);
 
@@ -217,8 +224,8 @@ export async function render(view) {
         h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.latestPlayed ? new Date(cr.latestPlayed).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'), h('div', { class: 'l' }, 'latest play')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, last?.summary?.marked ?? '—'), h('div', { class: 'l' }, 'newly watched in last sync')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.needsReview.length), h('div', { class: 'l' }, 'seasons to review')),
-        h('div', { class: 'stat' }, h('div', { class: 'v num' }, cr.extension?.seen || '—'), h('div', { class: 'l' }, cr.extension?.seen ? (cr.extension.seen === cr.extension.latest ? 'extension version (current)' : `extension version (latest ${cr.extension.latest})`) : 'extension not seen yet'))),
-      cr.extension?.seen && cr.extension.latest && cr.extension.seen !== cr.extension.latest ? h('div', { class: 'panel warn' },
+        h('div', { class: 'stat' }, h('div', { class: 'v num' }, cr.extension?.seen || '—'), h('div', { class: 'l' }, cr.extension?.seen ? (!olderThan(cr.extension.seen, cr.extension.latest) ? 'extension version (current)' : `extension version (latest ${cr.extension.latest})`) : 'extension not seen yet'))),
+      cr.extension?.seen && cr.extension.latest && olderThan(cr.extension.seen, cr.extension.latest) ? h('div', { class: 'panel warn' },
         h('b', {}, `Extension update available: ${cr.extension.latest} (yours is ${cr.extension.seen}). `),
         'Open ', h('span', { class: 'mono' }, 'chrome://extensions'), ' and click the reload icon on Anime Tracker. Syncing keeps working on the old version; new features don’t.') : null,
       stale ? h('div', { class: 'panel warn' },
