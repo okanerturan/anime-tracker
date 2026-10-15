@@ -178,7 +178,7 @@ function engagementWeights(rows) {
   for (const r of rows) {
     if (!r.watched || isDisliked(r)) continue;
     const aired = library.airedCount({ status: r.status, next_airing_episode: r.next_airing_episode, episodes: r.episodes }) || r.ep_rows || r.watched;
-    let completion = Math.min(1, r.watched / Math.max(1, aired));
+    let completion = Math.min(1, library.progressOf(r.watched, r.max_watched, aired) / Math.max(1, aired));
     if (r.rating) completion = Math.max(completion, 0.6); // a rating is a deliberate signal even for a show you're mid-way through
     else if (completion < 0.34 && r.watched < 4) continue; // sampled and dropped: not a taste signal
     const ageYears = r.last_watched ? (now - new Date(r.last_watched).getTime()) / (365 * DAY) : 5;
@@ -381,7 +381,7 @@ function study() {
     if (!r.watched) continue;
     started += 1;
     const aired = library.airedCount({ status: r.status, next_airing_episode: r.next_airing_episode, episodes: r.episodes }) || r.ep_rows;
-    const c = r.watched / Math.max(1, aired);
+    const c = library.progressOf(r.watched, r.max_watched, aired) / Math.max(1, aired);
     // Airing shows you're keeping up with aren't "unfinished"; leave them out of the finish rate.
     if (!(r.status === 'RELEASING' && c >= 0.9)) {
       for (const g of parseJSONField(r.genres, [])) {
