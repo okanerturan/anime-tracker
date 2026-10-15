@@ -16,6 +16,7 @@ const COMMANDS = [
   { label: 'Go to Insights', words: ['insights', 'stats', 'history', 'years'], run: () => { location.hash = '#/insights'; } },
   { label: 'Go to Sync', words: ['sync', 'crunchyroll', 'extension'], run: () => { location.hash = '#/sync'; } },
   { label: 'Review shows untouched for a year (hold or drop)', words: ['review', 'drop', 'hold', 'unfinished', 'clean'], run: () => { location.hash = '#/library?filter=unfinished&review=1'; } },
+  { label: 'Phone notifications for new episodes', words: ['notifications', 'notify', 'push', 'alerts'], run: () => { location.hash = '#/sync?notify=1'; } },
   { label: 'Airing calendar link', words: ['calendar', 'schedule', 'ics'], run: () => { location.hash = '#/sync?calendar=1'; } },
   { label: 'Import from AniList or MyAnimeList', words: ['import', 'anilist', 'myanimelist', 'mal'], run: () => { location.hash = '#/sync?import=1'; } },
   { label: 'Switch light / dark theme', words: ['theme', 'dark', 'light'], run: () => document.querySelector('.theme-btn')?.click() },

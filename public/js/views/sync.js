@@ -319,4 +319,8 @@ export async function render(view) {
           h('a', { class: 'btn ghost', href: '/api/backup?fresh=1', download: '' }, 'Back up now and download')))) : null].filter(Boolean));
   if (/[?&]import=1/.test(location.hash)) view.querySelector('#import')?.scrollIntoView({ block: 'start' });
   if (/[?&]calendar=1/.test(location.hash)) view.querySelector('#calendar')?.scrollIntoView({ block: 'start' });
+  // Sections above load their data after this, so scroll again once they've settled.
+  for (const [flag, id] of [['calendar', '#calendar'], ['notify', '#notifications']]) {
+    if (new RegExp(`[?&]${flag}=1`).test(location.hash)) setTimeout(() => view.querySelector(id)?.scrollIntoView({ block: 'start' }), 500);
+  }
 }

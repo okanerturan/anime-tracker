@@ -398,6 +398,22 @@ function comingSoonRow(items) {
 let mounted = null;
 const redrawIfShown = () => { if (mounted?.isConnected) refresh(mounted); };
 
+/** On a phone with the tracker installed and notifications never asked for: a one-line offer (until "Not now"). */
+function notifyNudge() {
+  let dismissed = false;
+  try { dismissed = localStorage.getItem('push:nudge') === 'no'; } catch {}
+  const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  if (dismissed || !installed || !('PushManager' in window) || !('Notification' in window) || Notification.permission !== 'default') return null;
+  const line = h('p', { class: 'since-line notify-nudge' },
+    h('span', {}, 'Get a notification when a new episode is out? '),
+    h('a', { href: '#/sync?notify=1' }, 'Turn on notifications'),
+    ' · ');
+  const no = h('button', { type: 'button', class: 'link-btn' }, 'Not now');
+  no.addEventListener('click', () => { try { localStorage.setItem('push:nudge', 'no'); } catch {} line.remove(); });
+  line.append(no);
+  return line;
+}
+
 export async function render(view) {
   mounted = view;
   const snap = readSnapshot();
@@ -480,6 +496,7 @@ function draw(view, data, cr) {
   tonightEl.dataset.pool = 'all';
   fill(view,
     tonightEl,
+    notifyNudge(),
     sinceLine(data),
     finishable.length ? carousel('Finish what you started', `${plural(finishable.length, 'show')} one or two episodes from the end`,
       finishable.map((x) => epCard(x, 'stalled', rerender)), '') : null,

@@ -1742,6 +1742,7 @@ table.simple .num-col { text-align: end; }
 /* "Since Tuesday: new episodes of …" under tonight's pick. */
 .since-line { margin-block-start: calc(-1 * var(--space-s)); color: var(--muted); font-size: var(--step--1); }
 .since-line b { color: var(--text); font-weight: 600; }
+.notify-nudge a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 0.2em; }
 .since-line .link-btn { color: var(--text); text-decoration: underline; text-decoration-color: color-mix(in oklch, var(--accent) 60%, transparent); text-underline-offset: 0.2em; }
 
 /* Discover: "Not interested" is a corner ×, top-left (the match % sits top-right). */
