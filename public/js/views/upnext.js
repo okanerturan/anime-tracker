@@ -159,6 +159,35 @@ function pausedCard(p, onTracked) {
   return el;
 }
 
+// "How much time do you have?": narrows Continue watching to shows you can finish in that time.
+const BUDGETS = [['any', 'Any length', Infinity], ['30', '≤ 30 min', 30], ['60', '≤ 1 h', 60], ['120', '≤ 2 h', 120]];
+let budget = 'any';
+try { budget = localStorage.getItem('upnext:budget') || 'any'; } catch {}
+
+function continueSection(view, items) {
+  const ordered = [...items].sort((a, b) => Number(isNewSinceVisit(b.latestAiredAt)) - Number(isNewSinceVisit(a.latestAiredAt)));
+  let current = null;
+  const minutesLeft = (x) => (x.episodeMinutes ? x.remaining * x.episodeMinutes : Infinity);
+  const draw = () => {
+    const limit = BUDGETS.find(([k]) => k === budget)?.[2] ?? Infinity;
+    const list = ordered.filter((x) => limit === Infinity || minutesLeft(x) <= limit);
+    const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Time available' }, BUDGETS.map(([k, label]) => {
+      const b = h('button', { type: 'button', class: 'chip-toggle', 'aria-pressed': String(budget === k) }, label);
+      b.addEventListener('click', () => { budget = k; try { localStorage.setItem('upnext:budget', k); } catch {} draw(); });
+      return b;
+    }));
+    const sub = budget === 'any' ? `${plural(items.length, 'show')} with episodes waiting` : `${plural(list.length, 'show')} you can finish in ${BUDGETS.find(([k]) => k === budget)[1].replace('≤ ', '')}`;
+    const section = carousel('Continue watching', sub, list.map((x) => epCard(x, 'continue', () => refresh(view))),
+      items.length ? 'Nothing fits in that time. Try a longer slot.' : "You're all caught up.");
+    section.querySelector('.section-head')?.append(chips);
+    // Swap the section in place: a wrapper element would fall outside the page grid's content column.
+    if (current) current.replaceWith(section);
+    current = section;
+  };
+  draw();
+  return current;
+}
+
 /** The one episode to put on tonight: a paused episode first, else the most recently active show with episodes waiting. */
 function tonight(items, inProgress, forced = null) {
   // Priority: an episode you're mid-way through, then a show with a new episode since your last visit, then most recent activity.
@@ -343,10 +372,7 @@ function draw(view, data, cr) {
     tonight(data.continueWatching, inProgress),
     finishable.length ? carousel('Finish what you started', `${plural(finishable.length, 'show')} one or two episodes from the end`,
       finishable.map((x) => epCard(x, 'stalled', rerender)), '') : null,
-    carousel('Continue watching', `${plural(data.continueWatching.length, 'show')} with episodes waiting`,
-      // Shows with an episode that aired since your last visit lead the row; the rest keep their recency order.
-      [...data.continueWatching].sort((a, b) => Number(isNewSinceVisit(b.latestAiredAt)) - Number(isNewSinceVisit(a.latestAiredAt)))
-        .map((x) => epCard(x, 'continue', () => refresh(view))), "You're all caught up."),
+    continueSection(view, data.continueWatching),
     rateSection,
     inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map((p) => pausedCard(p, () => refresh(view))), '') : null,
     weekStrip(airingWeek),

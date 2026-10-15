@@ -1600,3 +1600,6 @@ a.week-item { text-decoration: none; color: inherit; }
 /* A carousel whose cards carry an action row (Finish what you started) needs a sixth subgrid row */
 .carousel:has(> .card > .card-actions) { grid-template-rows: auto auto auto auto auto 1fr; }
 .carousel:has(> .card > .card-actions) > * { --rows: 6; }
+
+/* Time budget chips sit in the Continue watching heading */
+.section-head > .chips[aria-label="Time available"] { margin-inline-start: auto; }
