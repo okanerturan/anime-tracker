@@ -139,7 +139,14 @@ export async function render(view) {
         .sort((a, b) => ((a.st.left || Infinity) - (b.st.left || Infinity)) || String(b.x.lastWatchedAt || '').localeCompare(String(a.x.lastWatchedAt || '')))
         .map((e) => e.x);
     }
-    count.textContent = `${list.length} of ${state.items.length}`;
+    // For in-progress views, how long it would take to finish everything shown.
+    let tail = '';
+    if (['watching', 'almost', 'unfinished'].includes(state.filter)) {
+      const minutes = list.reduce((n, x) => n + (progressState(x).left || 0) * (x.episodeMinutes || 24), 0);
+      const hrs = Math.round(minutes / 60);
+      tail = minutes ? ` · ~${hrs >= 1 ? `${hrs} h` : `${Math.round(minutes)} min`} to finish them all` : '';
+    }
+    count.textContent = `${list.length} of ${state.items.length}${tail}`;
     fill(grid, list.length ? list.map(card)
       : h('div', { class: 'empty' }, h('b', {}, 'Nothing here'), h('span', {}, state.query ? `No show matches “${state.query}”.` : EMPTY[state.filter] || 'Nothing matches.')));
   };
