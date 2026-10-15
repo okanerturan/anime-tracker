@@ -89,6 +89,11 @@ function card(x, inSeries = 1) {
   const title = x.titleEnglish || x.title;
   const st = progressState(x);
   const badge = h('span', { class: `pill state-${st.key} num` }, st.label);
+  // Finished, and the next season is out but untouched: a button on the poster that opens it.
+  const sequel = st.key === 'completed' && x.sequel
+    ? h('button', { type: 'button', class: 'play-overlay sequel-pill', title: `Open ${x.sequel.title}`, onclick: (e) => { e.stopPropagation(); openAnime({ malId: x.sequel.malId, title: x.sequel.title }); } },
+        icon('play'), h('span', {}, x.sequel.airing ? 'Sequel airing' : 'Sequel out'))
+    : null;
   // In-progress shows get a Play pill straight to the next episode, like Up Next.
   const play = x.nextEpisodeUrl && ['watching', 'almost', 'unfinished'].includes(st.key)
     ? h('a', { class: 'play-overlay', href: x.nextEpisodeUrl, target: '_blank', rel: 'noopener', 'aria-label': x.nextEpisodeUrlIsExact ? `Play episode ${x.nextEpisode} of ${title} on Crunchyroll` : `Open ${title} on ${x.nextEpisodeSite}` }, icon('play'), h('span', {}, x.nextEpisodeUrlIsExact ? `E${x.nextEpisode}` : x.nextEpisodeSite === 'Crunchyroll' ? 'Open' : x.nextEpisodeSite))
@@ -106,7 +111,7 @@ function card(x, inSeries = 1) {
     catch (err) { tick.disabled = false; toast(err.message); }
   });
   return h('article', { class: `card is-${st.key} ${play ? 'has-play' : ''} ${inSeries > 1 ? 'is-stack' : ''}` },
-    media({ src: x.imageUrl, alt: '', kind: 'poster', badges: [h('div', { class: 'badge-end' }, badge), play, tick] }),
+    media({ src: x.imageUrl, alt: '', kind: 'poster', badges: [h('div', { class: 'badge-end' }, badge), play || sequel, tick] }),
     progress(aired ? Math.min((x.progress ?? x.watchedCount), aired) / aired : 0),
     cardLink(title, () => openAnime({ ...x, title, image: x.imageUrl }), { href: `https://myanimelist.net/anime/${x.malId}` }),
     h('div', { class: 'card-meta' },

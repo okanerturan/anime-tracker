@@ -1760,3 +1760,7 @@ table.simple .num-col { text-align: end; }
 .year-top li { display: list-item; }
 .year-top li > :first-child { display: inline; }
 .year-top li > .num { float: inline-end; }
+
+/* Library: "Sequel out" on a finished show's poster opens the next season. */
+.sequel-pill { border: 0; font: inherit; font-size: var(--step--2); font-weight: 700; cursor: pointer; background: var(--accent); color: var(--on-accent); }
+@media (hover: hover) and (pointer: fine) { .sequel-pill:hover { background: color-mix(in oklch, var(--accent), white 12%); } }

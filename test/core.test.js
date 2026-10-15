@@ -252,3 +252,14 @@ test('the study has a year in review with top shows', () => {
   assert.ok(y.year && y.episodes > 0 && Array.isArray(y.top) && y.top.length >= 1);
   assert.ok(y.top[0].episodes >= (y.top[1]?.episodes ?? 0));
 });
+
+test('a library show knows its released sequel until you start watching it', () => {
+  library.addToLibrary({ malId: 870, title: 'First Season', totalEpisodes: 12 });
+  media({ mal_id: 871, title: 'Second Season', status: 'FINISHED', format: 'TV', episodes: 12, start_date: '2024-01-01' });
+  relate(870, 871, 'SEQUEL');
+  const seq = () => library.getWatchlist('title_asc').find((x) => x.malId === 870).sequel;
+  assert.equal(seq()?.malId, 871);
+  library.addToLibrary({ malId: 871, title: 'Second Season', totalEpisodes: 12 });
+  db.prepare(`INSERT INTO episode_sync (mal_id, episode_number, season, title, url, watched, updated_at) VALUES (871, 1, 1, '', '', 1, CURRENT_TIMESTAMP)`).run();
+  assert.equal(seq(), null);
+});
