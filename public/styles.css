@@ -1645,3 +1645,19 @@ a.week-item { text-decoration: none; color: inherit; }
 .quickopen-empty { display: block !important; padding: var(--space-s) !important; cursor: default !important; }
 .odd-item { grid-template-columns: 2.25rem minmax(0, 1fr); }
 .odd-actions { grid-column: 1 / -1; display: flex; gap: var(--space-2xs); flex-wrap: wrap; }
+
+/* Recently watched */
+.history { display: flex; flex-direction: column; }
+.history-day { font-size: var(--step--1); color: var(--muted); font-weight: 700; margin-block: var(--space-s) var(--space-2xs); }
+.history-day:first-child { margin-block-start: 0; }
+.history-row {
+  display: grid; grid-template-columns: 4.5rem minmax(0, 1fr) auto; gap: var(--space-s); align-items: center;
+  padding: 0.45rem 0.5rem; border: 0; border-radius: var(--radius); background: none; color: inherit; text-align: start; font: inherit;
+}
+button.history-row { cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { button.history-row:hover { background: var(--surface-2); } }
+.history-time { color: var(--faint); font-size: var(--step--1); }
+.history-what { display: flex; flex-direction: column; min-inline-size: 0; }
+.history-sub { color: var(--muted); font-size: var(--step--1); }
+.history-pct { color: var(--muted); font-size: var(--step--1); }
+.history-pct.is-done { color: var(--good); }

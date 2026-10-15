@@ -25,7 +25,7 @@ const get = (path) => realFetch(base + path);
 const post = (path, body, headers = { 'X-Tracker-Client': 'app' }) => realFetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
 
 test('every view loads on an empty library', async () => {
-  for (const path of ['/api/up-next', '/api/watchlist', '/api/study', '/api/crunchyroll/status', '/api/sync-status', '/api/stats', '/api/recommendations', '/api/anilist/relay']) {
+  for (const path of ['/api/up-next', '/api/watchlist', '/api/study', '/api/history', '/api/library/suspicious', '/api/crunchyroll/status', '/api/sync-status', '/api/stats', '/api/recommendations', '/api/anilist/relay']) {
     const res = await get(path);
     assert.equal(res.status, 200, path);
     await res.json();

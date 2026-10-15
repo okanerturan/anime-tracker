@@ -135,6 +135,7 @@ const routes = {
     return sendJSON(res, 200, insights.dismiss(num(body.malId), { undo: Boolean(body.undo) }));
   },
   'GET /api/study': (req, res) => sendJSON(res, 200, insights.study()),
+  'GET /api/history': (req, res, url) => sendJSON(res, 200, insights.history({ before: url.searchParams.get('before') || null, limit: Math.min(200, Number(url.searchParams.get('limit')) || 60) })),
 
   'GET /api/crunchyroll/status': (req, res) => sendJSON(res, 200, crunchyroll.status()),
   'POST /api/crunchyroll/ingest': async (req, res) => {

@@ -36,6 +36,7 @@ export const api = {
   recommendations: (refresh) => request(`/api/recommendations${refresh ? '?refresh=1' : ''}`),
   dismiss: (malId, undo = false) => post('/api/recommendations/dismiss', { malId, undo }),
   study: () => request('/api/study'),
+  history: (before) => request(`/api/history${before ? `?before=${encodeURIComponent(before)}` : ''}`),
   crStatus: () => request('/api/crunchyroll/status'),
   crDismissPlay: (episodeId, undo = false) => post('/api/crunchyroll/dismiss-play', { episodeId, undo }),
   suspicious: () => request('/api/library/suspicious'),

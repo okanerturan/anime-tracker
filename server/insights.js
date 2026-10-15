@@ -453,4 +453,24 @@ function study() {
   };
 }
 
-module.exports = { upNext, recommendations, dismiss, study, invalidate };
+/** Recent plays, newest first, one row per episode (dub copies collapsed), for the history list. */
+function history({ before = null, limit = 60 } = {}) {
+  const rows = db.prepare(`
+    SELECT h.episode_id AS episodeId, h.series_title AS seriesTitle, h.season_title AS seasonTitle, h.episode_number AS episodeNumber,
+           h.episode_title AS episodeTitle, h.date_played AS datePlayed, h.playhead, h.duration_s AS durationS, h.fully_watched AS full,
+           h.mal_id AS malId, h.mal_episode AS malEpisode, COALESCE(m.title_english, m.title) AS title
+    FROM cr_history h LEFT JOIN media m ON m.mal_id = h.mal_id
+    WHERE h.date_played IS NOT NULL ${before ? 'AND h.date_played < ?' : ''}
+    ORDER BY h.date_played DESC LIMIT ?`).all(...(before ? [before, limit * 3] : [limit * 3]));
+  const seen = new Set(); const out = [];
+  for (const r of rows) {
+    const key = r.malId > 0 && r.malEpisode ? `${r.malId}:${r.malEpisode}` : `${r.seriesTitle}|${r.episodeNumber}|${r.episodeTitle}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...r, percent: r.full ? 100 : (r.durationS ? Math.min(100, Math.round((100 * r.playhead) / r.durationS)) : null) });
+    if (out.length >= limit) break;
+  }
+  return { items: out, next: out.length >= limit ? out[out.length - 1].datePlayed : null };
+}
+
+module.exports = { upNext, recommendations, dismiss, study, invalidate, history };

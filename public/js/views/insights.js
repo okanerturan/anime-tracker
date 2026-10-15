@@ -22,6 +22,41 @@ function hbars(rows, { value = 'value', label = 'name', suffix = '', onOpen = nu
 
 const stat = (v, l) => h('div', { class: 'stat' }, h('div', { class: 'v' }, v), h('div', { class: 'l' }, l));
 
+/** "Recently watched": plays grouped by local day, with a Show more button that pages back in time. */
+function historySection() {
+  const list = h('div', { class: 'history' });
+  const more = h('button', { type: 'button', class: 'btn small ghost', hidden: true }, 'Show more');
+  let next = null; let lastDay = null;
+  const dayLabel = (d) => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const day = new Date(d); day.setHours(0, 0, 0, 0);
+    const diff = Math.round((today - day) / 86400000);
+    return diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : day.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: day.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+  };
+  const load = async () => {
+    more.disabled = true;
+    const page = await api.history(next);
+    for (const p of page.items) {
+      const label = dayLabel(p.datePlayed);
+      if (label !== lastDay) { list.append(h('h3', { class: 'history-day' }, label)); lastDay = label; }
+      const name = p.episodeTitle && !/^Episode \d+$/.test(p.episodeTitle) ? p.episodeTitle : '';
+      const row = h(p.malId ? 'button' : 'div', { type: p.malId ? 'button' : null, class: 'history-row', onclick: p.malId ? () => openAnime({ malId: p.malId, title: p.title || p.seriesTitle }) : null },
+        h('span', { class: 'history-time num' }, new Date(p.datePlayed).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })),
+        h('span', { class: 'history-what' },
+          h('span', { class: 'one-line' }, h('b', {}, p.title || p.seriesTitle), ` · E${p.malEpisode || p.episodeNumber || '?'}`),
+          name ? h('span', { class: 'history-sub one-line' }, name) : null),
+        h('span', { class: `history-pct num ${p.percent >= 80 ? 'is-done' : ''}` }, p.percent == null ? '' : p.percent >= 80 ? '✓' : `${p.percent}%`));
+      list.append(row);
+    }
+    next = page.next;
+    more.hidden = !next;
+    more.disabled = false;
+  };
+  more.addEventListener('click', load);
+  load().catch(() => list.append(h('div', { class: 'muted' }, 'Could not load history.')));
+  return section('Recently watched', 'Your Crunchyroll history, one row per episode', h('div', { class: 'panel' }, list, more));
+}
+
 export async function render(view) {
   view.replaceChildren(h('div', { class: 'skeleton' }));
   const s = await api.study();
@@ -67,5 +102,6 @@ export async function render(view) {
         s.binges.length ? h('table', { class: 'simple' }, h('tr', {}, h('th', {}, 'Day'), h('th', {}, 'Show'), h('th', {}, 'Eps')),
           s.binges.map((b) => h('tr', {}, h('td', {}, new Date(b.day).toLocaleDateString()),
             h('td', {}, b.malId ? h('a', { class: 'row-link', href: `#/insights?anime=${b.malId}`, onclick: (e) => { e.preventDefault(); openAnime({ malId: b.malId, title: b.show }); } }, b.show) : b.show),
-            h('td', {}, b.episodes)))) : h('div', { class: 'muted' }, 'No 6+ episode days yet.'))));
+            h('td', {}, b.episodes)))) : h('div', { class: 'muted' }, 'No 6+ episode days yet.'))),
+    historySection());
 }
