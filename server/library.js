@@ -275,12 +275,36 @@ function getDetails(malId) {
       (SELECT COUNT(*) FROM episode_sync e WHERE e.mal_id = r.related_mal_id AND e.watched = 1) AS watched
     FROM media_relation r JOIN media m ON m.mal_id = r.related_mal_id WHERE r.mal_id = ? AND r.relation_type = 'SEQUEL' ORDER BY m.start_date LIMIT 1`);
   let continueWith = null;
-  for (let cur = malId, hops = 0; hops < 4; hops += 1) {
+  for (let cur = malId, hops = 0; hops < 8; hops += 1) {
     const s = seqStmt.get(cur);
     if (!s) break;
-    if (['TV', 'TV_SHORT', 'ONA'].includes(s.format) && s.status !== 'NOT_YET_RELEASED') { continueWith = { ...s, inLibrary: Boolean(s.inLibrary), image: images.localUrl(s.cover), cover: undefined }; break; }
+    // A season you've already finished isn't "next": keep following the chain past it.
+    const finished = s.episodes && s.watched >= s.episodes;
+    if (['TV', 'TV_SHORT', 'ONA'].includes(s.format) && s.status !== 'NOT_YET_RELEASED' && !finished) { continueWith = { ...s, inLibrary: Boolean(s.inLibrary), image: images.localUrl(s.cover), cover: undefined }; break; }
     cur = s.malId;
   }
+  // Time left in the series: this show's unwatched aired episodes plus every later released TV
+  // season on the sequel chain (through OVAs/specials), at each season's episode length.
+  const seqAllStmt = db.prepare(`SELECT r.related_mal_id AS malId, m.format, m.status, m.episodes, m.duration, m.next_airing_episode AS nae,
+      (SELECT COUNT(*) FROM episode_sync e WHERE e.mal_id = r.related_mal_id AND e.watched = 1) AS watched
+    FROM media_relation r JOIN media m ON m.mal_id = r.related_mal_id WHERE r.mal_id = ? AND r.relation_type = 'SEQUEL' ORDER BY m.start_date LIMIT 1`);
+  const leftOf = (m, watched) => {
+    const aired = airedCount({ status: m.status, next_airing_episode: m.nae ?? m.next_airing_episode, episodes: m.episodes }) ?? m.episodes ?? 0;
+    return Math.max(0, aired - watched);
+  };
+  const ownWatched = db.prepare('SELECT COUNT(*) AS n FROM episode_sync WHERE mal_id = ? AND watched = 1').get(malId).n;
+  const own = db.prepare('SELECT status, episodes, duration, next_airing_episode FROM media WHERE mal_id = ?').get(malId) || {};
+  let seriesLeft = { seasons: 0, episodes: leftOf(own, ownWatched), minutes: leftOf(own, ownWatched) * (own.duration || 24) };
+  for (let cur = malId, hops = 0, seen = new Set([malId]); hops < 10; hops += 1) {
+    const s2 = seqAllStmt.get(cur);
+    if (!s2 || seen.has(s2.malId)) break;
+    seen.add(s2.malId); cur = s2.malId;
+    if (s2.status === 'NOT_YET_RELEASED' || !['TV', 'TV_SHORT', 'ONA'].includes(s2.format)) continue;
+    const left = leftOf(s2, s2.watched);
+    if (left) { seriesLeft.seasons += 1; seriesLeft.episodes += left; seriesLeft.minutes += left * (s2.duration || 24); }
+  }
+  if (!seriesLeft.seasons) seriesLeft = null; // only worth saying when later seasons are involved
+
   // "More like this": AniList's community recommendations for this show, minus anything you've
   // watched or that belongs to this show's own franchise.
   const relatedIds = new Set(relations.map((r) => r.malId));
@@ -298,6 +322,7 @@ function getDetails(malId) {
   return {
     partial: !media.is_full,
     relations,
+    seriesLeft,
     similar,
     continueWith,
     // Official streaming services from AniList (Crunchyroll, Netflix, HIDIVE, Prime Video, ...), one per site.

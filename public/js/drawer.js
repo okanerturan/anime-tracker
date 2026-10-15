@@ -126,7 +126,9 @@ export async function openAnime(partial) {
     if (!d.relations.length) return;
     relatedSection.hidden = false;
     fill(relatedSection,
-      h('div', { class: 'section-head' }, h('h2', {}, 'Seasons and related'), h('span', { class: 'sub' }, `${d.relations.length} in this franchise`)),
+      h('div', { class: 'section-head' }, h('h2', {}, 'Seasons and related'), h('span', { class: 'sub' }, `${d.relations.length} in this franchise`,
+        // How long the rest of the series takes: this season's remainder plus later seasons.
+        d.seriesLeft ? ` · ${d.seriesLeft.minutes >= 90 ? `~${Math.round(d.seriesLeft.minutes / 60)} h` : `~${d.seriesLeft.minutes} min`} left to finish the series (${d.seriesLeft.episodes} episodes, ${d.seriesLeft.seasons} more season${d.seriesLeft.seasons === 1 ? '' : 's'})` : '')),
       h('div', { class: 'related' }, d.relations.map(relatedCard)));
   }).catch(() => {});
 

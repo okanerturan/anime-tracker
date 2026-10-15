@@ -273,3 +273,17 @@ test('calendar text is escaped and folded per RFC 5545 without splitting charact
   assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(out), 'no broken surrogate pair');
   assert.equal(out.replace(/\r\n /g, ''), `SUMMARY:${'a'.repeat(64)}😀 and more text to fold`);
 });
+
+test('continue-with skips seasons you finished, and the series time left adds later seasons', () => {
+  library.addToLibrary({ malId: 880, title: 'Saga S1', totalEpisodes: 2 });
+  library.addToLibrary({ malId: 881, title: 'Saga S2', totalEpisodes: 2 });
+  media({ mal_id: 880, title: 'Saga S1', episodes: 2, start_date: '2020-01-01' });
+  media({ mal_id: 881, title: 'Saga S2', episodes: 2, start_date: '2021-01-01' });
+  media({ mal_id: 882, title: 'Saga S3', episodes: 3, start_date: '2022-01-01' });
+  relate(880, 881, 'SEQUEL'); relate(881, 882, 'SEQUEL');
+  const ins = db.prepare(`INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, season, title, url, watched, updated_at) VALUES (?, ?, 1, '', '', ?, CURRENT_TIMESTAMP)`);
+  for (const n of [1, 2]) { ins.run(880, n, 1); ins.run(881, n, 1); }
+  const d = library.getDetails(880);
+  assert.equal(d.continueWith.malId, 882, 'S2 is finished, so S3 is next');
+  assert.deepEqual(d.seriesLeft, { seasons: 1, episodes: 3, minutes: 72 });
+});
