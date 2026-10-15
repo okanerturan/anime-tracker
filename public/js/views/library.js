@@ -26,7 +26,20 @@ const state = { filter: 'all', query: '', sort: 'activity_desc', group: false, i
 // Remember the last filter and sort per browser.
 try { const saved = JSON.parse(localStorage.getItem('library:view') || 'null'); if (saved) { state.filter = saved.filter || state.filter; state.sort = saved.sort || state.sort; state.group = Boolean(saved.group); } } catch {}
 const remember = () => { try { localStorage.setItem('library:view', JSON.stringify({ filter: state.filter, sort: state.sort, group: state.group })); } catch {} };
-bus.on('library-changed', () => { state.items = null; });
+// Something changed (a tick, a rating, a removal, relayed metadata). If the Library is on screen,
+// fetch the fresh list quietly and redraw just the cards, so the search box keeps focus and text;
+// otherwise drop the list so the next visit fetches it.
+let liveDraw = null;
+bus.on('library-changed', () => {
+  if (!(mounted?.isConnected && liveDraw && state.items)) { state.items = null; return; }
+  const serverSort = serverSortOf(state.sort);
+  api.watchlist(serverSort).then((fresh) => {
+    writeSnap(serverSort, fresh);
+    if (serverSortOf(state.sort) !== serverSort || !mounted?.isConnected) return;
+    state.items = fresh;
+    liveDraw();
+  }).catch(() => { state.items = null; });
+});
 
 // Last known list per sort, so the page paints before the network answers.
 const snapKey = (sort) => `library:snapshot:${sort}`;
@@ -247,4 +260,5 @@ export async function render(view) {
     grid));
   draw();
   paintBulk();
+  liveDraw = () => { draw(); paintBulk(); };
 }

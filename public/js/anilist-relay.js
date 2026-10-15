@@ -16,11 +16,13 @@ async function ask(job) {
 /** Answer one relay job right away (used when a request needs AniList now, like search). */
 export async function answerNow(job) {
   const data = await ask(job);
-  await fetch('/api/anilist/relay', {
+  const res = await fetch('/api/anilist/relay', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'app' },
     body: JSON.stringify({ answers: [{ id: job.id, data }] })
   });
+  // A rejected answer must not count as done, or the relay loop would keep re-running the same jobs.
+  if (!res.ok) throw new Error(`Tracker rejected the AniList answer (${res.status})`);
 }
 
 /** Work through the queue in the background, 2.1 s between AniList requests. */

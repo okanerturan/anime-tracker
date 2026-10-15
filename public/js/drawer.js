@@ -11,6 +11,8 @@ dialog().addEventListener('click', (e) => {
   if (e.target === dialog()) dialog().close();
 });
 
+let drawerTitle = null; // the tab title the panel last set
+
 export function closeDrawer() {
   if (dialog().open) dialog().close();
 }
@@ -260,10 +262,13 @@ export async function openAnime(partial) {
   // closing puts the page's title back.
   if (!dialog().open) {
     const pageTitle = document.title;
-    dialog().addEventListener('close', () => { document.title = pageTitle; }, { once: true });
+    // The close event arrives a moment after close(): restore the page title only if the panel's
+    // title is still showing (navigation may already have set the new page's title).
+    dialog().addEventListener('close', () => { if (document.title === drawerTitle) document.title = pageTitle; }, { once: true });
     dialog().showModal();
   }
-  document.title = `${item.title} · Anime Tracker`;
+  drawerTitle = `${item.title} · Anime Tracker`;
+  document.title = drawerTitle;
   closeBtn.focus();
   // Show "Show more" only when the synopsis is actually clamped.
   if (synopsis) requestAnimationFrame(() => { if (synopsis.scrollHeight <= synopsis.clientHeight + 2) more.hidden = true; });

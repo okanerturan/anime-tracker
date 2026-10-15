@@ -397,7 +397,8 @@ function draw(view, data, cr) {
     if (p) { item.resume = p; used.add(p); }
   }
   // One paused card per show: the list is newest first, so the first one is the latest episode.
-  const pausedShows = new Set();
+  // Shows whose paused episode already sits on their Continue card count as having a card.
+  const pausedShows = new Set([...used].map((p) => p.malId || `t:${p.seriesTitle}`));
   const inProgress = (cr?.inProgress || []).filter((p) => {
     if (used.has(p)) return false;
     const key = p.malId || `t:${p.seriesTitle}`;
