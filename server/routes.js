@@ -144,6 +144,25 @@ const routes = {
     res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="crunchyroll-history-${new Date().toISOString().slice(0, 10)}.csv"`, 'Cache-Control': 'no-store' });
     res.end('\ufeff' + lines.join('\r\n'));
   },
+  // The library as CSV: one row per show with your progress, status and rating.
+  'GET /api/library.csv': (req, res) => {
+    const cell = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const status = (x) => {
+      const aired = x.airedEpisodes ?? x.episodesCount; const done = x.progress ?? x.watchedCount;
+      if (x.listStatus === 'dropped') return 'dropped';
+      if (x.listStatus === 'on_hold') return 'on hold';
+      if (!done) return x.status === 'NOT_YET_RELEASED' ? 'upcoming' : 'not started';
+      if (aired && done >= aired) return x.status === 'RELEASING' ? 'caught up' : 'completed';
+      return 'watching';
+    };
+    const lines = [['title', 'english_title', 'format', 'year', 'status', 'watched', 'episodes_aired', 'total_episodes', 'my_rating', 'community_score', 'last_watched', 'myanimelist_url'].join(',')];
+    for (const x of library.getWatchlist('title_asc')) {
+      lines.push([x.title, x.titleEnglish, x.format, x.releaseDate?.slice(0, 4), status(x), x.progress ?? x.watchedCount, x.airedEpisodes ?? x.episodesCount, x.totalEpisodes,
+        x.rating, x.averageScore, x.lastWatchedAt?.slice(0, 10), `https://myanimelist.net/anime/${x.malId}`].map(cell).join(','));
+    }
+    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="anime-library-${new Date().toISOString().slice(0, 10)}.csv"`, 'Cache-Control': 'no-store' });
+    res.end('\ufeff' + lines.join('\r\n'));
+  },
   'GET /api/history': (req, res, url) => sendJSON(res, 200, insights.history({ before: url.searchParams.get('before') || null, limit: Math.min(200, Number(url.searchParams.get('limit')) || 60) })),
 
   'GET /api/crunchyroll/status': (req, res) => sendJSON(res, 200, crunchyroll.status()),

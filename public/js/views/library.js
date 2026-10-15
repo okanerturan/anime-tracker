@@ -219,7 +219,7 @@ export async function render(view) {
     bulk.disabled = false;
   });
   view.replaceChildren(h('section', { class: 'section' },
-    h('div', { class: 'section-head' }, h('h2', {}, 'Library'), count, h('div', { class: 'push-end' }, sort)),
+    h('div', { class: 'section-head' }, h('h2', {}, 'Library'), count, h('div', { class: 'push-end library-tools' }, h('a', { class: 'btn small ghost', href: '/api/library.csv', download: '' }, 'Export CSV'), sort)),
     h('div', { class: 'toolbar' }, search, chips),
     bulk,
     grid));

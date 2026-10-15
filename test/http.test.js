@@ -76,3 +76,9 @@ test('history exports as a CSV download', async () => {
   assert.match(res.headers.get('content-disposition'), /attachment; filename="crunchyroll-history-/);
   assert.match(await res.text(), /^﻿?date_played,show,/);
 });
+
+test('the library exports as a CSV download', async () => {
+  const res = await get('/api/library.csv');
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /^﻿?title,english_title,format,/);
+});
