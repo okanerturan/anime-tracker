@@ -27,7 +27,7 @@ async function route({ refresh = false } = {}) {
   const slot = h('div', { class: 'view-slot' });
   // The page's name for screen readers (a visually hidden h1) and for the browser tab and history.
   const pageName = VIEW_NAMES[name] || 'Up Next';
-  document.title = `${pageName} · Anime Tracker`;
+  document.title = `${pageName} · Tsuzuku`;
   view.replaceChildren(h('h1', { class: 'sr-only' }, pageName), slot);
   try {
     await mod.render(slot);

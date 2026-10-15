@@ -89,8 +89,8 @@
       /* With a Play button on the card, "Open in tracker" steps back to an outline. */
       .card:has(a.next.play) a.open { background: none; color: #f6a35b; border: 1px solid #5a3a22; }
     </style>
-    <div class="card" role="complementary" aria-label="Anime Tracker">
-      <header><img src="${chrome.runtime.getURL('icons/icon-32.png')}" alt="">Anime Tracker<button type="button" aria-label="Hide">×</button></header>
+    <div class="card" role="complementary" aria-label="Tsuzuku">
+      <header><img src="${chrome.runtime.getURL('icons/icon-32.png')}" alt="">Tsuzuku<button type="button" aria-label="Hide">×</button></header>
       <ul>${rows}</ul>
       ${current && current.aired ? `<div class="bar" role="img" aria-label="${current.watched} of ${current.aired} watched"><i style="width:${Math.min(100, Math.round((100 * current.watched) / current.aired))}%"></i></div>` : ''}
       ${current && current.nextEpisodeUrl && current.watched < (current.aired || 0)

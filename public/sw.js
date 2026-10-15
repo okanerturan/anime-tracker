@@ -2,7 +2,7 @@
 // picked up on the next load and the app still opens on a train. Images are cache-first (their
 // URLs are content-addressed and immutable). API calls always go to the network; the pages keep
 // their own last-known snapshots in localStorage.
-const CACHE = 'anime-tracker-shell-v31';
+const CACHE = 'anime-tracker-shell-v32';
 const SHELL = ['/', '/index.html', '/styles.css', '/manifest.webmanifest', '/favicon.svg',
   '/js/main.js', '/js/api.js', '/js/ui.js', '/js/bus.js', '/js/drawer.js', '/js/anilist-relay.js', '/js/quickopen.js', '/js/playcheck.js', '/js/components.js',
   '/js/views/upnext.js', '/js/views/library.js', '/js/views/discover.js', '/js/views/insights.js', '/js/views/sync.js',
@@ -42,7 +42,7 @@ self.addEventListener('fetch', (e) => {
 // Web Push: the push is only a wake-up; the text comes from the tracker (signed-in cookie).
 self.addEventListener('push', (e) => {
   e.waitUntil((async () => {
-    let m = { title: 'Anime Tracker', body: 'Something new is waiting in Up Next.', url: '/#/up-next' };
+    let m = { title: 'Tsuzuku', body: 'Something new is waiting in Up Next.', url: '/#/up-next' };
     try { const r = await fetch('/api/push/latest', { credentials: 'same-origin', cache: 'no-store' }); if (r.ok) m = await r.json(); } catch {}
     await self.registration.showNotification(m.title, { body: m.body, icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', data: { url: m.url || '/#/up-next', playUrl: m.playUrl || null }, tag: 'anime-tracker',
       actions: m.playUrl ? [{ action: 'play', title: m.playLabel || 'Play' }] : [] });

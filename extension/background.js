@@ -132,7 +132,7 @@ async function notifyNewEpisodes(cfg) {
   try {
     await chrome.action.setBadgeBackgroundColor({ color: '#f47521' });
     await chrome.action.setBadgeText({ text: week ? String(week) : '' });
-    await chrome.action.setTitle({ title: week ? `Anime Tracker: ${week} show${week === 1 ? '' : 's'} with a new episode this week` : 'Anime Tracker' });
+    await chrome.action.setTitle({ title: week ? `Tsuzuku: ${week} show${week === 1 ? '' : 's'} with a new episode this week` : 'Tsuzuku' });
   } catch {}
   if (!notify) return;
   for (const x of premieres.slice(0, 3)) {

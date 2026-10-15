@@ -227,7 +227,7 @@ export async function render(view) {
         h('div', { class: 'stat' }, h('div', { class: 'v num' }, cr.extension?.seen || '—'), h('div', { class: 'l' }, cr.extension?.seen ? (!olderThan(cr.extension.seen, cr.extension.latest) ? 'extension version (current)' : `extension version (latest ${cr.extension.latest})`) : 'extension not seen yet'))),
       cr.extension?.seen && cr.extension.latest && olderThan(cr.extension.seen, cr.extension.latest) ? h('div', { class: 'panel warn' },
         h('b', {}, `Extension update available: ${cr.extension.latest} (yours is ${cr.extension.seen}). `),
-        'Open ', h('span', { class: 'mono' }, 'chrome://extensions'), ' and click the reload icon on Anime Tracker. Syncing keeps working on the old version; new features don’t.') : null,
+        'Open ', h('span', { class: 'mono' }, 'chrome://extensions'), ' and click the reload icon on Tsuzuku. Syncing keeps working on the old version; new features don’t.') : null,
       stale ? h('div', { class: 'panel warn' },
         h('b', {}, 'Automatic sync is not running. '),
         'Install the browser extension below; it syncs every 30 minutes, whenever you open Crunchyroll, and a couple of minutes after you finish an episode.') : null),

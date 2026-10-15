@@ -304,7 +304,7 @@ export async function openAnime(partial) {
     dialog().addEventListener('close', () => { if (document.title === drawerTitle) document.title = pageTitle; }, { once: true });
     dialog().showModal();
   }
-  drawerTitle = `${item.title} · Anime Tracker`;
+  drawerTitle = `${item.title} · Tsuzuku`;
   document.title = drawerTitle;
   closeBtn.focus();
   // Show "Show more" only when the synopsis is actually clamped.

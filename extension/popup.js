@@ -57,7 +57,10 @@ async function loadUpNext(s) {
       t.append(x.title);
       const sub = document.createElement('div'); sub.className = 's'; sub.textContent = `E${x.nextEpisode}${name ? ` · ${name}` : ''} · ${x.remaining} to go`;
       text.append(t, sub);
-      const play = document.createElement('span'); play.className = 'play'; play.textContent = x.nextEpisodeUrlIsExact ? '▶ Play' : `Open on ${x.nextEpisodeSite || 'Crunchyroll'}`;
+      const play = document.createElement('span'); play.className = 'play'; // Short labels: a long one ("Open on Crunchyroll") squeezed the title to a few letters. The site
+      // goes in the tooltip.
+      play.textContent = x.nextEpisodeUrlIsExact ? '▶ Play' : 'Open';
+      if (!x.nextEpisodeUrlIsExact) play.title = `Opens the show on ${x.nextEpisodeSite || 'Crunchyroll'}`;
       a.append(img, text, play);
       // ✓ beside the row (a link can't hold a button): watched it elsewhere, tick it off from here.
       const tick = document.createElement('button');

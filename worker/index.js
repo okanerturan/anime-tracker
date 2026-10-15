@@ -27,7 +27,7 @@ function cookieValue(request, name) {
 
 function loginPage(error = '', next = '') {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="dark light"><title>Anime Tracker</title>
+<meta name="color-scheme" content="dark light"><title>Tsuzuku</title>
 <style>
 :root { color-scheme: dark; --bg: oklch(0.165 0.012 265); --surface: oklch(0.205 0.014 265); --line: oklch(0.31 0.018 265); --text: oklch(0.94 0.006 265); --muted: oklch(0.72 0.018 265); --accent: oklch(0.7 0.18 47); }
 *, *::before, *::after { box-sizing: border-box; }
@@ -42,7 +42,7 @@ button:active { transform: scale(0.97); }
 .err { color: oklch(0.72 0.17 25); margin: 0; font-size: 0.9rem; }
 </style></head><body>
 <form method="post" action="/login${next ? `?next=${encodeURIComponent(next)}` : ''}">
-  <h1>Anime Tracker</h1>
+  <h1>Tsuzuku</h1>
   <label for="key">Passphrase</label>
   <input id="key" name="key" type="password" autocomplete="current-password" required autofocus>
   ${error ? `<p class="err" role="alert">${error}</p>` : ''}

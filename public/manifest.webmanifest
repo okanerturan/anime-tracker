@@ -1,11 +1,11 @@
 {
-  "name": "Anime Tracker",
-  "short_name": "Anime",
+  "name": "Tsuzuku",
+  "short_name": "Tsuzuku",
   "description": "Your Crunchyroll history as a watch list: what to watch next, new seasons, recommendations.",
   "start_url": "/#/up-next",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#121318",
+  "background_color": "#1d2056",
   "theme_color": "#121318",
   "icons": [
     {
