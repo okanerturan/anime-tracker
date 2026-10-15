@@ -364,7 +364,9 @@ function draw(view, data, cr) {
   const inProgress = (cr?.inProgress || []).filter((p) => !used.has(p));
 
   // Remove the card in place so an open shelf stays open while you triage it; other shelves catch up on the next visit.
-  const rerender = (cardEl) => cardEl?.remove();
+  // If the card was from a first paint that fresher data has since replaced, it's no longer on
+  // screen: redraw the live view instead so the change shows.
+  const rerender = (cardEl) => { if (cardEl && document.contains(cardEl)) cardEl.remove(); else refresh(view); };
   // After the shelves are drawn, remember this visit so the next one can flag what aired in between.
   setTimeout(stampVisit, 1500);
   const collapsible = (title, sub, items, mode, link = null) => h('details', { class: 'collapse section' },
