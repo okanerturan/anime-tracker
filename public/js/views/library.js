@@ -229,7 +229,9 @@ export async function render(view) {
     const grouped = state.group && !select.on;
     count.textContent = `${list.length}${grouped ? ' series' : ''} of ${state.items.length}${grouped ? ' shows' : ''}${tail}`;
     fill(grid, list.length ? list.map((x) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1))
-      : h('div', { class: 'empty' }, h('b', {}, 'Nothing here'), h('span', {}, state.query ? `No show matches “${state.query}”.` : EMPTY[state.filter] || 'Nothing matches.')));
+      : h('div', { class: 'empty' }, h('b', {}, 'Nothing here'), h('span', {}, state.query ? `No show in your library matches “${state.query}”${state.filter !== 'all' ? ' in this filter' : ''}.` : EMPTY[state.filter] || 'Nothing matches.'),
+        // Not in the library: one step to find it on AniList and add it.
+        state.query.trim().length >= 2 ? h('a', { class: 'btn small', href: `#/discover?q=${encodeURIComponent(state.query.trim())}` }, `Search AniList for “${state.query.trim()}”`) : null));
   };
   const search = h('input', { type: 'search', class: 'search', placeholder: 'Filter by title or genre…', value: state.query, 'aria-label': 'Filter library' });
   search.addEventListener('input', () => { state.query = search.value.trim(); draw(); });
