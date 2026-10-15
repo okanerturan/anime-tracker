@@ -385,4 +385,9 @@ test('unreleased seasons: old copied plays are unmarked, recent ones and release
   assert.equal(w(960, 3), 1, 'a play from yesterday waits (AniList status may lag)');
   assert.equal(w(961, 1), 1, 'released shows are untouched');
   assert.equal(library.repairUnreleasedWatches().episodes, 0, 'idempotent');
+  // Past the total of a finished show: E21 of a 12-episode season.
+  mark(961, 21, old); mark(961, 12, old);
+  assert.equal(library.repairUnreleasedWatches().episodes, 1);
+  assert.equal(w(961, 21), 0);
+  assert.equal(w(961, 12), 1);
 });
