@@ -65,9 +65,32 @@ function historySection() {
   const load = async () => {
     more.disabled = true;
     const page = await api.history(next);
+    // A binge reads as one row: consecutive finished episodes of the same show on the same day
+    // (newest first, so E24, E23, … E16) merge into "E16–E24 · 9 episodes".
+    const done = (p) => p.percent == null || p.percent >= 80;
+    const ep = (p) => p.malEpisode || p.episodeNumber;
+    const runs = [];
     for (const p of page.items) {
+      const last = runs[runs.length - 1];
+      const prev = last && last[last.length - 1];
+      if (prev && done(p) && done(prev) && (p.title || p.seriesTitle) === (prev.title || prev.seriesTitle)
+        && dayLabel(p.datePlayed) === dayLabel(prev.datePlayed) && ep(p) && ep(prev) && ep(p) === ep(prev) - 1) last.push(p);
+      else runs.push([p]);
+    }
+    for (const run of runs) {
+      const p = run[0];
       const label = dayLabel(p.datePlayed);
       if (label !== lastDay) { list.append(h('h3', { class: 'history-day' }, label)); lastDay = label; }
+      if (run.length > 1) {
+        const first = ep(run[run.length - 1]);
+        list.append(h(p.malId ? 'button' : 'div', { type: p.malId ? 'button' : null, class: 'history-row', onclick: p.malId ? () => openAnime({ malId: p.malId, title: p.title || p.seriesTitle }) : null },
+          h('span', { class: 'history-time num' }, new Date(p.datePlayed).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })),
+          h('span', { class: 'history-what' },
+            h('span', { class: 'one-line' }, h('b', {}, p.title || p.seriesTitle), ` · E${first}–E${ep(p)}`),
+            h('span', { class: 'history-sub one-line' }, `${run.length} episodes`)),
+          h('span', { class: 'history-pct num is-done' }, '✓')));
+        continue;
+      }
       const name = p.episodeTitle && !/^Episode \d+$/.test(p.episodeTitle) ? p.episodeTitle : '';
       const row = h(p.malId ? 'button' : 'div', { type: p.malId ? 'button' : null, class: `history-row ${p.percent != null && p.percent < 80 ? 'is-partial' : ''}`, onclick: p.malId ? () => openAnime({ malId: p.malId, title: p.title || p.seriesTitle }) : null },
         h('span', { class: 'history-time num' }, new Date(p.datePlayed).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })),
@@ -102,7 +125,7 @@ function historySection() {
   more.addEventListener('click', load);
   load().catch(() => list.append(h('div', { class: 'muted' }, 'Could not load history.')));
   const csv = h('a', { class: 'btn small', href: '/api/history.csv', download: '' }, 'Export as CSV');
-  return section('Recently watched', 'Your Crunchyroll history, one row per episode', h('div', { class: 'panel' }, h('div', { class: 'hero-actions' }, csv, toggle), list, more));
+  return section('Recently watched', 'Your Crunchyroll history by day; a run of episodes is one row', h('div', { class: 'panel' }, h('div', { class: 'hero-actions' }, csv, toggle), list, more));
 }
 
 export async function render(view) {
