@@ -152,9 +152,27 @@ async function seasonalSection() {
   try { d = await api.seasonal(); } catch { return null; }
   if (!d.items.length) return null;
   const name = { WINTER: 'Winter', SPRING: 'Spring', SUMMER: 'Summer', FALL: 'Fall' }[d.season] || d.season;
-  const cards = d.items.map((x) => { const card = recCard({ ...x, year: d.year, because: [], becauseShows: [], note: x.continuesYours ? 'Continues a show you watched' : x.triedEpisode ? `You tried episode ${x.triedEpisode} on Crunchyroll` : null }, () => card.remove()); return card; });
-  return carousel(`${d.personal ? 'Airing' : 'Popular'} this season · ${name} ${d.year}`,
-    d.personal ? 'New shows scored against what you actually finish' : 'Add what looks good. Once you have watched a few shows, these get scored for your taste.', cards, '');
+  const hidden = new Set();
+  const make = (x) => { const card = recCard({ ...x, year: d.year, because: [], becauseShows: [], note: x.continuesYours ? 'Continues a show you watched' : x.triedEpisode ? `You tried episode ${x.triedEpisode} on Crunchyroll` : null }, () => { hidden.add(x.malId); card.remove(); }); return card; };
+  // "On Crunchyroll": only what you can press play on tonight (remembered on this device).
+  let crOnly = false;
+  try { crOnly = localStorage.getItem('discover:crOnly') === '1'; } catch {}
+  const onCr = d.items.filter((x) => x.crunchyrollUrl || x.onCrunchyroll).length;
+  let current = null;
+  const draw = () => {
+    const list = d.items.filter((x) => !hidden.has(x.malId) && (!crOnly || x.crunchyrollUrl || x.onCrunchyroll));
+    const section = carousel(`${d.personal ? 'Airing' : 'Popular'} this season · ${name} ${d.year}`,
+      d.personal ? 'New shows scored against what you actually finish' : 'Add what looks good. Once you have watched a few shows, these get scored for your taste.', list.map(make), 'Nothing from this season is on Crunchyroll yet.');
+    if (onCr && onCr < d.items.length) {
+      const chip = h('button', { type: 'button', class: 'chip-toggle', 'aria-pressed': String(crOnly) }, `On Crunchyroll · ${onCr}`);
+      chip.addEventListener('click', () => { crOnly = !crOnly; try { localStorage.setItem('discover:crOnly', crOnly ? '1' : '0'); } catch {} draw(); });
+      section.querySelector('.section-head')?.append(h('div', { class: 'chips' }, chip));
+    }
+    if (current) current.replaceWith(section);
+    current = section;
+  };
+  draw();
+  return current;
 }
 
 export async function render(view) {
