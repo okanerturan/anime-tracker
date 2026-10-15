@@ -139,14 +139,17 @@ function showsForSeries(seriesId) {
       UNION SELECT mal_id FROM media WHERE cr_series_id = ? OR external_links LIKE ?`).all(seriesId, seriesId, seriesId, `%/series/${seriesId}%`)) ids.add(r.mal_id);
   const library = require('./library');
   const furthestStmt = db.prepare('SELECT MAX(episode_number) AS n FROM episode_sync WHERE mal_id = ? AND watched = 1');
+  // The next episode's own Crunchyroll link, so the card on crunchyroll.com can jump straight to it.
+  const epUrlStmt = db.prepare("SELECT url FROM episode_sync WHERE mal_id = ? AND episode_number = ? AND url LIKE '%crunchyroll.com/watch/%'");
   const rows = library.getWatchlist('release_asc').filter((x) => ids.has(x.malId));
   // Progress is the furthest episode watched, like Up Next: gaps in old history aren't "unwatched".
   const shows = rows.map((x) => {
     const aired = x.airedEpisodes ?? x.episodesCount;
     const furthest = furthestStmt.get(x.malId)?.n || 0;
     const watched = x.progress ?? x.watchedCount;
+    const nextEpisode = watched < (aired || 0) ? Math.min(furthest + 1, aired) : null;
     return { malId: x.malId, title: x.titleEnglish || x.title, watched, aired, total: x.totalEpisodes,
-      nextEpisode: watched < (aired || 0) ? Math.min(furthest + 1, aired) : null, rating: x.rating, listStatus: x.listStatus, status: x.status };
+      nextEpisode, nextEpisodeUrl: nextEpisode ? epUrlStmt.get(x.malId, nextEpisode)?.url || null : null, rating: x.rating, listStatus: x.listStatus, status: x.status };
   });
   // Everything watched: is there a released next season you haven't started?
   let nextSeason = null;

@@ -66,6 +66,11 @@
       .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .p { flex: none; font-variant-numeric: tabular-nums; }
       .next { margin-top: 6px; color: #f6a35b; font-weight: 600; }
+      /* The next episode, one click away on the site you're already on. */
+      a.next.play { display: inline-block; text-decoration: none; padding: 3px 10px; border-radius: 999px; background: #f47521; color: #1a1205; }
+      a.next.play:focus-visible { outline: 2px solid #f6a35b; outline-offset: 2px; }
+      .bar { height: 3px; margin-top: 6px; border-radius: 2px; background: #2f3442; overflow: hidden; }
+      .bar i { display: block; height: 100%; background: #f47521; }
       .list { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: #a7abb9; }
       .lnk { background: none; border: 0; padding: 0; color: #f6a35b; font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
       .lnk:focus-visible { outline: 2px solid #f6a35b; outline-offset: 2px; border-radius: 3px; }
@@ -78,14 +83,19 @@
       }
       .star:focus-visible { outline: 2px solid #f6a35b; outline-offset: 1px; border-radius: 3px; }
       a { display: inline-block; margin-top: 8px; color: #1b1206; background: #f47521; border-radius: 6px; padding: 5px 9px; font-weight: 700; text-decoration: none; }
+      /* With a Play button on the card, "Open in tracker" steps back to an outline. */
+      .card:has(a.next.play) a.open { background: none; color: #f6a35b; border: 1px solid #5a3a22; }
     </style>
     <div class="card" role="complementary" aria-label="Anime Tracker">
       <header><img src="${chrome.runtime.getURL('icons/icon-32.png')}" alt="">Anime Tracker<button type="button" aria-label="Hide">×</button></header>
       <ul>${rows}</ul>
-      <div class="next">${esc(next)}</div>
+      ${current && current.aired ? `<div class="bar" role="img" aria-label="${current.watched} of ${current.aired} watched"><i style="width:${Math.min(100, Math.round((100 * current.watched) / current.aired))}%"></i></div>` : ''}
+      ${current && current.nextEpisodeUrl && current.watched < (current.aired || 0)
+        ? `<a class="next play" href="${esc(current.nextEpisodeUrl)}">▶ Play episode ${current.nextEpisode}</a>`
+        : `<div class="next">${esc(next)}</div>`}
       ${rateRow}
       ${listRow}
-      <a href="${esc(info.trackerUrl)}/#/library?anime=${target}" target="_blank" rel="noopener">Open in tracker</a>
+      <a href="${esc(info.trackerUrl)}/#/library?anime=${target}" target="_blank" rel="noopener" class="open">Open in tracker</a>
     </div>`;
     root.querySelector('header button').addEventListener('click', () => { dismissedFor = seriesId; remove(); });
     root.querySelectorAll('.lnk').forEach((b) => b.addEventListener('click', async () => {
