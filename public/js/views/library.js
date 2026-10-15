@@ -216,14 +216,18 @@ export async function render(view) {
       tail = minutes ? ` · ~${hrs >= 1 ? `${hrs} h` : `${Math.round(minutes)} min`} to finish them all` : '';
     }
     // Group seasons: one card per series, the entry this sort puts first (most recently watched, etc.).
+    // Select mode works on what you can see: grouping is paused while selecting, and the selection
+    // is trimmed to the shows on screen (a filter, search or fresh data never leaves hidden picks).
     let sizes = null;
-    if (state.group) {
+    if (state.group && !select.on) {
       sizes = new Map();
       for (const x of state.items) sizes.set(x.series ?? x.malId, (sizes.get(x.series ?? x.malId) || 0) + 1);
       const seen = new Set();
       list = list.filter((x) => { const k = x.series ?? x.malId; if (seen.has(k)) return false; seen.add(k); return true; });
     }
-    count.textContent = `${list.length}${state.group ? ' series' : ''} of ${state.items.length}${state.group ? ' shows' : ''}${tail}`;
+    if (select.on) { const shown = new Set(list.map((x) => x.malId)); for (const id of [...select.ids]) if (!shown.has(id)) select.ids.delete(id); select.onChange(); }
+    const grouped = state.group && !select.on;
+    count.textContent = `${list.length}${grouped ? ' series' : ''} of ${state.items.length}${grouped ? ' shows' : ''}${tail}`;
     fill(grid, list.length ? list.map((x) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1))
       : h('div', { class: 'empty' }, h('b', {}, 'Nothing here'), h('span', {}, state.query ? `No show matches “${state.query}”.` : EMPTY[state.filter] || 'Nothing matches.')));
   };
@@ -317,6 +321,10 @@ export async function render(view) {
   draw();
   paintBulk();
   liveDraw = () => { draw(); paintBulk(); };
-  // #/library?filter=unfinished&review=1 (from Up Next): open the review straight away.
-  if (params.get('review') === '1' && !select.on && !bulk.hidden) bulk.click();
+  // #/library?filter=unfinished&review=1 (from Up Next): open the review once, then drop the flag
+  // from the address so later redraws can't re-select the shows you chose to keep.
+  if (params.get('review') === '1') {
+    history.replaceState(null, '', location.hash.replace(/([?&])review=1&?/, '$1').replace(/[?&]$/, ''));
+    if (!select.on && !bulk.hidden) bulk.click();
+  }
 }

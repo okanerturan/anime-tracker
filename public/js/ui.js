@@ -100,11 +100,12 @@ export function toast(text, action = null) {
     // A message with Undo stays 9 s, and doesn't vanish while the pointer is on it.
     const hideLater = (ms) => { clearTimeout(toastTimer); toastTimer = setTimeout(() => { try { el.hidePopover(); } catch {} }, ms); };
     hideLater(9000);
-    el.onmouseenter = () => clearTimeout(toastTimer);
-    el.onmouseleave = () => hideLater(3000);
+    // Pause only for a mouse: on touch, a tap fires enter without a matching leave.
+    el.onpointerenter = (e) => { if (e.pointerType === 'mouse') clearTimeout(toastTimer); };
+    el.onpointerleave = (e) => { if (e.pointerType === 'mouse') hideLater(3000); };
     return;
   }
-  el.onmouseenter = null; el.onmouseleave = null;
+  el.onpointerenter = null; el.onpointerleave = null;
   el.textContent = text;
   try { if (!el.matches(':popover-open')) el.showPopover(); } catch { el.hidden = false; }
   clearTimeout(toastTimer);

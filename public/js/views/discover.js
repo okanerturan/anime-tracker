@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { h, icon, media, section, carousel, toast, cardLink, FORMAT_LABEL } from '../ui.js';
+import { h, fill, icon, media, section, carousel, toast, cardLink, FORMAT_LABEL } from '../ui.js';
 import { openAnime } from '../drawer.js';
 import { bus } from '../bus.js';
 
@@ -165,11 +165,14 @@ export async function render(view) {
   const grid = h('div', { class: 'cards', style: { '--rows': '5' } });
   const count = h('span', { class: 'sub num' });
   let items = data.items;
+  // The "Because you watched" rows are rebuilt with the grid, so a hide or a recompute updates them too.
+  const rowsSlot = h('div', { class: 'view-slot' });
   // 60 at a time; "Show more" adds the next 60 (the count says how many match the filters).
   let limit = 60;
   const more = h('button', { type: 'button', class: 'btn small ghost show-all', hidden: true });
   more.addEventListener('click', () => { limit += 60; draw(); });
   const draw = () => {
+    fill(rowsSlot, ...becauseRows(items, (r) => { items = items.filter((x) => x.malId !== r.malId); draw(); }));
     const list = items.filter(passes);
     count.textContent = list.length > limit ? `${limit} of ${list.length}` : `${list.length}`;
     grid.replaceChildren(...(list.length
@@ -201,7 +204,7 @@ export async function render(view) {
   }
   view.replaceChildren(...[
     seasonalSlot,
-    ...becauseRows(data.items, (r) => { items = items.filter((x) => x.malId !== r.malId); draw(); }),
+    rowsSlot,
     section('Your taste', 'Weighted by how much of each show you watched, how recently, and your star ratings',
       h('div', { class: 'taste' },
         h('div', { class: 'taste-group' },

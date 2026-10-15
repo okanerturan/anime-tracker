@@ -14,7 +14,7 @@ const VIEWS = { 'up-next': upnext, library, discover, insights, sync };
 const VIEW_NAMES = { 'up-next': 'Up Next', library: 'Library', discover: 'Discover', insights: 'Insights', sync: 'Sync' };
 const view = document.getElementById('view');
 
-async function route() {
+async function route({ refresh = false } = {}) {
   const name = (location.hash.replace(/^#\//, '') || 'up-next').split('?')[0];
   const mod = VIEWS[name] || upnext;
   document.querySelectorAll('#tabs a').forEach((a) => {
@@ -31,8 +31,9 @@ async function route() {
   try {
     await mod.render(slot);
     // Deep link: #/<view>?anime=<malId> opens that show's detail panel.
+    // (Not on a background refresh: a panel you closed shouldn't reopen.)
     const anime = new URLSearchParams(location.hash.split('?')[1] || '').get('anime');
-    if (anime) openAnime({ malId: Number(anime) });
+    if (anime && !refresh) openAnime({ malId: Number(anime) });
   } catch (err) {
     if (slot.isConnected) slot.replaceChildren(h('div', { class: 'empty' }, `Couldn't load: ${err.message}`));
   }
@@ -106,7 +107,8 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { hiddenAt = Date.now(); return; }
   if (hiddenAt && Date.now() - hiddenAt > 10 * 60000 && !document.querySelector('dialog[open]')) {
     clearCache();
-    route();
+    bus.emit('library-changed'); // the Library refetches its list instead of repainting the old one
+    route({ refresh: true });
     updateStatus();
   }
   hiddenAt = 0;

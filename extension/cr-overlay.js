@@ -40,7 +40,7 @@
     const stateLabel = { on_hold: 'On hold', dropped: 'Dropped' }[current?.listStatus];
     const listRow = unfinished
       ? (stateLabel ? `<div class="list"><span>${stateLabel}</span><button type="button" class="lnk" data-status="">Make active</button></div>`
-        : `<div class="list"><span>Not for you?</span><button type="button" class="lnk" data-status="on_hold">Hold</button><button type="button" class="lnk" data-status="dropped">Drop</button></div>`)
+        : `<div class="list"><span class="t">${info.shows.length > 1 ? `${esc(current.title)}:` : 'Not for you?'}</span><button type="button" class="lnk" data-status="on_hold">Hold</button><button type="button" class="lnk" data-status="dropped">Drop</button></div>`)
       : '';
     const next = current && current.nextEpisode && current.watched < (current.aired || 0) ? `Next: episode ${current.nextEpisode}`
       : info.nextSeason ? `New season out: ${info.nextSeason.title}`
