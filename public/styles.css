@@ -1828,4 +1828,4 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 .history-ep { flex-shrink: 0; white-space: nowrap; color: var(--muted); }
 
 /* Holding a check (mark everything up to it) shouldn't select text or open the iOS callout. */
-.check { -webkit-touch-callout: none; user-select: none; touch-action: manipulation; }
+.check, .card-tick { -webkit-touch-callout: none; user-select: none; touch-action: manipulation; }

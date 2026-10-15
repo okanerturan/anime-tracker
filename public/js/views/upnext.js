@@ -97,8 +97,20 @@ function epCard(item, mode, onChange) {
         icon('play'), h('span', {}, playExact ? `Play E${item.nextEpisode}` : `Open on ${item.nextEpisodeSite || 'Crunchyroll'}`))
     : null);
   // Watched it elsewhere, or the sync hasn't caught up: tick the next episode without opening the show.
-  const tick = ((mode === 'continue' || mode === 'stalled') && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched. Shift-click marks every aired episode.` }, icon('check')) : null;
+  const tick = ((mode === 'continue' || mode === 'stalled') && item.nextEpisode) ? h('button', { type: 'button', class: 'icon-btn card-tick', 'aria-label': `Mark episode ${item.nextEpisode} watched`, title: `Mark E${item.nextEpisode} watched. Shift-click (or hold, on touch) marks every aired episode.` }, icon('check')) : null;
+  // Touch has no Shift: holding the tick for half a second marks every aired episode.
+  let held = false; let holdTimer = null;
+  if (tick) {
+    tick.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' || !item.aired || item.aired <= item.nextEpisode) return;
+      held = false;
+      holdTimer = setTimeout(() => { held = true; navigator.vibrate?.(15); tick.dispatchEvent(new MouseEvent('click', { shiftKey: true, bubbles: true })); }, 500);
+    });
+    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) tick.addEventListener(t, () => clearTimeout(holdTimer));
+    tick.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
   if (tick) tick.addEventListener('click', async (e) => {
+    if (held && !e.shiftKey) { held = false; return; }
     tick.disabled = true;
     // Shift: caught up elsewhere, mark everything that has aired.
     const through = e.shiftKey && item.aired ? item.aired : item.nextEpisode;
