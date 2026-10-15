@@ -326,8 +326,16 @@ function draw(view, data, cr) {
     return;
   }
   const rateSection = rateStrip(data.recentlyFinished || [], () => { if (!rateSection.querySelector('.rate-item')) rateSection.remove(); });
+  // Your original ask: shows you left one or two episodes before the end. They get their own shelf
+  // instead of hiding in the collapsed "paused a while ago" list.
+  const leftOf = (x) => (x.leftInSeason != null ? x.leftInSeason : x.remaining);
+  const finishable = data.stalled.filter((x) => leftOf(x) >= 1 && leftOf(x) <= 2).sort((a, b) => leftOf(a) - leftOf(b) || a.lastAgeDays - b.lastAgeDays);
+  const finishIds = new Set(finishable.map((x) => x.malId));
+  const stalledRest = data.stalled.filter((x) => !finishIds.has(x.malId));
   fill(view,
     tonight(data.continueWatching, inProgress),
+    finishable.length ? carousel('Finish what you started', `${plural(finishable.length, 'show')} one or two episodes from the end`,
+      finishable.map((x) => epCard(x, 'stalled', rerender)), '') : null,
     carousel('Continue watching', `${plural(data.continueWatching.length, 'show')} with episodes waiting`,
       // Shows with an episode that aired since your last visit lead the row; the rest keep their recency order.
       [...data.continueWatching].sort((a, b) => Number(isNewSinceVisit(b.latestAiredAt)) - Number(isNewSinceVisit(a.latestAiredAt)))
@@ -338,6 +346,6 @@ function draw(view, data, cr) {
     caughtUpRow(caughtUp),
     carousel('New seasons available', 'Sequels of shows you finished',
       data.newSeasons.map((x) => epCard(x, 'season')), 'No unwatched sequels.'),
-    data.stalled.length ? collapsible('Paused a while ago', `${plural(data.stalled.length, 'show')} you stopped partway. Hold or drop them to clear this list`, data.stalled, 'stalled', { href: '#/library?filter=unfinished&sort=left_asc', label: 'All of them in the Library, fewest left first →' }) : null,
+    stalledRest.length ? collapsible('Paused a while ago', `${plural(stalledRest.length, 'show')} you stopped partway. Hold or drop them to clear this list`, stalledRest, 'stalled', { href: '#/library?filter=unfinished&sort=left_asc', label: 'All of them in the Library, fewest left first →' }) : null,
     data.onHold?.length ? collapsible('On hold', `${plural(data.onHold.length, 'show')}${data.dropped ? ` · ${data.dropped} dropped (see Library)` : ''}`, data.onHold, 'hold') : null);
 }

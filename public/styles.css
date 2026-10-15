@@ -1596,3 +1596,7 @@ a.topbar-status { text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { a.topbar-status:hover { color: var(--text); } }
 .week-item-sub.is-out { color: var(--good); font-weight: 700; }
 a.week-item { text-decoration: none; color: inherit; }
+
+/* A carousel whose cards carry an action row (Finish what you started) needs a sixth subgrid row */
+.carousel:has(> .card > .card-actions) { grid-template-rows: auto auto auto auto auto 1fr; }
+.carousel:has(> .card > .card-actions) > * { --rows: 6; }
