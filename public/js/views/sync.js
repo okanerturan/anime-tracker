@@ -2,6 +2,39 @@ import { api } from '../api.js';
 import { bus } from '../bus.js';
 import { h, section, ago, toast, FORMAT_LABEL } from '../ui.js';
 
+const ANILIST_STATUS = { COMPLETED: 'completed', CURRENT: 'watching', REPEATING: 'watching', PAUSED: 'onhold', DROPPED: 'dropped', PLANNING: 'plan' };
+
+/** Read a public AniList list straight from AniList in the browser, then use the same import as MAL. */
+function aniListImport() {
+  const name = h('input', { type: 'text', class: 'search', placeholder: 'AniList username', 'aria-label': 'AniList username', autocomplete: 'off' });
+  const go = h('button', { type: 'button', class: 'btn small primary' }, 'Import');
+  const status = h('p', { class: 'muted', role: 'status' });
+  const run = async () => {
+    const user = name.value.trim();
+    if (!user) { name.focus(); return; }
+    go.disabled = true; status.textContent = 'Reading your AniList list…';
+    try {
+      const query = `query($u:String){MediaListCollection(userName:$u,type:ANIME){lists{entries{status progress score(format:POINT_10_DECIMAL) media{idMal episodes title{romaji english}}}}}}`;
+      const res = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ query, variables: { u: user } }) });
+      const json = await res.json();
+      if (json.errors) throw new Error(/not found|Private/i.test(json.errors[0].message) ? 'That user was not found, or their list is private.' : json.errors[0].message);
+      const entries = (json.data?.MediaListCollection?.lists || []).flatMap((l) => l.entries).filter((e) => e.media?.idMal).map((e) => ({
+        malId: e.media.idMal, title: e.media.title.english || e.media.title.romaji, episodes: e.media.episodes,
+        watched: e.status === 'COMPLETED' && e.media.episodes ? e.media.episodes : e.progress, score: e.score || 0, status: ANILIST_STATUS[e.status] || null
+      }));
+      if (!entries.length) { status.textContent = 'That list has no anime with a MyAnimeList id.'; go.disabled = false; return; }
+      status.textContent = `Importing ${entries.length} shows…`;
+      const r = await api.importMal(entries);
+      status.textContent = `Imported ${r.shows} shows: ${r.added} new to the library, ${r.episodesMarked} episodes marked watched, ${r.rated} ratings, ${r.held} on hold, ${r.dropped} dropped${r.skipped ? `, ${r.skipped} planning skipped` : ''}.`;
+      bus.emit('library-changed');
+    } catch (err) { status.textContent = `Import failed: ${err.message}`; }
+    go.disabled = false;
+  };
+  go.addEventListener('click', run);
+  name.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+  return [h('div', { class: 'inline-form' }, name, go), status];
+}
+
 const MAL_STATUS = { Completed: 'completed', Watching: 'watching', 'On-Hold': 'onhold', Dropped: 'dropped', 'Plan to Watch': 'plan' };
 
 /** Read a MAL export (.xml or .xml.gz) in the browser and send just the fields the tracker needs. */
@@ -140,6 +173,8 @@ export async function render(view) {
         });
         return row;
       }))) : null,
+    section('Import from AniList', 'Your public AniList anime list by username: progress, scores, paused and dropped',
+      h('div', { class: 'panel' }, aniListImport())),
     section('Import from MyAnimeList', 'Bring in everything you tracked elsewhere: episodes watched, scores (as stars), on hold and dropped',
       h('div', { class: 'panel' },
         h('ol', { class: 'steps' },
