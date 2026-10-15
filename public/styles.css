@@ -1680,3 +1680,12 @@ button.history-row { cursor: pointer; }
   .stat { padding: var(--space-xs) var(--space-s); }
   .stat .v { font-size: var(--step-2); }
 }
+
+/* Detail panel on a phone: a small poster beside the title and chips; everything else (synopsis,
+   Play button, rating, actions) uses the full width instead of a squeezed second column. */
+@media (max-width: 30rem) {
+  .drawer .hero { display: grid; grid-template-columns: 6.5rem 1fr; column-gap: var(--space-s); row-gap: var(--space-xs); }
+  .drawer .hero > .media { grid-row: span 2; }
+  .drawer .hero-info { display: contents; }
+  .drawer .hero-info > :not(h2, .chips) { grid-column: 1 / -1; }
+}

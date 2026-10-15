@@ -238,7 +238,7 @@ export async function openAnime(partial) {
             item.averageScore ? h('span', { class: 'chip num' }, `★ ${item.averageScore}`) : null,
             runtimeChip(),
             ...(item.genres || []).slice(0, 6).map((g) => h('span', { class: 'chip' }, g))),
-          airsAt ? h('p', { class: 'muted' }, `Episode ${item.nextAiringEpisode} airs ${relTime(airsAt)}`) : null,
+          airsAt ? h('p', { class: 'muted' }, `Episode ${item.nextAiringEpisode} ${airsAt > Date.now() ? 'airs' : 'aired'} ${relTime(airsAt)}`) : null,
           synopsis, more,
           playRow,
           watchRow,
@@ -298,7 +298,7 @@ export async function openAnime(partial) {
       ? h('article', { class: 'card ep-tile ep-upcoming' },
           h('div', { class: 'media ep-upcoming-media' }, h('span', { class: 'pill dark badge-start num' }, `E${item.nextAiringEpisode}`),
             h('span', { class: 'ep-upcoming-when' }, new Date(airsAt).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' }))),
-          h('div', { class: 'ep-row' }, h('span', { class: 'name' }, `Airs ${relTime(airsAt)}`)))
+          h('div', { class: 'ep-row' }, h('span', { class: 'name' }, `${airsAt > Date.now() ? 'Airs' : 'Aired'} ${relTime(airsAt)}`)))
       : null;
     const emptyNote = h('div', { class: 'empty' }, unreleased ? `${premiereText()}. Episodes appear here once they air.` : 'No episodes yet. Try “Refresh episodes”.');
     fill(epContainer, unfold, eps.length ? tiles : (nextAirTile ? null : emptyNote), nextAirTile);
