@@ -91,7 +91,7 @@ function epCard(item, mode, onChange) {
   const playUrl = item.resume ? watchUrl(item.resume) : item.nextEpisodeUrl;
   const playExact = Boolean(item.resume) || item.nextEpisodeUrlIsExact;
   const seasonPlay = mode === 'season' && item.crunchyrollUrl
-    ? h('a', { class: 'play-overlay', href: item.crunchyrollUrl, target: '_blank', rel: 'noopener', 'aria-label': `Open ${item.title} on Crunchyroll` }, icon('play'), h('span', {}, 'Crunchyroll'))
+    ? playPill(item.crunchyrollUrl, 'Crunchyroll', { label: `Open ${item.title} on Crunchyroll` })
     : null;
   const play = seasonPlay || (playUrl && (mode === 'continue' || mode === 'airing' || mode === 'hold' || mode === 'stalled')
     ? playPill(playUrl, playExact ? `Play E${item.nextEpisode}` : `Open on ${item.nextEpisodeSite || 'Crunchyroll'}`, {
