@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tsuzuku: sync for Crunchyroll",
-  "version": "1.13.5",
+  "version": "1.13.6",
   "description": "Keeps your Tsuzuku watch list up to date with your Crunchyroll watch history.",
   "permissions": [
     "alarms",

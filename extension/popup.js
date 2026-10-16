@@ -98,7 +98,8 @@ async function loadUpNext(s) {
       tick.title = `Mark E${x.nextEpisode} watched`; tick.setAttribute('aria-label', `Mark episode ${x.nextEpisode} of ${x.title} watched`);
       tick.onclick = () => markWatched(s, x, sub, tick);
       acts.append(play, tick);
-      item.append(thumb, text, acts);
+      text.append(acts);
+      item.append(thumb, text);
       box.append(item);
     }
   } catch (err) {
