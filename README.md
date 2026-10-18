@@ -95,7 +95,7 @@ flowchart LR
 You need Node 22 or newer.
 
 ```bash
-git clone https://github.com/okturan/anime-tracker.git
+git clone https://github.com/okanerturan/anime-tracker.git
 cd anime-tracker
 npm install
 npm start
