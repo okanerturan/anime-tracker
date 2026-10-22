@@ -243,8 +243,9 @@ function getEpisodes(malId) {
   for (const season of payload.seasons) {
     for (const ep of season.episodes) {
       const id = fromHistory.get(ep.episodeNumber);
-      ep.crunchyrollUrl = /crunchyroll\.com\/watch\//.test(ep.url) ? ep.url.replace(/^http:/, 'https:')
-        : id ? `https://www.crunchyroll.com/watch/${id}` : null;
+      // The version you played (your audio) first; then the synced link.
+      ep.crunchyrollUrl = id ? `https://www.crunchyroll.com/watch/${id}`
+        : /crunchyroll\.com\/watch\//.test(ep.url) ? ep.url.replace(/^http:/, 'https:') : null;
     }
   }
   return payload;

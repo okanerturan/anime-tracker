@@ -45,6 +45,18 @@ async function fetchHistory(base, token, { since, maxPages, pageSize = 100 }) {
   return rows;
 }
 
+/**
+ * Every audio version of an episode has its own id. Asked without a preferred audio language, this
+ * API answers with the English version's ids, whatever your profile says (crunchyroll.com itself
+ * always sends one). Take the version from the season you actually watched, else the original audio.
+ * audioMatched tells the tracker the id is a deliberate choice.
+ */
+function pickVersion(e, seasonId) {
+  const versions = e.versions || e.episode_metadata?.versions || [];
+  const v = versions.find((x) => x.season_guid === seasonId) || versions.find((x) => x.original);
+  return v ? { episodeId: v.guid, audioMatched: true } : { episodeId: e.id, audioMatched: false };
+}
+
 async function fetchSeasons(base, token, seasonIds) {
   const headers = { Authorization: `Bearer ${token.access_token}` };
   const seasons = [];
@@ -56,7 +68,7 @@ async function fetchSeasons(base, token, seasonIds) {
       seasons.push({
         seasonId,
         episodes: data.map((e) => ({
-          episodeId: e.id, episodeNumber: e.episode_number, title: e.title,
+          ...pickVersion(e, seasonId), episodeNumber: e.episode_number, title: e.title,
           airDate: e.premium_available_date || e.episode_air_date || null, thumb: pickThumb(e.images)
         }))
       });
