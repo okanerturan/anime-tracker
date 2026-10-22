@@ -17,6 +17,20 @@ Store images (two 1280×800 screenshots and the 440×280 promo tile, from the re
 Locally, with the same variables set: `npm run ext:package`, `npm run cws:status`,
 `CWS_SOURCE_PATH=releases/tsuzuku-extension-vX.Y.Z.zip npm run cws:publish`.
 
+## Current setup (done 2026-10-23)
+
+| | |
+| --- | --- |
+| Publisher | Okan Erturan (personal), ID `ef4f85d6-9b8c-4f46-b7c6-472c614da50b` |
+| Item | `eeegieckllpapcmippbkkklmoeocoeil`, Unlisted, free |
+| Service account | `tsuzuku-cws-publisher@chrome-plugin-uploader.iam.gserviceaccount.com`, registered in the publisher's settings |
+| GitHub secrets | `CWS_SA_KEY`, `CWS_PUBLISHER_ID`, `CWS_EXTENSION_ID` |
+| Store page | https://chromewebstore.google.com/detail/eeegieckllpapcmippbkkklmoeocoeil |
+
+The listing and privacy answers were filled in by driving the dashboard over the DevTools protocol in a
+separate Chrome profile (`~/.config/anime-tracker/cws-chrome`, signed in as okanert@gmail.com): Chrome
+blocks extensions, including browser-automation ones, from scripting Web Store pages.
+
 ## One-time setup
 
 The publisher is Okan's personal Chrome Web Store developer account (okanert@gmail.com), not the
