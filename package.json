@@ -17,7 +17,8 @@
     "backup": "node scripts/backup.js download",
     "ext:package": "node scripts/package-extension.mjs",
     "cws:status": "node scripts/cws.mjs fetch-status",
-    "cws:publish": "node scripts/cws.mjs upload-and-publish"
+    "cws:publish": "node scripts/cws.mjs upload-and-publish",
+    "ext:assets": "node scripts/store-assets.mjs"
   },
   "dependencies": {
     "@simplewebauthn/server": "14.0.3",

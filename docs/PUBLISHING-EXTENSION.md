@@ -12,6 +12,8 @@ git tag ext-v1.13.8 && git push origin ext-v1.13.8
 review (`scripts/cws.mjs`). Google reviews it, usually within 1–3 days, and installed copies update
 themselves. Re-run a failed one from Actions → Publish extension → Run workflow with the tag.
 
+Store images (two 1280×800 screenshots and the 440×280 promo tile, from the real popup and card): `npm run ext:assets` → `releases/store/`.
+
 Locally, with the same variables set: `npm run ext:package`, `npm run cws:status`,
 `CWS_SOURCE_PATH=releases/tsuzuku-extension-vX.Y.Z.zip npm run cws:publish`.
 
