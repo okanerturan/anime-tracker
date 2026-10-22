@@ -1,3 +1,27 @@
+# Operating the tracker (Tsuzuku)
+
+## Where it runs (since 2026-10-23)
+
+- **App:** container `anime-tracker-web` on hub (178.104.118.172), Kamal 2, `AUTH_MODE=passphrase`, data in
+  `/srv/anime-tracker` (`anime-tracker.db`, image cache, `backups/`). Origin:
+  `https://anime-tracker.178-104-118-172.sslip.io`, which refuses anything without `X-Origin-Auth`.
+- **Front:** the Cloudflare Worker `anime-tracker` (anime-tracker.okan.workers.dev) still checks the passphrase
+  (its `APP_PASSPHRASE` secret) and, because its `ORIGIN_URL` secret is set, forwards everything to the hub
+  with `ORIGIN_SECRET`. Images it cached in R2 before the move are served from its R2 binding.
+- **Rollback:** `npx wrangler secret delete ORIGIN_URL` (with `CLOUDFLARE_API_TOKEN` unset): the Worker serves
+  from its Durable Object again at once. That copy stopped receiving changes at the move (2026-10-23).
+- **Deploy the app:** `bin/kamal deploy` from this Mac (builds amd64 locally, needs Docker: `colima start`;
+  the image goes to the hub through Kamal's local registry, no registry account). Deploy the Worker:
+  `npm run deploy`. Secrets: `~/.config/anime-tracker/hub.env` (ORIGIN_SECRET, same value as the Worker's).
+- **Backups:** `server/localbackup.js` writes `/srv/anime-tracker/backups/<day>/anime-tracker.db.gz` nightly
+  (~03:00 Europe/Tirane, 14 days kept); hub-backup's restic run ships the folder to the Storage Box. Restore:
+  stop the container (`bin/kamal app stop`), gunzip a copy over `/srv/anime-tracker/anime-tracker.db`
+  (delete its `-wal`/`-shm`), `bin/kamal app boot`.
+- **Watching:** hub-check alerts if `anime-tracker-web` is down or `backups/last-backup.json` is older than 26 h.
+- AniList answers the hub directly (Cloudflare's addresses are blocked), so the browser relay stays idle.
+
+The sections below describe the accounts mode (`AUTH_MODE=accounts`), built but not switched on yet.
+
 # Operating the hosted tracker
 
 Notes for whoever runs the hosted build (`AUTH_MODE=accounts`) on the hub. The single-user tracker
