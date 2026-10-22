@@ -263,9 +263,9 @@ const routes = {
     requireClientHeader(req);
     const body = await parseBody(req).catch(() => ({}));
     // Only to the device that asked (when it says which); otherwise every device.
-    return sendJSON(res, 200, await require('./push').sendAll({ title: 'Anime Tracker', body: 'Notifications work on this device. New episodes will show up here.', url: '/#/up-next' }, { only: typeof body.endpoint === 'string' ? body.endpoint : null }));
+    return sendJSON(res, 200, await require('./push').sendAll({ title: 'Tsuzuku', body: 'Notifications work on this device. New episodes will show up here.', url: '/#/up-next' }, { only: typeof body.endpoint === 'string' ? body.endpoint : null }));
   },
-  'GET /api/push/latest': (req, res) => sendJSON(res, 200, require('./state').get('pushLatest') || { title: 'Anime Tracker', body: 'Something new is waiting in Up Next.', url: '/#/up-next' }),
+  'GET /api/push/latest': (req, res) => sendJSON(res, 200, require('./state').get('pushLatest') || { title: 'Tsuzuku', body: 'Something new is waiting in Up Next.', url: '/#/up-next' }),
   'GET /api/calendar': (req, res) => sendJSON(res, 200, { path: `/calendar/${require('./calendar').token()}.ics` }),
   'POST /api/calendar/reset': async (req, res) => {
     requireClientHeader(req);

@@ -26,10 +26,11 @@
     host.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483646;';
     const root = host.attachShadow({ mode: 'closed' });
     const current = info.shows.find((s) => s.nextEpisode && s.watched < (s.aired || 0)) || info.shows[info.shows.length - 1];
-    const rows = info.shows.slice(-4).map((s) => {
-      const done = s.aired && s.watched >= s.aired;
-      return `<li class="${s === current ? 'cur' : ''}"><span class="t">${esc(s.title)}</span><span class="p">${done ? '✓' : `${s.watched}/${s.aired ?? '?'}`}${s.rating ? ` · ★${s.rating}` : ''}</span></li>`;
-    }).join('');
+    // Earlier seasons: a small list above; the current one is the card's title, its count inline.
+    const count = (s) => (s.aired && s.watched >= s.aired ? `✓${s.rating ? ` · ★${s.rating}` : ''}` : `${s.watched}/${s.aired ?? '?'}`);
+    const others = info.shows.slice(-4).filter((s) => s !== current).map((s) =>
+      `<li><span class="t" title="${esc(s.title)}">${esc(s.title)}</span><span class="p">${count(s)}</span></li>`).join('');
+    const rows = `${others ? `<ul class="others">${others}</ul>` : ''}${current ? `<p class="title">${esc(current.title)} <span class="count">${count(current)}</span></p>` : ''}`;
     // Finished and not rated yet: rate it right here (ratings steer the tracker's recommendations).
     const finished = current && current.aired && current.watched >= current.aired && current.status === 'FINISHED';
     const rateRow = finished && !current.rating
@@ -40,7 +41,7 @@
     const stateLabel = { on_hold: 'On hold', dropped: 'Dropped' }[current?.listStatus];
     const listRow = unfinished
       ? (stateLabel ? `<div class="list"><span>${stateLabel}</span><button type="button" class="lnk" data-status="">Make active</button></div>`
-        : `<div class="list"><span class="t">${info.shows.length > 1 ? `${esc(current.title)}:` : 'Not for you?'}</span><button type="button" class="lnk" data-status="on_hold">Hold</button><button type="button" class="lnk" data-status="dropped">Drop</button></div>`)
+        : `<div class="list"><span class="q">Not for you?</span><button type="button" class="lnk" data-status="on_hold">Hold</button><button type="button" class="lnk" data-status="dropped">Drop</button></div>`)
       : '';
     const next = current && current.nextEpisode && current.watched < (current.aired || 0) ? `Next: episode ${current.nextEpisode}`
       : info.nextSeason ? `New season out: ${info.nextSeason.title}`
@@ -50,45 +51,56 @@
       :host { all: initial; }
       /* Episode pages: after a few seconds the card folds to its icon so it can't cover the player's
          controls; hovering or focusing it opens it again. */
-      .card.mini { width: auto; padding: 8px; cursor: pointer; }
+      .card.mini { width: auto; padding: 8px; cursor: pointer; border-radius: 14px; }
       .card.mini > :not(header) { display: none; }
       .card.mini header { margin: 0; }
       .card.mini header > :not(img) { display: none; }
-      .card.mini header img { width: 20px; height: 20px; }
-      .card { font: 13px/1.35 system-ui, sans-serif; color: #e8e9ee; background: rgba(20,22,28,.94); border: 1px solid #2f3442; border-radius: 12px;
-        padding: 10px 12px; width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,.45); backdrop-filter: blur(8px); }
-      header { display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; }
-      header img { width: 16px; height: 16px; border-radius: 4px; }
-      header button { margin-left: auto; background: none; border: 0; color: #a7abb9; font-size: 16px; cursor: pointer; line-height: 1; }
-      ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
-      li { display: flex; gap: 8px; justify-content: space-between; color: #a7abb9; }
-      li.cur { color: #fff; }
-      .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .card.mini header img { width: 22px; height: 22px; }
+      .card { font: 14px/1.4 system-ui, -apple-system, sans-serif; color: #eef0f5; width: 300px; box-sizing: border-box; padding: 16px;
+        display: flex; flex-direction: column; gap: 12px;
+        background: radial-gradient(120% 70% at 50% 0%, #26304a 0%, #171b25 55%, #14171f 100%);
+        border: 1px solid #343a4c; border-radius: 18px; box-shadow: 0 14px 40px rgba(0,0,0,.5); }
+      header { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+      header img { width: 24px; height: 24px; border-radius: 6px; }
+      header button { margin-left: auto; background: none; border: 0; color: #8a90a1; font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 4px; }
+      @media (hover: hover) and (pointer: fine) { header button:hover { color: #eef0f5; } }
+      /* Earlier seasons: small and quiet; ends in an ellipsis rather than running off the card. */
+      .others { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; font-size: 12.5px; color: #8a90a1; }
+      .others li { display: flex; gap: 8px; justify-content: space-between; }
+      .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .p { flex: none; font-variant-numeric: tabular-nums; }
-      .next { margin-top: 6px; color: #f6a35b; font-weight: 600; }
+      .title { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere;
+        display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+      .count { font-weight: 500; color: #7f8fb0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .bar { height: 5px; border-radius: 3px; background: #2f3442; overflow: hidden; }
+      .bar i { display: block; height: 100%; border-radius: 3px; background: #f47521; }
+      .next { color: #f6a35b; font-weight: 600; }
       /* The next episode, one click away on the site you're already on. */
-      a.next.play { display: inline-block; text-decoration: none; padding: 3px 10px; border-radius: 999px; background: #f47521; color: #1a1205; }
-      a.next.play:focus-visible { outline: 2px solid #f6a35b; outline-offset: 2px; }
-      .bar { height: 3px; margin-top: 6px; border-radius: 2px; background: #2f3442; overflow: hidden; }
-      .bar i { display: block; height: 100%; background: #f47521; }
-      .list { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: #a7abb9; }
-      .lnk { background: none; border: 0; padding: 0; color: #f6a35b; font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+      a.next.play { display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; padding: 10px 14px;
+        border-radius: 999px; background: #f47521; color: #1a1205; font-weight: 700; font-size: 15px; }
+      a.next.play:focus-visible, a.open:focus-visible { outline: 2px solid #f6a35b; outline-offset: 2px; }
+      .list { display: flex; align-items: center; gap: 10px; color: #a3a8b8; }
+      .lnk { background: none; border: 0; padding: 0; color: #f6a35b; font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
       .lnk:focus-visible { outline: 2px solid #f6a35b; outline-offset: 2px; border-radius: 3px; }
-      .rate { display: flex; align-items: center; gap: 2px; margin-top: 6px; color: #a7abb9; }
-      .rate span { margin-right: 4px; }
-      .star { background: none; border: 0; padding: 0 1px; font-size: 18px; line-height: 1; color: #4a4f5e; cursor: pointer; }
+      .rate { display: flex; align-items: center; gap: 2px; color: #a3a8b8; }
+      .rate span { margin-right: 6px; }
+      .star { background: none; border: 0; padding: 0 1px; font-size: 20px; line-height: 1; color: #4a4f5e; cursor: pointer; }
       @media (hover: hover) and (pointer: fine) {
         .rate:hover .star { color: #f6a35b; }
         .rate .star:hover ~ .star { color: #4a4f5e; }
+        a.next.play:hover { filter: brightness(1.07); }
+        a.open:hover { background: rgba(246,163,91,.08); }
       }
       .star:focus-visible { outline: 2px solid #f6a35b; outline-offset: 1px; border-radius: 3px; }
-      a { display: inline-block; margin-top: 8px; color: #1b1206; background: #f47521; border-radius: 6px; padding: 5px 9px; font-weight: 700; text-decoration: none; }
+      a.open { display: block; text-align: center; text-decoration: none; padding: 9px 14px; border-radius: 999px; font-weight: 600;
+        color: #1a1205; background: #f47521; }
+      a:active, button:active { transform: scale(0.98); }
       /* With a Play button on the card, "Open in tracker" steps back to an outline. */
-      .card:has(a.next.play) a.open { background: none; color: #f6a35b; border: 1px solid #5a3a22; }
+      .card:has(a.next.play) a.open { background: none; color: #f6a35b; border: 1px solid #6b4528; }
     </style>
-    <div class="card" role="complementary" aria-label="Anime Tracker">
-      <header><img src="${chrome.runtime.getURL('icons/icon-32.png')}" alt="">Anime Tracker<button type="button" aria-label="Hide">×</button></header>
-      <ul>${rows}</ul>
+    <div class="card" role="complementary" aria-label="Tsuzuku">
+      <header><img src="${chrome.runtime.getURL('icons/icon-32.png')}" alt="">Tsuzuku<button type="button" aria-label="Hide">×</button></header>
+      ${rows}
       ${current && current.aired ? `<div class="bar" role="img" aria-label="${current.watched} of ${current.aired} watched"><i style="width:${Math.min(100, Math.round((100 * current.watched) / current.aired))}%"></i></div>` : ''}
       ${current && current.nextEpisodeUrl && current.watched < (current.aired || 0)
         ? `<a class="next play" href="${esc(current.nextEpisodeUrl)}">▶ Play episode ${current.nextEpisode}</a>`

@@ -318,19 +318,28 @@ function wantedSeasons(limit = 30) {
     LEFT JOIN media m ON m.mal_id = r.mal_id
     LEFT JOIN cr_season_fetch f ON f.season_id = r.season_id
     WHERE r.mal_id > 0 AND r.season_id NOT LIKE '%|%'
-      AND (f.fetched_at IS NULL OR f.fetched_at < datetime('now', CASE WHEN m.status = 'RELEASING' THEN '-20 hours' ELSE '-14 days' END))
-      AND (
-      m.status = 'RELEASING'
-      OR EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND ((e.image_blob IS NULL AND e.image_url IS NULL) OR e.title IS NULL OR e.title GLOB 'Episode [0-9]*'
-        OR COALESCE(e.url, '') NOT LIKE '%crunchyroll.com/watch/%')))
+      AND ((
+        (f.fetched_at IS NULL OR f.fetched_at < datetime('now', CASE WHEN m.status = 'RELEASING' THEN '-20 hours' ELSE '-14 days' END))
+        AND (
+        m.status = 'RELEASING'
+        OR EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND ((e.image_blob IS NULL AND e.image_url IS NULL) OR e.title IS NULL OR e.title GLOB 'Episode [0-9]*'
+          OR COALESCE(e.url, '') NOT LIKE '%crunchyroll.com/watch/%'))))
+      -- Links to another audio version than the season you watched (ids end in their locale, e.g.
+      -- GS00365133JAJP / GE00365134ENUS): ask again, at most hourly, until the extension sends matched ones.
+      OR (r.season_id GLOB 'GS[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]?*'
+        AND (f.fetched_at IS NULL OR f.fetched_at < datetime('now', '-1 hour'))
+        AND EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND e.url GLOB '*crunchyroll.com/watch/GE[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]?*'
+          AND substr(e.url, instr(e.url, '/watch/') + 17) <> substr(r.season_id, 11))))
     GROUP BY r.season_id ORDER BY last DESC LIMIT ?`).all(limit).map((r) => r.id);
 }
 
 const epRowStmt = db.prepare('SELECT title, (image_blob IS NOT NULL OR image_url IS NOT NULL) AS hasImage FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
 const setEpMetaStmt = db.prepare(`UPDATE episode_sync SET title = CASE WHEN title IS NULL OR title GLOB 'Episode [0-9]*' THEN ? ELSE title END,
   aired = COALESCE(?, aired),
-  -- A Crunchyroll watch link beats a MyAnimeList or old slug link (those can't play the episode).
-  url = CASE WHEN COALESCE(url,'') = '' OR url NOT LIKE '%crunchyroll.com/watch/%' THEN COALESCE(NULLIF(?, ''), url) ELSE url END,
+  -- A Crunchyroll watch link beats a MyAnimeList or old slug link (those can't play the episode); a link
+  -- the extension picked for the audio you watch (audioMatched) also replaces an older Crunchyroll one,
+  -- which may be another language's version.
+  url = CASE WHEN COALESCE(url,'') = '' OR url NOT LIKE '%crunchyroll.com/watch/%' OR ? = 1 THEN COALESCE(NULLIF(?, ''), url) ELSE url END,
   updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?`);
 const insertAiredStmt = db.prepare(`INSERT OR IGNORE INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, updated_at)
   VALUES (?, ?, 1, ?, ?, ?, 0, CURRENT_TIMESTAMP)`);
@@ -369,7 +378,7 @@ async function applySeasonEpisodes(seasons) {
       }
       if (!row) continue;
       if (ep.title && (!row.title || /^Episode \d+$/.test(row.title))) summary.titles += 1;
-      setEpMetaStmt.run(ep.title || null, ep.airDate || null, url, malId, episodeNumber);
+      setEpMetaStmt.run(ep.title || null, ep.airDate || null, ep.audioMatched ? 1 : 0, url, malId, episodeNumber);
       // Store where the still lives; the shared image cache fetches it once for everyone (/img/…).
       if (!row.hasImage && ep.thumb && images.isAllowed(ep.thumb)) {
         setEpImageUrlStmt.run(ep.thumb, malId, episodeNumber);

@@ -7,13 +7,17 @@ function render(s) {
   $('last').textContent = at ? `synced ${relTime(at)}` : 'never synced';
   $('dot').className = `dot ${s.lastError ? 'bad' : fresh ? 'fresh' : ''}`;
   const r = s.lastResult;
-  $('result').textContent = r ? `Last sync: ${r.fetched} plays · ${r.marked} newly watched${r.newAnime ? ` · ${r.newAnime} new shows` : ''}${r.needsReview ? ` · ${r.needsReview} need review` : ''}${r.links && r.links.found ? ` · ${r.links.found} Crunchyroll links` : ''}` : '';
-  $('error').textContent = s.lastError || (s.lastSync ? '' : 'Not synced yet. Click “Sync now”.');
+  // The header says when; this line only speaks up when the last sync changed something or needs you.
+  const news = r ? [r.marked ? `${r.marked} newly watched` : '', r.newAnime ? `${r.newAnime} new show${r.newAnime === 1 ? '' : 's'}` : '', r.needsReview ? `${r.needsReview} to review in Sync` : ''].filter(Boolean) : [];
+  $('result').textContent = news.length ? `Last sync: ${news.join(' · ')}` : '';
+  $('status').title = r ? `Last sync read ${r.fetched} plays from Crunchyroll` : '';
+  $('error').textContent = s.lastError || (s.lastSync ? '' : 'Not synced yet. Press the sync button above.');
   $('url').value = s.trackerUrl;
   $('key').value = s.trackerKey || '';
   $('notify').checked = s.notifyNew !== false;
   $('overlay').checked = s.overlay !== false;
   $('open').href = `${s.trackerUrl}/#/up-next`;
+  $('all').href = `${s.trackerUrl}/#/up-next`;
   loadUpNext(s);
 }
 
@@ -26,47 +30,77 @@ function relTime(d) {
   return `${Math.round(h / 24)} d ago`;
 }
 
-/** The dashboard's top four "continue watching" shows, with Play links that go straight to Crunchyroll. */
+const SHOWN = 6;
+const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** "E6 18:30" (today), "E6 tomorrow", "E6 Sat", "E6 Oct 24": when the next episode airs. */
+function airs(ep, at) {
+  const d = new Date(at); const now = new Date();
+  const dayDiff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+  if (d < now) return ''; // already out (the list catches up at the next sync)
+  const when = dayDiff <= 0 ? d.toTimeString().slice(0, 5) : dayDiff === 1 ? 'tomorrow' : dayDiff < 7 ? days[d.getDay()] : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return `E${ep} ${when}`;
+}
+/** "~3 h" or "~45 min" for what's left. */
+const timeLeft = (eps, min) => { const m = eps * (min || 24); return m >= 90 ? `~${Math.round(m / 60)} h` : `~${m} min`; };
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+/** The dashboard's "continue watching" shows: episode still, progress, and Play straight to Crunchyroll. */
 async function loadUpNext(s) {
   const box = $('upnext');
+  const auth = s.trackerKey ? { Authorization: `Bearer ${s.trackerKey}` } : {};
   try {
-    const res = await fetch(`${s.trackerUrl}/api/up-next`, { headers: s.trackerKey ? { Authorization: `Bearer ${s.trackerKey}` } : {} });
+    const res = await fetch(`${s.trackerUrl}/api/up-next`, { headers: auth });
     if (!res.ok) throw new Error(res.status === 401 ? 'tracker key rejected' : `tracker ${res.status}`);
     const data = await res.json();
-    const items = data.continueWatching.slice(0, 4);
+    const all = data.continueWatching;
+    const items = all.slice(0, SHOWN);
+    $('count').textContent = all.length > SHOWN ? `${SHOWN} of ${all.length}` : all.length ? String(all.length) : '';
+    $('all').hidden = all.length <= SHOWN;
     box.replaceChildren();
     if (!items.length) { box.append(empty("You're all caught up.")); return; }
     for (const x of items) {
       const name = clean(x.nextEpisodeTitle);
-      const a = document.createElement('a');
-      a.className = 'item';
-      a.href = x.nextEpisodeUrl || `${s.trackerUrl}/#/up-next`;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      const img = document.createElement('img');
-      img.alt = '';
+      const url = x.nextEpisodeUrl || `${s.trackerUrl}/#/library?anime=${x.malId}`;
+      const item = el('div', 'item');
+      // Episode still with its number and the show's progress along the bottom.
+      const thumb = el('div', 'thumb');
+      const img = el('img'); img.alt = '';
       // Image routes need the key too, and an <img> can't send a header: fetch, then show the blob.
       const src = (x.nextEpisodeImage || x.image || '').replace(/^\//, `${s.trackerUrl}/`);
-      if (src) fetch(src, { headers: s.trackerKey ? { Authorization: `Bearer ${s.trackerKey}` } : {} }).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
-      const text = document.createElement('div');
-      const t = document.createElement('div'); t.className = 't';
-      // "New": the latest episode aired in the last three days.
-      if (x.latestAiredAt && Date.now() - new Date(x.latestAiredAt).getTime() < 3 * 86400000) {
-        const n = document.createElement('span'); n.className = 'new'; n.textContent = 'New'; t.append(n);
-      }
+      if (src) fetch(src, { headers: auth }).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
+      const bar = el('div', 'bar'); const fill = el('i');
+      const of = x.totalEpisodes || x.aired;
+      if (of) fill.style.width = `${Math.min(100, Math.round((100 * x.watched) / of))}%`;
+      bar.append(fill);
+      thumb.append(img, el('span', 'ep', `E${x.nextEpisode}`), bar);
+      // Title (stretched link over the card), episode name, then the details line.
+      const text = el('div', 'text');
+      const t = el('a', 't'); t.href = url; t.target = '_blank'; t.rel = 'noopener';
+      t.title = x.title;
+      if (x.latestAiredAt && Date.now() - new Date(x.latestAiredAt).getTime() < 3 * 86400000) t.append(el('span', 'new', 'New'));
       t.append(x.title);
-      const sub = document.createElement('div'); sub.className = 's'; sub.textContent = `E${x.nextEpisode}${name ? ` · ${name}` : ''} · ${x.remaining} to go`;
-      text.append(t, sub);
-      const play = document.createElement('span'); play.className = 'play'; play.textContent = x.nextEpisodeUrlIsExact ? '▶ Play' : `Open on ${x.nextEpisodeSite || 'Crunchyroll'}`;
-      a.append(img, text, play);
-      // ✓ beside the row (a link can't hold a button): watched it elsewhere, tick it off from here.
-      const tick = document.createElement('button');
-      tick.className = 'tick'; tick.type = 'button'; tick.textContent = '✓';
+      const sub = el('div', 's', name ? `E${x.nextEpisode} · ${name}` : `Episode ${x.nextEpisode}`);
+      sub.title = sub.textContent;
+      const facts = [
+        `${x.watched}/${x.totalEpisodes || x.aired || '?'}`,
+        `${x.remaining} left`,
+        timeLeft(x.remaining, x.episodeMinutes),
+        x.status === 'RELEASING' && x.nextAiringEpisode && x.nextAiringAt ? airs(x.nextAiringEpisode, x.nextAiringAt) : ''
+      ].filter(Boolean);
+      const meta = el('div', 'm', facts.join(' · '));
+      text.append(t, sub, meta);
+      // Play goes straight to the episode on Crunchyroll; ✓ ticks it off when you watched it elsewhere.
+      const acts = el('div', 'acts');
+      const play = el('a', `play${x.nextEpisodeUrlIsExact ? '' : ' quiet'}`, x.nextEpisodeUrlIsExact ? '▶ Play' : 'Open');
+      play.href = url; play.target = '_blank'; play.rel = 'noopener';
+      if (!x.nextEpisodeUrlIsExact) play.title = `Opens the show on ${x.nextEpisodeSite || 'Crunchyroll'}`;
+      const tick = el('button', 'tick', '✓'); tick.type = 'button';
       tick.title = `Mark E${x.nextEpisode} watched`; tick.setAttribute('aria-label', `Mark episode ${x.nextEpisode} of ${x.title} watched`);
       tick.onclick = () => markWatched(s, x, sub, tick);
-      const pair = document.createElement('div'); pair.className = 'pair';
-      pair.append(a, tick);
-      box.append(pair);
+      acts.append(play, tick);
+      text.append(acts);
+      item.append(thumb, text);
+      box.append(item);
     }
   } catch (err) {
     box.replaceChildren(empty(/key/.test(err.message) ? 'Set the tracker key under Settings.' : `Can't reach the tracker (${err.message}).`));
@@ -98,8 +132,9 @@ function empty(text) { const d = document.createElement('div'); d.className = 'e
 function refresh() { chrome.runtime.sendMessage({ type: 'get-state' }, render); }
 async function sync(full) {
   $('sync').disabled = $('full').disabled = true;
-  $('result').textContent = 'Syncing…';
-  chrome.runtime.sendMessage({ type: 'sync-now', full }, () => { $('sync').disabled = $('full').disabled = false; refresh(); });
+  $('sync').classList.add('busy');
+  $('last').textContent = 'syncing…';
+  chrome.runtime.sendMessage({ type: 'sync-now', full }, () => { $('sync').disabled = $('full').disabled = false; $('sync').classList.remove('busy'); refresh(); });
 }
 $('sync').onclick = () => sync(false);
 $('full').onclick = () => sync(true);

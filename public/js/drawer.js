@@ -304,7 +304,7 @@ export async function openAnime(partial) {
     dialog().addEventListener('close', () => { if (document.title === drawerTitle) document.title = pageTitle; }, { once: true });
     dialog().showModal();
   }
-  drawerTitle = `${item.title} · Anime Tracker`;
+  drawerTitle = `${item.title} · Tsuzuku`;
   document.title = drawerTitle;
   closeBtn.focus();
   // Show "Show more" only when the synopsis is actually clamped.
@@ -333,6 +333,7 @@ export async function openAnime(partial) {
 
   // Responses can overlap (a check's reload and the details-triggered one): only the newest paints.
   let loadSeq = 0;
+  let plainTiles = false;
   async function load() {
     const mine = ++loadSeq;
     const data = await api.episodes(item.malId);
@@ -357,6 +358,8 @@ export async function openAnime(partial) {
       (item.status === 'RELEASING' && item.nextAiringEpisode && e.episodeNumber >= item.nextAiringEpisode && !(e.episodeNumber === item.nextAiringEpisode && airsAt && airsAt <= now)));
     const future = eps.filter(notOut);
     const shown = eps.filter((e) => !notOut(e));
+    plainTiles = shown.length > 0 && !shown.some((e) => e.image);
+    epContainer.classList.toggle('ep-grid--plain', plainTiles);
     const tiles = shown.map((e) => { const t = tile(e); if (folded && e.watched && e.episodeNumber < cut) t.hidden = true; return t; });
     const unfold = folded ? h('button', { type: 'button', class: 'btn ghost unfold' }, next ? `Show ${foldCount} watched episodes` : `Show all ${eps.length} episodes`) : null;
     if (unfold) unfold.addEventListener('click', () => { tiles.forEach((t) => { t.hidden = false; }); unfold.remove(); });
@@ -416,9 +419,14 @@ export async function openAnime(partial) {
           title: ep.crunchyrollUrl ? `${name} · play on Crunchyroll` : `${name} · this episode's own link isn't known yet, so this opens the show on Crunchyroll`,
           onclick: () => { if (ep.crunchyrollUrl && !ep.watched) rememberPlay(item, ep.episodeNumber); } }, name)
       : h('span', { class: 'name clamp-2', title: name }, name);
-    const el = h('article', { class: `card ep-tile ${playPill ? 'has-play' : ''}`, 'data-watched': String(ep.watched), 'data-episode': String(ep.episodeNumber) },
-      media({ src: ep.image, alt: '', badges: [h('span', { class: 'pill dark badge-start num' }, `E${ep.episodeNumber}`), playPill] }),
-      h('div', { class: 'ep-row' }, nameEl, check));
+    // No pictures for any episode of this show (not on Crunchyroll, say): a compact row with the
+    // number, not a grey box per episode.
+    const el = plainTiles
+      ? h('article', { class: `card ep-tile ep-tile--plain ${playPill ? 'has-play' : ''}`, 'data-watched': String(ep.watched), 'data-episode': String(ep.episodeNumber) },
+          h('div', { class: 'ep-row' }, /^episode \d+$/i.test(name) ? null : h('span', { class: 'ep-num num' }, `E${ep.episodeNumber}`), nameEl, check))
+      : h('article', { class: `card ep-tile ${playPill ? 'has-play' : ''}`, 'data-watched': String(ep.watched), 'data-episode': String(ep.episodeNumber) },
+          media({ src: ep.image, alt: '', badges: [h('span', { class: 'pill dark badge-start num' }, `E${ep.episodeNumber}`), playPill] }),
+          h('div', { class: 'ep-row' }, nameEl, check));
     // Touch: holding a check for half a second is the phone's Shift-click.
     // A time, not a flag: Android sends no click after a long press, and a flag left set would swallow the next tap.
     let heldAt = 0; let holdTimer = null;

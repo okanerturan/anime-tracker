@@ -454,3 +454,55 @@ test('episode stills are stored as a source URL and served through the image cac
     assert.ok(ep.image.startsWith('/img/'), `served through the image cache, got ${ep.image}`);
   }
 });
+
+test('Just finished: seasons of one series finished together are one row; a separate show keeps its own', async () => {
+  const recent = new Date(Date.now() - 2 * 86400000).toISOString();
+  addShow(9101, 'Binge Show', { start_date: '2024-01-01' });
+  addShow(9102, 'Binge Show Season 2', { start_date: '2025-01-01' });
+  addShow(9103, 'Unrelated Show', { start_date: '2023-01-01' });
+  relate(9101, 9102, 'SEQUEL');
+  const ep = db.prepare('INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, watched, watched_at) VALUES (?, ?, 1, ?)');
+  for (const id of [9101, 9102, 9103]) for (let n = 1; n <= 12; n += 1) ep.run(id, n, recent);
+  const rows = (await insights.upNext()).recentlyFinished.filter((x) => [9101, 9102, 9103].includes(x.malId));
+  const binge = rows.find((x) => x.seasons === 2);
+  assert.ok(binge, JSON.stringify(rows.map((x) => [x.malId, x.seasons])));
+  assert.equal(binge.malId, 9102, 'the newest season stands for the group');
+  assert.deepEqual([...binge.seasonIds].sort(), [9101, 9102]);
+  assert.equal(rows.find((x) => x.malId === 9103)?.seasons, 1, 'an unrelated show stays on its own');
+  assert.equal(rows.length, 2);
+});
+
+test('audio versions: a link picked for the audio you watch replaces another language\'s; the season is asked for again until then', async () => {
+  addShow(985, 'Sub Watcher', { episodes: 2 });
+  rule('GS00999990JAJP', 985);
+  const put = (n, url) => db.prepare('INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, title, url, watched) VALUES (?, ?, ?, ?, 0)').run(985, n, `Ep ${n}`, url);
+  put(1, 'https://www.crunchyroll.com/watch/GE00999991ENUS');
+  put(2, 'https://www.crunchyroll.com/watch/GE00999992ENUS');
+  db.prepare("INSERT INTO cr_history (episode_id, season_id, series_title, season_title, episode_number, date_played, mal_id, mal_episode, applied) VALUES ('GE00999991JAJP', 'GS00999990JAJP', 'Sub Watcher', 'Sub Watcher', 1, '2026-10-01T20:00:00Z', 985, 1, 1)").run();
+  assert.ok(crunchyroll.wantedSeasons(1000).includes('GS00999990JAJP'), 'English links on a Japanese season: asked for again');
+  await crunchyroll.applySeasonEpisodes([{ seasonId: 'GS00999990JAJP', episodes: [
+    { episodeNumber: 1, episodeId: 'GE00999991ENUS', audioMatched: false, title: 'One' }] }]);
+  const url = (n) => db.prepare('SELECT url FROM episode_sync WHERE mal_id = 985 AND episode_number = ?').get(n).url;
+  assert.equal(url(1), 'https://www.crunchyroll.com/watch/GE00999991ENUS', 'an old extension (no audio choice) does not replace links');
+  await crunchyroll.applySeasonEpisodes([{ seasonId: 'GS00999990JAJP', episodes: [
+    { episodeNumber: 1, episodeId: 'GE00999991JAJP', audioMatched: true, title: 'One' },
+    { episodeNumber: 2, episodeId: 'GE00999992JAJP', audioMatched: true, title: 'Two' }] }]);
+  assert.equal(url(1), 'https://www.crunchyroll.com/watch/GE00999991JAJP');
+  assert.equal(url(2), 'https://www.crunchyroll.com/watch/GE00999992JAJP');
+  db.prepare("UPDATE cr_season_fetch SET fetched_at = datetime('now', '-2 hours') WHERE season_id = 'GS00999990JAJP'").run();
+  db.prepare("UPDATE media SET status = 'FINISHED' WHERE mal_id = 985").run();
+  assert.ok(!crunchyroll.wantedSeasons(1000).includes('GS00999990JAJP'), 'matched now: not asked for again');
+});
+
+test('the extension picks the episode version of the season you watched, else the original audio', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'extension', 'crunchyroll-api.js'), 'utf8');
+  const pickVersion = new Function(`${src.slice(src.indexOf('function pickVersion'), src.indexOf('async function fetchSeasons'))}; return pickVersion;`)();
+  const ep = { id: 'GE1ENUS', versions: [
+    { guid: 'GE1ENUS', audio_locale: 'en-US', season_guid: 'GS1ENUS', original: false },
+    { guid: 'GE1JAJP', audio_locale: 'ja-JP', season_guid: 'GS1JAJP', original: true },
+    { guid: 'GE1DEDE', audio_locale: 'de-DE', season_guid: 'GS1DEDE', original: false }] };
+  assert.deepEqual(pickVersion(ep, 'GS1JAJP'), { episodeId: 'GE1JAJP', audioMatched: true });
+  assert.deepEqual(pickVersion(ep, 'GS1DEDE'), { episodeId: 'GE1DEDE', audioMatched: true }, 'a German-dub watcher keeps German');
+  assert.deepEqual(pickVersion(ep, 'GSOTHER'), { episodeId: 'GE1JAJP', audioMatched: true }, 'unknown season: the original audio');
+  assert.deepEqual(pickVersion({ id: 'GOLD1' }, 'GS1JAJP'), { episodeId: 'GOLD1', audioMatched: false }, 'no versions listed: as before');
+});

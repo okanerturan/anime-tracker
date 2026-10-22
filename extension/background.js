@@ -65,7 +65,7 @@ async function ensureClientId(cfg) {
   if (cfg.clientId) return cfg.clientId;
   const html = await (await fetch('https://www.crunchyroll.com/', { credentials: 'include' })).text();
   const m = html.match(/"accountAuthClientId"\s*:\s*"([^"]+)"/);
-  if (!m) throw new Error('could not read Crunchyroll config; open crunchyroll.com in a tab');
+  if (!m) throw new Error("Couldn't reach your Crunchyroll account. Open crunchyroll.com in this browser, check you're signed in, and try again.");
   await set({ clientId: m[1] });
   return m[1];
 }
@@ -137,7 +137,7 @@ async function notifyNewEpisodes(cfg) {
   try {
     await chrome.action.setBadgeBackgroundColor({ color: '#f47521' });
     await chrome.action.setBadgeText({ text: week ? String(week) : '' });
-    await chrome.action.setTitle({ title: week ? `Anime Tracker: ${week} show${week === 1 ? '' : 's'} with a new episode this week` : 'Anime Tracker' });
+    await chrome.action.setTitle({ title: week ? `Tsuzuku: ${week} show${week === 1 ? '' : 's'} with a new episode this week` : 'Tsuzuku' });
   } catch {}
   if (!notify) return;
   for (const x of premieres.slice(0, 3)) {
@@ -173,6 +173,17 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       reply({ shouldSync: stale, since, wantSeasons, wantSeries });
     } else if (msg.type === 'page-data') {
       reply(await syncNow({ data: msg.data, reason: 'page' }));
+    } else if (msg.type === 'bridge-hello' || msg.type === 'page-sync') {
+      // Only the tracker this extension syncs to may ask (page-sync-bridge.js runs on any workers.dev page).
+      const cfg = await get();
+      let mine = false;
+      try { mine = Boolean(sender.origin) && new URL(cfg.trackerUrl).origin === sender.origin; } catch {}
+      if (!mine) reply({ ok: false });
+      else if (msg.type === 'bridge-hello') reply({ ok: true });
+      else {
+        const r = await syncNow({ reason: 'page' });
+        reply(r.ok ? { ok: true, marked: r.result?.marked ?? 0 } : { ok: false, error: r.error });
+      }
     } else if (msg.type === 'sync-now') {
       reply(await syncNow({ full: Boolean(msg.full), reason: msg.full ? 'full' : 'manual' }));
     } else if (msg.type === 'get-state') {

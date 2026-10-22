@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Anime Tracker: Crunchyroll Sync",
-  "version": "1.14.1",
-  "description": "Keeps your local anime tracker up to date with your Crunchyroll watch history.",
+  "name": "Tsuzuku: sync for Crunchyroll",
+  "version": "1.14.2",
+  "description": "Keeps your Tsuzuku watch list up to date with your Crunchyroll watch history.",
   "permissions": [
     "alarms",
     "storage",
@@ -50,6 +50,17 @@
     },
     {
       "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://*.workers.dev/*"
+      ],
+      "js": [
+        "page-sync-bridge.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
         "https://anime-tracker.okan.workers.dev/*",
         "http://localhost/*",
         "http://127.0.0.1/*"
@@ -62,7 +73,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Anime Tracker sync",
+    "default_title": "Tsuzuku",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",

@@ -3,69 +3,92 @@
 <head>
 <meta charset="utf-8">
 <style>
-  :root { color-scheme: dark; --bg: #14161c; --surface: #1d2029; --line: #2f3442; --text: #e8e9ee; --muted: #a7abb9; --faint: #737887; --accent: #f47521; --on-accent: #1b1206; --good: #5fd39a; }
+  :root { color-scheme: dark; --bg: #13151b; --surface: #1b1e27; --surface-2: #232733; --line: #2c3140; --text: #eceef3; --muted: #a7abb9; --faint: #8a8fa0; --accent: #f47521; --accent-text: #ff9a52; --on-accent: #1b1206; --good: #5fd39a; }
   * { box-sizing: border-box; }
-  body { font: 13px/1.4 system-ui, sans-serif; width: 340px; margin: 0; background: var(--bg); color: var(--text); }
-  header { display: flex; align-items: center; gap: 8px; padding: 14px 16px 6px; }
-  header img { width: 20px; height: 20px; border-radius: 5px; }
-  header h1 { font-size: 14px; margin: 0; flex: 1; }
-  .status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  body { font: 13px/1.4 system-ui, -apple-system, sans-serif; width: 500px; margin: 0; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+  header img { width: 26px; height: 26px; border-radius: 7px; }
+  header h1 { font-size: 16px; margin: 0; letter-spacing: -0.01em; }
+  .status { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
   .dot.fresh { background: var(--good); box-shadow: 0 0 6px var(--good); }
   .dot.bad { background: #ff8a80; }
-  section { padding: 6px 16px 14px; }
-  h2 { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); margin: 8px 0 8px; }
-  .list { display: flex; flex-direction: column; gap: 8px; }
-  /* minmax(0, 1fr): a long title truncates instead of pushing the Play button out of the card. */
-  .item { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px 8px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; text-decoration: none; color: inherit; }
-  .item img { width: 64px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; background: #0e1014; }
-  .item > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .item .t { font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: clip; }
+  .icon-btn { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; padding: 0; }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .icon-btn.busy svg { animation: spin 900ms linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .icon-btn.busy svg { animation: none; } }
+  @keyframes spin { to { rotate: 1turn; } }
+  @media (hover: hover) and (pointer: fine) { .icon-btn:hover:not(:disabled) { color: var(--text); border-color: #444a5c; } }
+  section { padding: 0 16px 14px; }
+  .head { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 10px; }
+  h2 { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin: 0; }
+  .head .count { color: var(--faint); font-size: 12px; }
+  .head a { margin-left: auto; color: var(--accent-text); font-size: 12px; font-weight: 600; text-decoration: none; }
+  /* The list scrolls inside the popup (Chrome caps a popup at 600px tall). */
+  .list { display: flex; flex-direction: column; gap: 8px; max-height: 430px; overflow-y: auto; margin-inline: -4px; padding-inline: 4px; scrollbar-width: thin; }
+  /* One card per show. The title link stretches over the whole card; Play and ✓ sit above it. */
+  .item { position: relative; display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 12px; align-items: start; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+  .thumb { position: relative; width: 136px; aspect-ratio: 16 / 9; border-radius: 8px; overflow: clip; background: #0e1014; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .ep { position: absolute; left: 6px; top: 6px; padding: 1px 6px; border-radius: 999px; background: rgba(10,11,15,.82); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .thumb .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.18); }
+  .thumb .bar i { display: block; height: 100%; background: var(--accent); }
+  .text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .t { color: inherit; text-decoration: none; font-weight: 650; font-size: 14px; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: clip; }
+  .t::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  .t:focus-visible { outline: none; }
+  .item:has(.t:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
   .new { display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 1px; }
-  .item .s { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: clip; text-overflow: ellipsis; }
-  .pair { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: stretch; }
-  .tick { width: 34px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted); font: inherit; font-size: 15px; cursor: pointer; }
-  @media (hover: hover) and (pointer: fine) { .tick:hover { color: #4ade80; border-color: #2f6b47; } }
+  .s { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: clip; text-overflow: ellipsis; }
+  .m { color: var(--faint); font-size: 12px; white-space: nowrap; overflow: clip; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  /* Play and ✓ under the details: the title gets the card's full text width. */
+  .acts { position: relative; z-index: 1; display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .play { display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 6px 12px; font-weight: 700; font-size: 12px; white-space: nowrap; text-decoration: none; }
+  .play.quiet { background: var(--surface-2); color: var(--text); }
+  .tick { border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; line-height: 1; width: 34px; padding: 6px 0; cursor: pointer; }
   .tick:disabled { opacity: 0.5; cursor: default; }
   .pair-row { display: flex; gap: 6px; } .pair-row input { flex: 1; min-width: 0; }
-  .linkish { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-weight: 700; cursor: pointer; }
-  .play { background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 5px 10px; font-weight: 700; font-size: 12px; white-space: nowrap; }
-  @media (hover: hover) and (pointer: fine) { .item:hover { border-color: #444a5c; } .item:hover .play { filter: brightness(1.08); } }
+  @media (hover: hover) and (pointer: fine) {
+    .item:has(.t:hover) { border-color: #444a5c; background: #1f2330; }
+    .play:hover { filter: brightness(1.08); }
+    .tick:hover:not(:disabled) { color: #4ade80; border-color: #2f6b47; }
+  }
+  /* Undo shows up in the episode line, under the card's stretched link: lift it above. */
+  .s .linkish { position: relative; z-index: 1; }
+  .linkish { background: none; border: 0; padding: 0; color: var(--accent-text); font: inherit; font-weight: 700; cursor: pointer; }
   :is(a, button, summary, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .item:active, button:active, a.btn:active { transform: scale(0.98); }
-  .empty { color: var(--muted); padding: 12px; border: 1px dashed var(--line); border-radius: 12px; text-align: center; }
-  .row { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  .play:active, button:active, a.btn:active { transform: scale(0.97); }
+  .empty { color: var(--muted); padding: 18px 12px; border: 1px dashed var(--line); border-radius: 14px; text-align: center; }
+  .row { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
   .row:empty { display: none; }
   .err { color: #ff8a80; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-  button, a.btn { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 8px; padding: 8px 12px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
-  button.secondary, a.btn.secondary { background: #2a2e3a; color: var(--text); }
+  .actions .btn { flex: 1 1 auto; text-align: center; }
+  button, a.btn { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 10px; padding: 9px 12px; font: inherit; font-weight: 650; cursor: pointer; text-decoration: none; }
+  button.secondary, a.btn.secondary { background: var(--surface-2); color: var(--text); }
   button:disabled { opacity: 0.5; cursor: default; }
-  details { border-top: 1px solid var(--line); margin-top: 4px; }
+  details { border-top: 1px solid var(--line); }
   summary { cursor: pointer; color: var(--muted); padding: 10px 16px; font-size: 12px; }
   details > section { padding-top: 0; }
   input { width: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 7px 8px; font: inherit; }
   label { display: block; margin-top: 12px; color: var(--muted); font-size: 12px; }
   .check-row { display: flex; gap: 8px; align-items: flex-start; }
-  .check-row input { margin-top: 1px; }
-  .check-row input { width: auto; }
+  .check-row input { margin-top: 1px; width: auto; }
 </style>
 </head>
 <body>
   <header>
     <img src="icons/icon-32.png" alt="">
-    <h1>Anime Tracker</h1>
-    <span class="status"><span class="dot" id="dot"></span><span id="last">never synced</span></span>
+    <h1>Tsuzuku</h1>
+    <span class="status" id="status"><span class="dot" id="dot"></span><span id="last">never synced</span></span>
+    <button id="sync" class="icon-btn" type="button" aria-label="Sync with Crunchyroll now" title="Sync with Crunchyroll now"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 9.5A8 8 0 0 0 5.2 7.2M4.5 4v3.5H8M4.5 14.5a8 8 0 0 0 14.3 2.3M19.5 20v-3.5H16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   </header>
   <section>
-    <h2>Up next</h2>
+    <div class="head"><h2>Up next</h2><span class="count" id="count"></span><a id="all" href="#" target="_blank">See all</a></div>
     <div class="list" id="upnext"><div class="empty">Loading…</div></div>
-    <div class="actions">
-      <a class="btn" id="open" href="#" target="_blank">Open dashboard</a>
-      <button id="sync" class="secondary">Sync now</button>
-    </div>
     <div class="row" id="result"></div>
     <div class="row err" id="error"></div>
+    <div class="actions"><a class="btn" id="open" href="#" target="_blank">Open Tsuzuku</a></div>
   </section>
   <details>
     <summary>Settings</summary>

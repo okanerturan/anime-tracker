@@ -1,0 +1,42 @@
+# Publish the browser extension to the Chrome Web Store. Push a tag ext-vX.Y.Z whose version matches
+# extension/manifest.json (or run it by hand with a tag): tests, zip, upload, submit for review.
+# Google reviews it (usually 1-3 days); installed copies then update themselves.
+# Secrets: CWS_SA_KEY (service-account key JSON), CWS_PUBLISHER_ID, CWS_EXTENSION_ID.
+name: Publish extension
+on:
+  push:
+    tags: ['ext-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (ext-vX.Y.Z)'
+        required: true
+
+concurrency: publish-extension
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+      - name: Package (the tag must match the manifest version)
+        run: node scripts/package-extension.mjs "$TAG"
+      - name: Upload and submit for review
+        env:
+          CWS_SA_KEY: ${{ secrets.CWS_SA_KEY }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          export CWS_SOURCE_PATH="releases/tsuzuku-extension-v${TAG#ext-v}.zip"
+          node scripts/cws.mjs upload-and-publish
