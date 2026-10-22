@@ -1,8 +1,9 @@
-# The hosted tracker on hub (the Hetzner box shared with other apps, see ~/code/backlog/hetzner-consolidation.md),
-# behind kamal-proxy. Visitors never come here directly: the front Worker on anime-tracker.okan.workers.dev
-# proxies to this host with X-Origin-Auth, and the app refuses requests without it (AGENTS.md).
+# Tsuzuku (anime-tracker) on hub, the Hetzner box shared with other apps
+# (~/code/backlog/hetzner-consolidation.md), behind kamal-proxy. Visitors never come here directly:
+# the Worker at anime-tracker.okan.workers.dev checks the passphrase and forwards with X-Origin-Auth,
+# and the app refuses requests without it (AGENTS.md). Deploy: bin/kamal deploy (see AGENTS.md).
 service: anime-tracker
-image: okturan/anime-tracker
+image: anime-tracker
 
 # The box is shared, so the container has a ceiling.
 servers:
@@ -20,40 +21,28 @@ proxy:
   healthcheck:
     path: /up
 
-# Account files, catalog.db and accounts.db. Owned by uid 1000 (the image's node user).
+# The database, image cache and nightly copies. Owned by uid 1000 (the image's node user).
+# /srv/anime-tracker/backups is in hub-backup's restic paths (offsite to the Storage Box).
 volumes:
   - /srv/anime-tracker:/data
 
+# No registry account: Kamal runs a registry on this Mac and the hub pulls through the SSH tunnel.
 registry:
-  server: ghcr.io
-  username: okturan
-  password:
-    - KAMAL_REGISTRY_PASSWORD
+  server: localhost:5555
 
-# Built off the box (amd64), never on the shared server.
+# Built here for amd64, never on the shared server.
 builder:
   arch: amd64
 
 env:
   clear:
-    # passphrase until migration step 5 (8.10), then accounts with SIGNUP=invite.
+    # One account behind the Worker's passphrase until accounts are switched on (migration step 5).
     AUTH_MODE: passphrase
-    RP_ID: anime-tracker.okan.workers.dev
-    APP_ORIGIN: https://anime-tracker.okan.workers.dev
-    R2_BUCKET: anime-tracker-images
-    R2_BACKUP_BUCKET: hub-backups
+    TIMEZONE: Europe/Tirane
+    BACKUP_DIR: /data/backups
   secret:
-    - APP_PASSPHRASE
     - ORIGIN_SECRET
-    - IMAGE_SIGNING_KEY
-    - TIMEZONE
-    - R2_ACCOUNT_ID
-    - R2_ACCESS_KEY_ID
-    - R2_SECRET_ACCESS_KEY
-    - R2_BACKUP_ACCESS_KEY_ID
-    - R2_BACKUP_SECRET_ACCESS_KEY
 
 aliases:
   logs: app logs -f
-  switch: app exec "node scripts/switch.js"
-  restore: app exec "node scripts/restore.js"
+  console: app exec --interactive --reuse "sh"

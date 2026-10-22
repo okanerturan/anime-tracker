@@ -1,0 +1,3 @@
+#!/bin/sh
+# Kamal 2 from the installed gem (gem install kamal), whatever its bin directory is on this machine.
+exec "$(gem env gemdir)/bin/kamal" "$@"

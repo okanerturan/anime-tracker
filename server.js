@@ -71,6 +71,8 @@ server.listen(PORT, HOST, () => {
   if (MULTI && process.env.NO_SYNC !== '1') require('./server/catalog/worker').createWorker().start(2000);
   // Hosted mode: the refresh cycle for every account, every 6 hours (one lease).
   if (auth && process.env.NO_SYNC !== '1') require('./server/catalog/scheduler').start();
+  // On the hub: nightly copies of the databases into BACKUP_DIR (restic ships them offsite).
+  if (process.env.BACKUP_DIR && process.env.NO_SYNC !== '1') require('./server/localbackup').start();
   // Hosted mode: nightly snapshots of every database to the backups bucket (one lease).
   if (auth && process.env.NO_SYNC !== '1') require('./server/catalog/snapshot').start();
   // Hosted mode: daily account housekeeping (24-month inactivity, abandoned sign-ups).

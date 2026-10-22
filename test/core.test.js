@@ -506,3 +506,27 @@ test('the extension picks the episode version of the season you watched, else th
   assert.deepEqual(pickVersion(ep, 'GSOTHER'), { episodeId: 'GE1JAJP', audioMatched: true }, 'unknown season: the original audio');
   assert.deepEqual(pickVersion({ id: 'GOLD1' }, 'GS1JAJP'), { episodeId: 'GOLD1', audioMatched: false }, 'no versions listed: as before');
 });
+
+test('local backups: one gzipped copy per day, a re-run replaces the day, old days pruned', () => {
+  const fs = require('fs'); const os = require('os'); const path = require('path'); const zlib = require('zlib');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'localbackup-'));
+  const file = path.join(tmp, 'live.db');
+  const Database = require('better-sqlite3'); const d = new Database(file); d.exec("CREATE TABLE t (x); INSERT INTO t VALUES (42)"); d.close();
+  const saved = { BACKUP_DIR: process.env.BACKUP_DIR, ANIME_DB: process.env.ANIME_DB };
+  process.env.BACKUP_DIR = path.join(tmp, 'backups'); process.env.ANIME_DB = file;
+  try {
+    const lb = require('../server/localbackup');
+    const t0 = Date.parse('2026-10-01T03:30:00Z');
+    for (let i = 0; i < lb.KEEP + 3; i += 1) assert.equal(lb.run({ now: t0 + i * 86400e3 }).files, 1);
+    assert.equal(lb.run({ now: t0 + (lb.KEEP + 2) * 86400e3 }).files, 1, 'same day again');
+    const days = fs.readdirSync(process.env.BACKUP_DIR).filter((x) => /^\d{4}/.test(x));
+    assert.equal(days.length, lb.KEEP, 'kept the last KEEP days');
+    const copy = path.join(tmp, 'restored.db');
+    fs.writeFileSync(copy, zlib.gunzipSync(fs.readFileSync(path.join(process.env.BACKUP_DIR, days.at(-1), 'anime-tracker.db.gz'))));
+    const r = new Database(copy, { readonly: true }); assert.equal(r.prepare('SELECT x FROM t').get().x, 42); r.close();
+    assert.ok(JSON.parse(fs.readFileSync(path.join(process.env.BACKUP_DIR, 'last-backup.json'))).lastSuccessAt);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

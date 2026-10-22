@@ -84,6 +84,8 @@ module.exports = {
   },
 
   async scheduled(event, env, ctx) {
+    // Proxying to the hub: the hub runs its own refresh; the Durable Object stays idle as the fallback.
+    if (env.ORIGIN_URL) return;
     ctx.waitUntil(tracker(env).fetch('https://tracker.internal/internal/cycle', { method: 'POST' }));
   }
 };
@@ -123,7 +125,7 @@ async function handle(request, env) {
     const isApi = url.pathname.startsWith('/api/') || url.pathname.startsWith('/img/');
     // Airing calendar feed: calendar apps can't send the cookie, so the secret token in the path is
     // checked by the tracker itself (unknown tokens get 404).
-    if (request.method === 'GET' && /^\/calendar\/[a-f0-9]{48}\.ics$/.test(url.pathname)) return tracker(env).fetch(request);
+    if (request.method === 'GET' && /^\/calendar\/[a-f0-9]{48}\.ics$/.test(url.pathname)) return env.ORIGIN_URL ? toHub(request, env, url) : tracker(env).fetch(request);
     if (url.pathname.startsWith('/internal/')) {
       if (!viaBearer) return new Response('Forbidden', { status: 403 });
       return tracker(env).fetch(request);
@@ -132,6 +134,40 @@ async function handle(request, env) {
       if (isApi) return Response.json({ error: 'unauthorized' }, { status: 401 });
       return Response.redirect(new URL('/login', url).toString(), 303);
     }
+    // Hub mode (ORIGIN_URL set): the passphrase check stays here, everything else is served by the hub.
+    // Deleting the ORIGIN_URL secret switches back to the Durable Object at once.
+    if (env.ORIGIN_URL) {
+      if (url.pathname.startsWith('/internal/')) return new Response('Not found', { status: 404 });
+      return toHub(request, env, url, viaBearer);
+    }
     if (isApi) return tracker(env).fetch(request);
     return env.ASSETS.fetch(request);
+}
+
+const MAINTENANCE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tsuzuku</title>
+<style>:root{color-scheme:dark}body{font:16px/1.5 system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;padding:0 16px;background:#14161c;color:#eef0f5}main{max-width:28rem}</style>
+<main><h1>Back in a few minutes</h1><p>Tsuzuku is restarting. Your history is safe, and the extension will sync again by itself.</p></main>`;
+
+/** Forward to the hub with the shared secret (the hub refuses requests without it). */
+async function toHub(request, env, url, viaBearer = false) {
+  // Images this Worker cached in R2 before the move are served straight from there.
+  const img = url.pathname.match(/^\/img\/([0-9a-f]{40})$/);
+  if (img && request.method === 'GET') {
+    const obj = await env.IMAGES.get(`img/${img[1]}`);
+    if (obj) return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType || 'image/jpeg', 'Cache-Control': 'public, max-age=31536000, immutable' } });
+  }
+  const headers = new Headers(request.headers);
+  headers.set('X-Origin-Auth', env.ORIGIN_SECRET || '');
+  headers.set('X-Client-IP', request.headers.get('CF-Connecting-IP') || '');
+  headers.delete('Host');
+  if (viaBearer) headers.delete('Authorization'); // the passphrase stays at Cloudflare
+  const hasBody = !['GET', 'HEAD'].includes(request.method);
+  try {
+    return await fetch(new URL(url.pathname + url.search, env.ORIGIN_URL), { method: request.method, headers, body: hasBody ? request.body : undefined, redirect: 'manual' });
+  } catch {
+    if (request.method === 'GET' && (request.headers.get('Accept') || '').includes('text/html')) {
+      return new Response(MAINTENANCE, { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Retry-After': '60', 'Cache-Control': 'no-store' } });
+    }
+    return Response.json({ error: 'Tsuzuku is restarting. Try again in a minute.' }, { status: 502, headers: { 'Retry-After': '30' } });
+  }
 }
