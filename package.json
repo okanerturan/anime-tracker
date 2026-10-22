@@ -14,7 +14,10 @@
     "deploy": "env -u CLOUDFLARE_API_TOKEN wrangler deploy",
     "cf:login": "env -u CLOUDFLARE_API_TOKEN wrangler login",
     "migrate:cloudflare": "node scripts/migrate_to_cloudflare.js",
-    "backup": "node scripts/backup.js download"
+    "backup": "node scripts/backup.js download",
+    "ext:package": "node scripts/package-extension.mjs",
+    "cws:status": "node scripts/cws.mjs fetch-status",
+    "cws:publish": "node scripts/cws.mjs upload-and-publish"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3"
