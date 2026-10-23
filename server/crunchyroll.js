@@ -314,10 +314,10 @@ async function ingest(rawRows, { source = 'extension' } = {}) {
 function wantedSeasons(limit = 30) {
   return db.prepare(`
     SELECT r.season_id AS id, MAX(h.date_played) AS last FROM cr_season_map r
-    JOIN cr_history h ON h.season_id = r.season_id
+    LEFT JOIN cr_history h ON h.season_id = r.season_id
     LEFT JOIN media m ON m.mal_id = r.mal_id
     LEFT JOIN cr_season_fetch f ON f.season_id = r.season_id
-    WHERE r.mal_id > 0 AND r.season_id NOT LIKE '%|%'
+    WHERE r.mal_id > 0 AND r.season_id NOT LIKE '%|%' AND (h.season_id IS NOT NULL OR r.source = 'series-pick')
       AND ((
         (f.fetched_at IS NULL OR f.fetched_at < datetime('now', CASE WHEN m.status = 'RELEASING' THEN '-20 hours' ELSE '-14 days' END))
         AND (
@@ -330,7 +330,75 @@ function wantedSeasons(limit = 30) {
         AND (f.fetched_at IS NULL OR f.fetched_at < datetime('now', '-1 hour'))
         AND EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND e.url GLOB '*crunchyroll.com/watch/GE[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]?*'
           AND substr(e.url, instr(e.url, '/watch/') + 17) <> substr(r.season_id, 11))))
-    GROUP BY r.season_id ORDER BY last DESC LIMIT ?`).all(limit).map((r) => r.id);
+    GROUP BY r.season_id ORDER BY last IS NULL, last DESC LIMIT ?`).all(limit).map((r) => r.id);
+}
+
+/**
+ * Library shows you haven't played on Crunchyroll yet (so no season of theirs is known) but whose
+ * Crunchyroll series is: the extension fetches that series' season list and the tracker picks the
+ * season (chooseSeriesSeasons), so the show gets episode stills and exact Play links before you start.
+ */
+function wantedSeriesSeasons(limit = 10) {
+  const crlinks = require('./crlinks');
+  const rows = db.prepare(`
+    SELECT w.mal_id AS malId FROM watchlist w JOIN media m ON m.mal_id = w.mal_id
+    WHERE COALESCE(w.list_status, '') <> 'dropped' AND m.status IN ('RELEASING', 'FINISHED') AND m.format IN ('TV', 'TV_SHORT', 'ONA')
+      AND NOT EXISTS (SELECT 1 FROM cr_season_map r WHERE r.mal_id = w.mal_id AND r.season_id NOT LIKE '%|%')
+      AND EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = w.mal_id AND COALESCE(e.url, '') NOT LIKE '%crunchyroll.com/watch/%')
+      AND NOT EXISTS (SELECT 1 FROM cr_season_fetch f WHERE f.season_id = 'series:' || w.mal_id AND f.fetched_at > datetime('now', '-3 days'))
+    ORDER BY m.status = 'RELEASING' DESC, w.mal_id DESC LIMIT 60`).all();
+  const out = [];
+  for (const r of rows) {
+    const s = crlinks.seriesFor(r.malId);
+    if (s?.id) out.push({ malId: r.malId, seriesId: s.id });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** How well a Crunchyroll season title fits a show's titles: exact beats containment; longer containment wins. */
+function seasonFit(seasonTitle, titles) {
+  const t = normalizeTitle(seasonTitle);
+  if (!t) return 0;
+  let best = 0;
+  for (const raw of titles) {
+    const x = normalizeTitle(raw);
+    if (!x) continue;
+    if (x === t) return 1e6;
+    if (x.includes(t)) best = Math.max(best, t.length);
+    else if (t.includes(x)) best = Math.max(best, x.length);
+  }
+  return best;
+}
+
+/**
+ * The extension sends the season lists of the series asked for: [{ malId, seasons: [{ id, title,
+ * seasonNumber }] }]. Pick each show's season by title (one season only: that one), store it as a
+ * mapping rule, and return the season ids whose episode lists the extension should fetch now.
+ */
+function chooseSeriesSeasons(items) {
+  const picked = [];
+  const mediaStmt = db.prepare('SELECT title, title_english, synonyms FROM media WHERE mal_id = ?');
+  for (const item of (items || []).slice(0, 20)) {
+    const malId = Number(item?.malId);
+    const seasons = Array.isArray(item?.seasons) ? item.seasons.filter((s) => s?.id) : [];
+    if (!malId || !seasons.length) continue;
+    catalog.prepare("INSERT OR REPLACE INTO cr_season_fetch (season_id, fetched_at) VALUES (?, CURRENT_TIMESTAMP)").run(`series:${malId}`);
+    const m = mediaStmt.get(malId);
+    if (!m) continue;
+    let syn = []; try { syn = JSON.parse(m.synonyms || '[]'); } catch {}
+    const titles = [m.title, m.title_english, ...syn].filter(Boolean);
+    const scored = seasons.map((s) => ({ s, fit: seasonFit(s.title, titles) })).sort((a, b) => b.fit - a.fit);
+    const best = scored[0];
+    const tie = scored[1] && scored[1].fit === best.fit;
+    const choice = seasons.length === 1 ? seasons[0] : (best.fit > 0 && !tie ? best.s : null);
+    if (!choice) continue;
+    const existing = db.prepare('SELECT mal_id FROM cr_season_map WHERE season_id = ?').get(choice.id);
+    if (existing && existing.mal_id !== malId) continue; // that season already belongs to another show
+    if (!existing) insertRuleStmt.run(choice.id, 0, 100000, malId, 0, 'series-pick', null, choice.title || null, 0);
+    picked.push(choice.id);
+  }
+  return { seasonIds: picked };
 }
 
 const epRowStmt = db.prepare('SELECT title, (image_blob IS NOT NULL OR image_url IS NOT NULL) AS hasImage FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
@@ -353,6 +421,13 @@ async function applySeasonEpisodes(seasons) {
     if (!season?.seasonId || !Array.isArray(season.episodes)) continue;
     summary.seasons += 1;
     catalog.prepare('INSERT OR REPLACE INTO cr_season_fetch (season_id, fetched_at) VALUES (?, CURRENT_TIMESTAMP)').run(season.seasonId);
+    // A season picked from the series' list before you watched it: if Crunchyroll keeps counting
+    // from the previous season (episodes 13–24), the first episode it lists is this show's episode 1.
+    const picked = db.prepare("SELECT ep_offset FROM cr_season_map WHERE season_id = ? AND source = 'series-pick'").get(season.seasonId);
+    if (picked && !picked.ep_offset) {
+      const first = Math.min(...season.episodes.map((e) => Number(e.episodeNumber)).filter((n) => Number.isInteger(n) && n > 0), Infinity);
+      if (Number.isFinite(first) && first > 1) db.prepare("UPDATE cr_season_map SET ep_offset = ? WHERE season_id = ? AND source = 'series-pick'").run(first - 1, season.seasonId);
+    }
     for (const ep of season.episodes) {
       try {
       if (ep.episodeNumber == null) continue;
@@ -419,7 +494,7 @@ function status() {
   for (const s of sampled) s.thumb = imagesMod.localUrl(s.thumb);
   const seen = require('./state').get('extension');
   const extension = { seen: seen?.version || null, seenAt: seen?.at || null, latest: require('../extension/manifest.json').version };
-  return { sampled, extension, wantSeasons: wantedSeasons(), wantSeries: require('./crlinks').wanted(), lastSync: last ? { at: last.at.replace(' ', 'T') + 'Z', source: last.source, summary: JSON.parse(last.summary) } : null, ...counts, needsReview: review, inProgress };
+  return { sampled, extension, wantSeasons: wantedSeasons(), wantSeriesSeasons: wantedSeriesSeasons(), wantSeries: require('./crlinks').wanted(), lastSync: last ? { at: last.at.replace(' ', 'T') + 'Z', source: last.source, summary: JSON.parse(last.summary) } : null, ...counts, needsReview: review, inProgress };
 }
 
 /** Manually fix a season mapping and re-apply its rows. */
@@ -505,4 +580,4 @@ function hideSampled(seasonId, undo = false) {
   return { ok: true };
 }
 
-module.exports = { resolveWaitingSeason, ruleFromCandidates, hideSampled, ingest, status, remapSeason, confirmSeason, trackSeason, dismissPlay, normalizeRow, applySeasonEpisodes, wantedSeasons };
+module.exports = { resolveWaitingSeason, ruleFromCandidates, hideSampled, ingest, status, remapSeason, confirmSeason, trackSeason, dismissPlay, normalizeRow, applySeasonEpisodes, wantedSeasons, wantedSeriesSeasons, chooseSeriesSeasons };

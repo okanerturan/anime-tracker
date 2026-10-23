@@ -77,6 +77,31 @@ async function fetchSeasons(base, token, seasonIds) {
   return seasons;
 }
 
+/**
+ * Library shows not played yet: fetch their series' season lists (the original-audio version of each
+ * season), let the tracker pick each show's season (`choose`), then fetch those seasons' episodes.
+ */
+async function fetchSeriesSeasons(base, token, wants, choose) {
+  if (!wants || !wants.length || !choose) return [];
+  const headers = { Authorization: `Bearer ${token.access_token}` };
+  const items = [];
+  for (const w of wants.slice(0, 10)) {
+    try {
+      const res = await fetch(`${base}/content/v2/cms/series/${encodeURIComponent(w.seriesId)}/seasons?locale=en-US`, { headers });
+      if (!res.ok) continue;
+      const data = (await res.json()).data || [];
+      items.push({ malId: w.malId, seasons: data.map((s) => {
+        const v = (s.versions || []).find((x) => x.original);
+        return { id: (v && v.guid) || s.id, title: s.title, seasonNumber: s.season_number };
+      }) });
+    } catch (err) { /* skip this one */ }
+  }
+  if (!items.length) return [];
+  let ids = [];
+  try { ids = (await choose(items)) || []; } catch (err) { return []; }
+  return fetchSeasons(base, token, ids);
+}
+
 /** Crunchyroll's own search for shows the tracker has no series link for: [{ malId, candidates }]. */
 async function searchSeries(base, token, wants) {
   const headers = { Authorization: `Bearer ${token.access_token}` };
@@ -94,10 +119,10 @@ async function searchSeries(base, token, wants) {
 }
 
 /** One sync pass: history since `since`, episode lists and series lookups the tracker asked for. */
-async function crunchyrollSync({ base = 'https://www.crunchyroll.com', clientId, since = null, full = false, wantSeasons = [], wantSeries = [] }) {
+async function crunchyrollSync({ base = 'https://www.crunchyroll.com', clientId, since = null, full = false, wantSeasons = [], wantSeries = [], wantSeriesSeasons = [], chooseSeasons = null }) {
   const token = await crunchyrollToken(base, clientId);
   const rows = await fetchHistory(base, token, { since: full ? null : since, maxPages: full ? 100 : 20 });
-  const seasons = await fetchSeasons(base, token, wantSeasons);
+  const seasons = [...await fetchSeasons(base, token, wantSeasons), ...await fetchSeriesSeasons(base, token, wantSeriesSeasons, chooseSeasons)];
   const series = await searchSeries(base, token, wantSeries);
   return { rows, seasons, series };
 }

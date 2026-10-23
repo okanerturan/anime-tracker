@@ -10,7 +10,7 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 
 // Exactly what extension/*.js calls. Everything else answers 403 for a device token.
 const DEVICE_ROUTES = new Set([
-  'GET /api/crunchyroll/status', 'POST /api/crunchyroll/ingest', 'POST /api/crunchyroll/episodes', 'POST /api/crunchyroll/series',
+  'GET /api/crunchyroll/status', 'POST /api/crunchyroll/ingest', 'POST /api/crunchyroll/episodes', 'POST /api/crunchyroll/series-seasons', 'POST /api/crunchyroll/series',
   'GET /api/crunchyroll/series-info', 'GET /api/up-next', 'POST /api/episode/watched-through', 'POST /api/episode/unmark',
   'POST /api/anime/rating', 'POST /api/anime/list-status', 'GET /api/anilist/relay', 'GET /api/episode-image'
 ]);

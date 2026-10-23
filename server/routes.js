@@ -206,6 +206,12 @@ const routes = {
     if (require('./db').MULTI && rows.length > 500) return sendJSON(res, 413, { error: 'Send at most 500 plays per request.', maxRows: 500 });
     return sendJSON(res, 200, await crunchyroll.ingest(rows, { source: body.source === 'manual' ? 'manual' : 'extension' }));
   },
+  // Season lists of Crunchyroll series for library shows you haven't played yet: pick each show's season.
+  'POST /api/crunchyroll/series-seasons': async (req, res) => {
+    requireClientHeader(req);
+    const body = await parseBody(req);
+    return sendJSON(res, 200, crunchyroll.chooseSeriesSeasons(body.items));
+  },
   'POST /api/crunchyroll/episodes': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);

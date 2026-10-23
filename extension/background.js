@@ -79,7 +79,10 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
     try {
       const status = await trackerStatus(cfg.trackerUrl);
       const clientId = data ? cfg.clientId : await ensureClientId(cfg);
-      const got = data || await crunchyrollSync({ clientId, since: status.latestPlayed, full, wantSeasons: status.wantSeasons, wantSeries: status.wantSeries || [] });
+      const got = data || await crunchyrollSync({ clientId, since: status.latestPlayed, full, wantSeasons: status.wantSeasons, wantSeries: status.wantSeries || [],
+        // Library shows not played yet: the tracker picks their season from the series' list.
+        wantSeriesSeasons: status.wantSeriesSeasons || [],
+        chooseSeasons: async (items) => (await postTracker(cfg.trackerUrl, '/api/crunchyroll/series-seasons', { items })).seasonIds });
       const result = await postTracker(cfg.trackerUrl, '/api/crunchyroll/ingest', { rows: got.rows });
       const episodes = got.seasons && got.seasons.length ? await postTracker(cfg.trackerUrl, '/api/crunchyroll/episodes', { seasons: got.seasons }) : null;
       const links = got.series && got.series.length ? await postTracker(cfg.trackerUrl, '/api/crunchyroll/series', { results: got.series }).catch(() => null) : null;

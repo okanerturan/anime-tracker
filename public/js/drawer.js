@@ -212,7 +212,7 @@ export async function openAnime(partial) {
   }
 
   // "Mark all watched" for shows finished elsewhere; hidden once everything is ticked.
-  const markAllBtn = h('button', { type: 'button', class: 'btn small ghost push-end', hidden: true }, 'Mark all watched');
+  const markAllBtn = h('button', { type: 'button', class: 'btn small ghost', hidden: true }, 'Mark all watched');
   markAllBtn.addEventListener('click', async () => {
     const last = Math.max(0, ...[...epContainer.querySelectorAll('.ep-tile')].map((t) => Number(t.dataset.episode) || 0));
     if (!last) return;
@@ -364,11 +364,16 @@ export async function openAnime(partial) {
     const unfold = folded ? h('button', { type: 'button', class: 'btn ghost unfold' }, next ? `Show ${foldCount} watched episodes` : `Show all ${eps.length} episodes`) : null;
     if (unfold) unfold.addEventListener('click', () => { tiles.forEach((t) => { t.hidden = false; }); unfold.remove(); });
     // Airing: a placeholder tile for the next episode with its air time.
+    const airsLabel = airsAt ? `${new Date(airsAt).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' })} · ${airsAt > Date.now() ? 'in' : 'aired'} ${relTime(airsAt).replace(/^in /, '')}` : '';
     const nextAirTile = airsAt && item.nextAiringEpisode && !shown.some((e) => e.episodeNumber >= item.nextAiringEpisode)
-      ? h('article', { class: 'card ep-tile ep-upcoming' },
+      ? (plainTiles
+        // No pictures anywhere: the next episode is a compact row like the rest.
+        ? h('article', { class: 'card ep-tile ep-tile--plain ep-upcoming' },
+          h('div', { class: 'ep-row' }, h('span', { class: 'ep-num num' }, `E${item.nextAiringEpisode}`), h('span', { class: 'name muted' }, airsLabel)))
+        : h('article', { class: 'card ep-tile ep-upcoming' },
           h('div', { class: 'media ep-upcoming-media' }, h('span', { class: 'pill dark badge-start num' }, `E${item.nextAiringEpisode}`),
             h('span', { class: 'ep-upcoming-when' }, new Date(airsAt).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' }))),
-          h('div', { class: 'ep-row' }, h('span', { class: 'name' }, `${airsAt > Date.now() ? 'Airs' : 'Aired'} ${relTime(airsAt)}`)))
+          h('div', { class: 'ep-row' }, h('span', { class: 'name' }, `${airsAt > Date.now() ? 'Airs' : 'Aired'} ${relTime(airsAt)}`))))
       : null;
     const emptyNote = h('div', { class: 'empty' }, unreleased ? `${premiereText()}. Episodes appear here once they air.` : 'No episodes yet. Try “Refresh episodes”.');
     const later = future.filter((e) => !(nextAirTile && e.episodeNumber === item.nextAiringEpisode));

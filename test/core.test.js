@@ -530,3 +530,24 @@ test('local backups: one gzipped copy per day, a re-run replaces the day, old da
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('a library show not played yet gets its season picked from the series list, episodes and links included', async () => {
+  addShow(9201, 'TOUGEN ANKI: Nikko Kegon Falls Arc', { status: 'RELEASING', episodes: 12 });
+  db.prepare("UPDATE media SET cr_series_id = 'GSERIESTA' WHERE mal_id = 9201").run();
+  db.prepare("INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, title, watched) VALUES (9201, 1, 'Episode 1', 0), (9201, 2, 'Episode 2', 0)").run();
+  const wanted = crunchyroll.wantedSeriesSeasons(50).find((w) => w.malId === 9201);
+  assert.deepEqual(wanted, { malId: 9201, seriesId: 'GSERIESTA' });
+  const r = crunchyroll.chooseSeriesSeasons([{ malId: 9201, seasons: [
+    { id: 'GS00000001JAJP', title: 'TOUGEN ANKI', seasonNumber: 1 },
+    { id: 'GS00000002JAJP', title: 'TOUGEN ANKI Nikko Kegon Falls Arc', seasonNumber: 2 }] }]);
+  assert.deepEqual(r.seasonIds, ['GS00000002JAJP'], 'the season whose title fits, not season 1');
+  assert.ok(crunchyroll.wantedSeasons(1000).includes('GS00000002JAJP'), 'refreshed like a played season from now on');
+  await crunchyroll.applySeasonEpisodes([{ seasonId: 'GS00000002JAJP', episodes: [
+    { episodeNumber: 13, episodeId: 'GE00000013JAJP', audioMatched: true, title: 'The Falls' },
+    { episodeNumber: 14, episodeId: 'GE00000014JAJP', audioMatched: true, title: 'Second' }] }]);
+  const ep = (n) => db.prepare('SELECT title, url FROM episode_sync WHERE mal_id = 9201 AND episode_number = ?').get(n);
+  assert.deepEqual(ep(1), { title: 'The Falls', url: 'https://www.crunchyroll.com/watch/GE00000013JAJP' }, 'continuous numbering: Crunchyroll 13 is episode 1');
+  assert.equal(ep(2).url, 'https://www.crunchyroll.com/watch/GE00000014JAJP');
+  assert.ok(!crunchyroll.wantedSeriesSeasons(50).some((w) => w.malId === 9201), 'not asked for again');
+  assert.deepEqual(crunchyroll.chooseSeriesSeasons([{ malId: 9202, seasons: [{ id: 'X1', title: 'Other' }, { id: 'X2', title: 'Another' }] }]).seasonIds, [], 'no title fits and several seasons: no guess');
+});

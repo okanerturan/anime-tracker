@@ -919,7 +919,7 @@ input:user-invalid { border-color: oklch(0.65 0.2 25); }
 .ep-row > .name { flex: 1; }
 
 /* A show with no episode pictures: compact numbered rows, several to a line. */
-.ep-grid.ep-grid--plain { grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); gap: var(--space-xs); }
+.ep-grid.ep-grid--plain { grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: var(--space-xs); align-items: start; }
 .ep-tile--plain { padding: var(--space-xs) var(--space-s); }
 .ep-tile--plain > .ep-row { align-items: center; }
 .ep-num { flex: none; min-inline-size: 2.2em; color: var(--muted); font-weight: 700; font-size: var(--step--2); }
@@ -1922,7 +1922,6 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 .card-meta:has(> .num.push-end) > .pill, .card-meta:has(> .num.push-end) > .num { flex-shrink: 0; }
 
 /* Show panel: the upkeep row (links, refresh, remove) is quiet; Remove sits last, red only on hover. */
-.upkeep-row .btn-danger-quiet { margin-inline-start: auto; }
 @media (hover: hover) and (pointer: fine) {
   .btn-danger-quiet:hover { color: var(--bad, oklch(0.7 0.17 25)); border-color: color-mix(in oklch, var(--line), var(--bad, oklch(0.7 0.17 25)) 50%); }
 }
