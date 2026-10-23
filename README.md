@@ -1,19 +1,20 @@
 <p align="center">
-  <img src="docs/banner.svg" alt="Anime Tracker: your Crunchyroll history, turned into a watch list that keeps itself up to date" width="100%">
+  <img src="docs/banner.svg" alt="Tsuzuku: your Crunchyroll history, turned into a watch list that keeps itself up to date" width="100%">
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-f47521"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-8f93ff"></a>
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%2B-3c873a">
-  <img alt="Runs on Cloudflare Workers" src="https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020">
+  <img alt="Self-hosted: Node, Docker or Cloudflare" src="https://img.shields.io/badge/runs%20on-Node%20%7C%20Docker%20%7C%20Cloudflare-1d2056">
+  <img alt="Chrome extension" src="https://img.shields.io/badge/Chrome-extension-ffcd3c">
   <img alt="No framework" src="https://img.shields.io/badge/frontend-vanilla%20JS-555">
 </p>
 
 Crunchyroll's history page is a long list of episodes in the order you played them. It can't tell you which show you dropped two episodes before the end, that the sequel to something you finished last year is out, or that you've already seen half of a "new" recommendation on Netflix.
 
-Anime Tracker reads that history and works those things out. It maps every Crunchyroll episode to a MyAnimeList entry, fills in the rest from AniList, and keeps it all current through a small Chrome extension. You get one page that answers "what do I watch tonight?", a library with real progress, recommendations based on what you actually finished, and some numbers about your habits.
+Tsuzuku (つづく, "to be continued") reads that history and works those things out. It maps every Crunchyroll episode to a MyAnimeList entry, fills in the rest from AniList, and keeps it all current through a small Chrome extension. You get one page that answers "what do I watch tonight?", a library with real progress, recommendations based on what you actually finished, and some numbers about your habits.
 
-It's built around a real account: 3,884 Crunchyroll history entries going back to 2016, about 400 shows and 5,600 episodes. It runs on your own machine, or on Cloudflare Workers behind a passphrase.
+It's built around a real account: about 3,800 Crunchyroll history entries going back to 2016, 400 shows and 5,600 episodes. You run your own copy: on your laptop, in Docker on a small server, or on Cloudflare Workers, behind a passphrase. Your history goes from your browser to your tracker and nowhere else ([privacy policy](PRIVACY.md)).
 
 <p align="center">
   <img src="docs/screenshots/up-next.jpg" alt="Up Next: shows with episodes waiting, paused Crunchyroll episodes, new episodes airing soon">
@@ -57,14 +58,14 @@ It's built around a real account: 3,884 Crunchyroll history entries going back t
 ```mermaid
 flowchart LR
   subgraph Browser["Your Chrome"]
-    EXT["Sync extension<br/>(every 30 min + when you open Crunchyroll)"]
+    EXT["Tsuzuku extension<br/>(every 30 min, when you open Crunchyroll,<br/>or Sync now)"]
   end
   CR["Crunchyroll<br/>(your logged-in session)"]
-  subgraph Tracker["Tracker (local Node server or Cloudflare)"]
+  subgraph Tracker["Your tracker (Node, Docker or Cloudflare)"]
     API["API + web app"]
     DB[("SQLite<br/>library, episodes,<br/>history, mappings")]
-    IMG[("Image cache<br/>posters + thumbnails")]
-    CRON["Refresh every few hours"]
+    IMG[("Image cache<br/>posters + stills")]
+    CRON["Refresh every few hours,<br/>nightly backup"]
   end
   AL["AniList<br/>(metadata, airing, recommendations)"]
   JK["Jikan / MyAnimeList<br/>(fallback)"]
@@ -75,13 +76,13 @@ flowchart LR
   API --- IMG
   CRON --> AL
   CRON -.-> JK
-  API --> AL
 ```
 
 1. **The extension** uses your existing Crunchyroll login inside Chrome to read your watch history and the episode lists of the seasons you're watching. It sends them to the tracker. It never stores your Crunchyroll password or tokens.
 2. **The tracker** maps each Crunchyroll season to a MyAnimeList ID. It tries, in order: a rule it already learned for that season, matching episode titles against episodes it knows, and finally an AniList search. Guesses it isn't sure about show up on the Sync page for you to confirm or correct.
 3. **AniList** supplies titles, airing schedules, episode counts, relations, recommendations and streaming links. Jikan (an unofficial MyAnimeList API) is only a fallback for missing episode titles and thumbnails, and a circuit breaker stops hammering it when it's down, which during development was often.
 4. **Images** are downloaded once and served from the tracker with long-lived cache headers, so neither the server nor your browser fetches the same poster twice.
+5. **Play links** go to the exact episode on Crunchyroll, in the audio version you watch: every dub has its own episode id, so the tracker takes the one from the season you actually played.
 
 ### Things that turned out to be harder than expected
 
@@ -107,7 +108,7 @@ The first full sync takes a while. Every Crunchyroll season the tracker hasn't s
 
 ## The Crunchyroll sync extension
 
-The `extension/` folder is a Chrome extension (Manifest V3). It isn't on the Chrome Web Store, so you load it yourself:
+The `extension/` folder is a Chrome extension (Manifest V3). It's [in review on the Chrome Web Store](https://chromewebstore.google.com/detail/eeegieckllpapcmippbkkklmoeocoeil); once it's approved, install it from there and it updates itself. Until then, or to run your own changes, load it yourself:
 
 1. Open `chrome://extensions` and switch on **Developer mode** (top right).
 2. Click **Load unpacked** and pick the `extension` folder.
@@ -122,26 +123,30 @@ The popup shows the last sync and what it found, plus three settings:
 
 | Setting | What to put there |
 |---|---|
-| **Tracker URL** | `http://localhost:8080` for a local tracker, or your Cloudflare address |
-| **Tracker key** | Leave empty locally. For the Cloudflare version, your passphrase |
+| **Tracker URL** | `http://localhost:8080` for a local tracker, or your server's or Cloudflare address |
+| **Tracker key** | Leave empty locally. Behind a passphrase, your passphrase |
 | **Sync now / Full resync** | Sync pulls recent history. Full resync pulls everything (use it once at the start) |
 
-After that it runs on its own: whenever you open Crunchyroll, every 30 minutes while Chrome is open, and a couple of minutes after you leave an episode's page, so a finished episode shows up on the dashboard while you're still picking the next one. The popup shows your top four "up next" shows with Play buttons and a ✓ to tick an episode you watched elsewhere (tagged New when an episode came out in the last three days), so the extension icon is the fastest way to start watching from any tab. The tracker's Sync page tells you when a newer extension has shipped. When a show you're watching gets a new episode, or a show you finished starts a new season, the extension shows a desktop notification after its next sync; clicking it opens the episode. The icon's badge counts shows with a new episode this week. On a show's page on crunchyroll.com, a small card in the corner shows your progress on each of its seasons, the next episode or a new season you haven't started, and a link into the tracker (on episode pages it folds to a small pill after a few seconds so it never covers the player; hover to open it); when you've finished a show and haven't rated it, the card has stars so you can rate it right there. For a show you started but didn't finish, it offers Hold and Drop. Turn notifications off under Settings in the popup.
+After that it runs on its own: whenever you open Crunchyroll, every 30 minutes while Chrome is open, and a couple of minutes after you leave an episode's page, so a finished episode shows up on the dashboard while you're still picking the next one. The popup shows your next six shows with the episode's still, its title, how many are left and when the next one airs, a Play button and a ✓ to tick an episode you watched elsewhere (tagged New when an episode came out in the last three days), so the extension icon is the fastest way to start watching from any tab. The tracker's header gets a Sync now button while the extension is installed. The tracker's Sync page tells you when a newer extension has shipped. When a show you're watching gets a new episode, or a show you finished starts a new season, the extension shows a desktop notification after its next sync; clicking it opens the episode. The icon's badge counts shows with a new episode this week. On a show's page on crunchyroll.com, a small card in the corner shows your progress on each of its seasons, the next episode or a new season you haven't started, and a link into the tracker (on episode pages it folds to a small pill after a few seconds so it never covers the player; hover to open it); when you've finished a show and haven't rated it, the card has stars so you can rate it right there. For a show you started but didn't finish, it offers Hold and Drop. Turn notifications off under Settings in the popup.
 
 **What it can see and send.** The extension has access to `crunchyroll.com`, `graphql.anilist.co` (to fetch AniList data when the hosted tracker is blocked from it), `localhost`, `127.0.0.1` and `*.workers.dev`, nothing else. It reads your watch history and season episode lists through Crunchyroll's own web API, using the session you're already logged into, and posts them to the tracker URL you set. The short-lived access token it gets from Crunchyroll stays in memory and is never written anywhere or sent to the tracker.
 
 **If it says "never synced".** Open a Crunchyroll tab (or reload one that was open before you installed the extension), then press **Sync now**. Errors show in red in the popup.
 
-## Hosting it on Cloudflare
+## Hosting it
 
-The same code runs on Cloudflare Workers, so the tracker works when your laptop is off and you can check it from your phone. Everything sits behind a login page that asks for a passphrase you choose.
+Three ways, all single-user behind a passphrase you choose, so the tracker works when your laptop is off and you can check it from your phone.
 
-What runs where:
+**Docker on a small server.** The `Dockerfile` builds the app (Node 26, SQLite, port 3000, data in `/data`). `config/deploy.yml` deploys it with [Kamal 2](https://kamal-deploy.org) behind kamal-proxy with automatic HTTPS; change the host and domain to yours. This is how the author's copy runs: on a Hetzner box, with nightly database copies (`server/localbackup.js`, `BACKUP_DIR`) shipped offsite by the box's backup job. Set `APP_PASSPHRASE` for the login page, or put it behind your own gate. [AGENTS.md](AGENTS.md) has the operating notes.
+
+**Cloudflare Workers.** The same code runs on Workers, with no server to look after:
 
 - **Worker**: the login gate, the web app (static assets), and the cron trigger.
 - **Durable Object with SQLite storage**: the database and the API. The server modules are the same files the local version uses, behind a thin adapter that makes Durable Object SQLite look like `better-sqlite3`.
 - **R2**: posters and covers.
 - **Cron**: every three hours it refreshes AniList metadata, adds newly aired episodes and fetches their titles and thumbnails. Once a day the same run writes a backup.
+
+AniList blocks Cloudflare's network, so on Workers your browser runs the tracker's AniList requests for it (see Limitations). The same Worker can also sit in front of a Docker copy: with an `ORIGIN_URL` secret set it keeps the passphrase gate and forwards everything else to your server.
 
 To deploy:
 
@@ -181,7 +186,7 @@ node scripts/backup.js restore data/backups/anime-tracker-2026-10-13.json.gz --c
 ## Project layout
 
 ```
-server.js              local entry point (binds to 127.0.0.1:8080)
+server.js              entry point (127.0.0.1:8080 locally; HOST/PORT/DATA_DIR in Docker)
 server/
   db.js, schema.js     SQLite (better-sqlite3). One file in single-user mode; with AUTH_MODE=accounts
                        one file per account (data/accounts/<id>.db) plus a shared catalog.db
@@ -195,21 +200,29 @@ server/
   calendar.js          the private airing-calendar (.ics) feed
   insights.js          Up Next, recommendations, viewing study
   images.js            fetch-once image cache (shrinks PNGs with macOS sips when available)
+  localbackup.js       nightly gzipped database copies into BACKUP_DIR
+  passgate.js          passphrase login for a server reachable from outside (same cookie as the Worker)
+  accounts/            hosted mode (AUTH_MODE=accounts, not switched on yet): passkeys, recovery
+                       codes, invites, sessions, extension pairing, quotas, kill switches
+  catalog/             hosted mode: the shared AniList worker, crowd-confirmed Crunchyroll matches
   sources/anilist.js   rate-limited AniList GraphQL client
   sources/jikan.js     Jikan fallback with a circuit breaker
 public/                web app: vanilla JS modules, no build step
 extension/             Chrome extension
-worker/                Cloudflare build: auth gate, Durable Object, R2 images, nightly backups, build script
-scripts/               maintenance: AniList refresh, image prefetch, data repairs, migration
+worker/                Cloudflare build: auth gate (and forwarding to a server), Durable Object, R2 images,
+                       nightly backups, build script
+scripts/               maintenance, backups and restore, extension packaging and store publishing,
+                       store images and README screenshots (store-assets.mjs, readme-shots.mjs)
+Dockerfile, config/    container image and Kamal deploy config
 ```
 
 The frontend is plain HTML, CSS and JavaScript modules. The stylesheet leans on modern CSS (subgrid, container queries, anchor positioning, `light-dark()` colour tokens), much of it following [good-css.com](https://good-css.com/). Current Chrome gets every detail; Firefox loses a few touches but the layout holds.
 
-**Hosted layout (work in progress, `hub` branch).** `scripts/split-backup.js` turns a single-user backup or database into `catalog.db` plus `accounts/1.db`; `AUTH_MODE=accounts IMPLICIT_ACCOUNT=1 DATA_DIR=<dir> node server.js` runs the app on that layout as account 1 until the accounts layer lands. Episode stills are stored as source URLs and served through the image cache, so an account file is a few MB.
+**Hosted mode (built, not switched on yet).** With `AUTH_MODE=accounts` one server holds many people: each gets their own database file, show metadata and images are shared in `catalog.db`, sign-in is passkeys with recovery codes, and the extension connects with a pairing code. `scripts/split-backup.js` turns a single-user database into that layout.
 
 ## Tests
 
-`npm test` runs the core behaviour tests (episode matching, the watched rule, split-season rollover, dub de-duplication, Crunchyroll link matching, the AniList relay) against an in-memory database with the network switched off. They run on every push through GitHub Actions.
+`npm test` runs the behaviour tests (episode matching, the watched rule, split-season rollover, dub de-duplication, audio versions, Crunchyroll link matching, the AniList relay, backups, accounts, passkeys, the catalog worker and the Worker's forwarding) against throwaway databases with the network switched off. They run on every push through GitHub Actions, and `scripts/*-e2e.js` drive the sign-in flows in a real browser.
 
 ## Useful scripts
 
@@ -220,6 +233,9 @@ The frontend is plain HTML, CSS and JavaScript modules. The stylesheet leans on 
 | `npm run optimize-images` | Recompress cached images (macOS only, uses `sips`) |
 | `npm run repair-split-cours` | Move episodes stored past a finished season's end into its sequel |
 | `npm run backup` | Download the latest Cloudflare backup into `data/backups/` (see Backups above) |
+| `npm run ext:package` | Zip the extension for the Chrome Web Store (`releases/`) |
+| `npm run ext:assets` | Store screenshots and promo tile from the real popup and card |
+| `node scripts/readme-shots.mjs` | Retake the screenshots in this README |
 | `node scripts/repair_impossible_watches.js` | Clear watched marks dated before a show premiered, then re-apply real history |
 
 ## Limitations
@@ -227,13 +243,13 @@ The frontend is plain HTML, CSS and JavaScript modules. The stylesheet leans on 
 - Crunchyroll has no public API. The extension uses the same endpoints Crunchyroll's website uses, and those can change without notice. If syncing breaks after a Crunchyroll update, `extension/crunchyroll-api.js` is the place to look.
 - Mapping Crunchyroll seasons to MyAnimeList entries is heuristic. It's right for the vast majority of shows, but recaps, director's cuts and oddly numbered OVAs sometimes need a manual fix on the Sync page.
 - Recommendations treat "finished it" as "liked it" unless you rate the show. Star ratings and the Drop button steer them; unrated shows count by how much of them you watched.
-- AniList blocks some hosting networks, Cloudflare's included. When the hosted tracker gets blocked it queues its AniList requests, and your browser runs them instead: the extension after every sync, and the web app whenever it's open. Search in the web app goes straight to AniList from your browser in that case. If the extension is your only client and Chrome is closed for days, air times can lag until the next sync.
+- AniList blocks some hosting networks, Cloudflare's included (a normal server is fine). When a tracker gets blocked it queues its AniList requests, and your browser runs them instead: the extension after every sync, and the web app whenever it's open. Search in the web app goes straight to AniList from your browser in that case. If the extension is your only client and Chrome is closed for days, air times can lag until the next sync.
 - Crunchyroll links come from your watch history, AniList, Crunchyroll's own search (the extension looks up a batch of shows each sync) or a related season's series page. Crunchyroll's region catalog differs, so a show can be "not found" where you are and available elsewhere.
 - Only Crunchyroll history syncs automatically. Anything watched elsewhere goes in through the "Watched" button.
 
 ## Disclaimer
 
-This is a personal project, not affiliated with or endorsed by Crunchyroll, AniList or MyAnimeList. It only reads your own account's data through your own browser session. Metadata comes from AniList and Jikan under their respective terms.
+Tsuzuku is a personal project, not affiliated with or endorsed by Crunchyroll, AniList or MyAnimeList. It only reads your own account's data through your own browser session. Metadata comes from AniList and Jikan under their respective terms.
 
 ## License
 
