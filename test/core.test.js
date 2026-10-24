@@ -594,3 +594,47 @@ test('a Crunchyroll title survives a later Jikan run; Jikan fills only the place
   assert.deepEqual(titles, ['Crunchyroll One', 'Jikan Two']);
   assert.equal(db.prepare('SELECT title_src FROM catalog_episodes WHERE mal_id = 9302 AND episode_number = 2').get().title_src, 'jikan');
 });
+
+test('ID map: loads Fribb entries, sends If-None-Match, keeps the map on a 304 or a failure', async () => {
+  const idmap = require('../server/sources/idmap');
+  const entries = Array.from({ length: 1200 }, (_, i) => ({ mal_id: 100000 + i, anilist_id: 200000 + i }));
+  entries.push({ mal_id: 52991, anilist_id: 154587, kitsu_id: 46474, themoviedb_id: { tv: 209867 }, tvdb_id: 424536, season: { tmdb: 1, tvdb: 1 } });
+  entries.push({ mal_id: 52991, anidb_id: 1 }, { mal_id: [61000, 61001], kitsu_id: 9 }, { anilist_id: 5 }); // duplicate, array, no MAL id
+  const seen = [];
+  const reply = (status, body) => async (url, opts) => { seen.push(opts.headers['If-None-Match'] || null); return new Response(body == null ? null : JSON.stringify(body), { status, headers: { etag: '"v1"' } }); };
+  let r = await idmap.refresh({ fetchImpl: reply(200, entries), force: true });
+  assert.deepEqual([r.status, r.rows], ['loaded', 1203]);
+  const frieren = idmap.lookup(52991);
+  assert.deepEqual([frieren.anilist_id, frieren.kitsu_id, frieren.tmdb_tv_id, frieren.tmdb_season, frieren.tvdb_id], [154587, 46474, 209867, 1, 424536]);
+  assert.equal(idmap.lookup(61001).kitsu_id, 9);
+  assert.equal((await idmap.refresh({ fetchImpl: reply(200, entries) })).status, 'fresh', 'a week has not passed: no download');
+  r = await idmap.refresh({ fetchImpl: reply(304), force: true });
+  assert.deepEqual([r.status, seen.at(-1)], ['unchanged', '"v1"']);
+  r = await idmap.refresh({ fetchImpl: async () => { throw new Error('offline'); }, force: true });
+  assert.equal(r.status, 'failed');
+  r = await idmap.refresh({ fetchImpl: reply(200, { not: 'a list' }), force: true });
+  assert.equal(r.status, 'failed');
+  assert.equal(idmap.lookup(52991).tmdb_tv_id, 209867, 'the old map is kept');
+});
+
+test('UPSTREAM_DNS: lookups go to the configured resolver, not the system one', async () => {
+  const http = require('http');
+  const upstream = require('../server/upstream');
+  const server = http.createServer((req, res) => {
+    if (req.url === '/old') { res.writeHead(302, { location: '/new' }); return res.end(); }
+    res.writeHead(200, { 'content-type': 'application/json', etag: '"x"' }); res.end(JSON.stringify({ host: req.headers.host, path: req.url }));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const asked = [];
+  const lookup = upstream.makeLookup([], async (host) => { asked.push(host); return host === 'api.example.test' ? [{ address: '127.0.0.1', family: 4 }] : []; });
+  const f = upstream.fetchWith(lookup);
+  try {
+    const res = await f(`http://api.example.test:${server.address().port}/old`, { headers: { 'If-None-Match': '"a"' } });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { host: `api.example.test:${server.address().port}`, path: '/new' }, 'redirect followed, Host kept');
+    assert.equal(res.headers.get('etag'), '"x"');
+    assert.ok(asked.length >= 1 && asked.every((h) => h === 'api.example.test'), `asked the configured resolver: ${asked}`);
+    await assert.rejects(f(`http://unknown.example.test:${server.address().port}/`), /no address/);
+  } finally { server.closeAllConnections(); server.close(); }
+  assert.equal(typeof upstream.fetch, 'function');
+});

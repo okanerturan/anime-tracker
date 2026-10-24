@@ -162,6 +162,8 @@ async function refreshCycle() {
     // Warm Discover: recompute recommendations now so the page opens without a wait.
     state.phase = 'recommendations';
     try { await require('./insights').recommendations({ refresh: true }); summary.recommendationsWarmed = true; } catch (err) { summary.recommendationsError = String(err.message || err); }
+    // Cross-site ids for the episode sources (weekly; a failed download keeps the old map).
+    try { const r = await require('./sources/idmap').refresh(); if (r.status !== 'fresh') summary.idmap = r; } catch {}
     // Seasons that haven't aired can't have watched episodes (old import leftovers).
     try { const r = require('./library').repairUnreleasedWatches(); if (r.episodes) summary.unreleasedRepaired = r; } catch {}
     // Discover's season row: refresh here so a visitor never waits on AniList (the 12 h cache decides).

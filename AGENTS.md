@@ -19,6 +19,10 @@
   (delete its `-wal`/`-shm`), `bin/kamal app boot`.
 - **Watching:** hub-check alerts if `anime-tracker-web` is down or `backups/last-backup.json` is older than 26 h.
 - AniList answers the hub directly (Cloudflare's addresses are blocked), so the browser relay stays idle.
+- Episode data: the weekly ID map (Fribb's anime-lists, `catalog_idmap`, state key `idmap`) loads from
+  the refresh cycle. `UPSTREAM_DNS` (comma-separated resolvers, e.g. `1.1.1.1,1.0.0.1`) makes the
+  episode sources and the ID map look hosts up there instead of the system resolver; needed on this Mac
+  without the VPN (the ISP answers `api.themoviedb.org` itself), not on the hub.
 
 The sections below describe the accounts mode (`AUTH_MODE=accounts`), built but not switched on yet.
 

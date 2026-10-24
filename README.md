@@ -137,7 +137,7 @@ After that it runs on its own: whenever you open Crunchyroll, every 30 minutes w
 
 Three ways, all single-user behind a passphrase you choose, so the tracker works when your laptop is off and you can check it from your phone.
 
-**Docker on a small server.** The `Dockerfile` builds the app (Node 26, SQLite, port 3000, data in `/data`). `config/deploy.yml` deploys it with [Kamal 2](https://kamal-deploy.org) behind kamal-proxy with automatic HTTPS; change the host and domain to yours. This is how the author's copy runs: on a Hetzner box, with nightly database copies (`server/localbackup.js`, `BACKUP_DIR`) shipped offsite by the box's backup job. Set `APP_PASSPHRASE` for the login page, or put it behind your own gate. [AGENTS.md](AGENTS.md) has the operating notes.
+**Docker on a small server.** The `Dockerfile` builds the app (Node 26, SQLite, port 3000, data in `/data`). `config/deploy.yml` deploys it with [Kamal 2](https://kamal-deploy.org) behind kamal-proxy with automatic HTTPS; change the host and domain to yours. This is how the author's copy runs: on a Hetzner box, with nightly database copies (`server/localbackup.js`, `BACKUP_DIR`) shipped offsite by the box's backup job. Set `APP_PASSPHRASE` for the login page, or put it behind your own gate. If your network's DNS answers for other sites (some ISPs send blocked or unknown hosts to their own page), set `UPSTREAM_DNS=1.1.1.1,1.0.0.1` and the server looks up its episode sources and ID map through those resolvers instead. [AGENTS.md](AGENTS.md) has the operating notes.
 
 **Cloudflare Workers.** The same code runs on Workers, with no server to look after:
 
@@ -192,6 +192,8 @@ server/
                        one file per account (data/accounts/<id>.db) plus a shared catalog.db
                        (show metadata, images, AniList queues) attached to each, chosen per request
   library.js           watchlist, episodes, watched state, split-season rollover
+  episodes.js          shared episode facts (titles, air dates, stills, links), merged per field by source rank
+  upstream.js          fetch for episode sources and the ID map (UPSTREAM_DNS: resolvers to use)
   crunchyroll.js       history ingest and Crunchyroll season to MAL mapping
   sync.js              background refresh: metadata, new episodes, titles, thumbnails
   state.js             small persistent key/value store (last refresh, last backup); global keys
@@ -207,6 +209,7 @@ server/
   catalog/             hosted mode: the shared AniList worker, crowd-confirmed Crunchyroll matches
   sources/anilist.js   rate-limited AniList GraphQL client
   sources/jikan.js     Jikan fallback with a circuit breaker
+  sources/idmap.js     weekly MAL to AniList/Kitsu/TMDB/TVDB id map (Fribb's anime-lists)
 public/                web app: vanilla JS modules, no build step
 extension/             Chrome extension
 worker/                Cloudflare build: auth gate (and forwarding to a server), Durable Object, R2 images,
