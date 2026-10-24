@@ -381,7 +381,13 @@ export async function openAnime(partial) {
       ? h('p', { class: 'muted ep-later' }, later.length === 1 ? `E${later[0].episodeNumber} is not out yet.`
         : `${later.length} more episodes not out yet (E${later[0].episodeNumber}–E${later[later.length - 1].episodeNumber}).`)
       : null;
-    fill(epContainer, unfold, shown.length ? tiles : (nextAirTile || laterNote ? null : emptyNote), nextAirTile, laterNote);
+    // TMDB and Kitsu ask to be credited where their data is shown.
+    const credit = data.credits?.length
+      ? h('p', { class: 'muted ep-credit' }, 'Episode data from ', ...data.credits.flatMap((c, i) => [i ? ' and ' : null,
+        h('a', { href: c.url, target: '_blank', rel: 'noopener' }, c.name)]).filter(Boolean),
+        data.credits.some((c) => c.name === 'TMDB') ? '. This product uses the TMDB API but is not endorsed or certified by TMDB.' : '.')
+      : null;
+    fill(epContainer, unfold, shown.length ? tiles : (nextAirTile || laterNote ? null : emptyNote), nextAirTile, laterNote, credit);
     updateSummary();
     nextEp = next;
     renderPlay();

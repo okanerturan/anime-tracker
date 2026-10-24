@@ -1731,6 +1731,8 @@ table.simple :is(.date-col, .num-col) { white-space: nowrap; overflow-wrap: norm
 table.simple .num-col { text-align: end; }
 /* The line that stands in for episodes that haven't aired yet spans the whole episode grid. */
 .ep-later { grid-column: 1 / -1; padding-block: var(--space-xs); }
+.ep-credit { grid-column: 1 / -1; font-size: var(--step--2); }
+.ep-credit a { color: inherit; }
 
 /* Library "Group seasons": a card standing for several entries gets a stacked edge behind it,
    drawn into the grid gap so the card itself keeps its place in the grid. */

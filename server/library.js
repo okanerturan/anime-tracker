@@ -250,6 +250,11 @@ function getEpisodes(malId) {
         : /crunchyroll\.com\/watch\//.test(ep.url) ? ep.url.replace(/^http:/, 'https:') : null;
     }
   }
+  // Sources whose terms ask for credit, when any episode shown here has a field from them.
+  const used = new Set(db.prepare(`SELECT c.title_src, c.image_src, c.aired_src FROM episode_watch w
+    JOIN catalog_episodes c ON c.mal_id = w.mal_id AND c.episode_number = w.episode_number WHERE w.mal_id = ?`).all(malId).flatMap(Object.values));
+  payload.credits = [['tmdb', 'TMDB', 'https://www.themoviedb.org/'], ['kitsu', 'Kitsu', 'https://kitsu.app/']]
+    .filter(([src]) => used.has(src)).map(([, name, url]) => ({ name, url }));
   return payload;
 }
 

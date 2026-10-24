@@ -108,3 +108,30 @@ test('episodes: watched state in the account file, facts in the catalog, joined 
   assert.throws(() => withAccount('71', () => db.prepare("UPDATE catalog_episodes SET title = 'x' WHERE mal_id = 710").run()), /catalog worker/);
   assert.throws(() => withAccount('71', () => db.prepare('INSERT OR REPLACE INTO catalog_idmap (mal_id) VALUES (710)').run()), /catalog worker/);
 });
+
+test('one account\'s Crunchyroll season list gives another account titles and stills, and the record names no account', async () => {
+  const crunchyroll = require('../server/crunchyroll');
+  const { catalogDb } = require('../server/db');
+  catalogDb.prepare("INSERT OR REPLACE INTO media (mal_id, title, status, episodes, format) VALUES (930, 'Shared Season', 'FINISHED', 2, 'TV')").run();
+  for (const id of ['93', '94']) {
+    withAccount(id, () => {
+      db.prepare("INSERT INTO anime (mal_id, title, total_episodes) VALUES (930, 'Shared Season', 2)").run();
+      db.prepare('INSERT INTO watchlist (mal_id) VALUES (930)').run();
+    });
+  }
+  withAccount('94', () => db.prepare('INSERT INTO episode_watch (mal_id, episode_number, watched) VALUES (930, 1, 0), (930, 2, 0)').run());
+  withAccount('93', () => db.prepare(`INSERT INTO cr_season_map (season_id, ep_from, ep_to, mal_id, ep_offset, source, series_title, season_title, needs_review)
+    VALUES ('GSHARED1', 0, 100000, 930, 0, 'test', 'S', 'S', 0)`).run());
+  const thumb = 'https://imgsrv.crunchyroll.com/cdn-cgi/image/width=480/catalog/crunchyroll/s1.jpg';
+  await withAccount('93', () => crunchyroll.applySeasonEpisodes([{ seasonId: 'GSHARED1', episodes: [
+    { episodeNumber: 1, episodeId: 'GSH1', title: 'Crunchyroll One', airDate: '2026-01-01T00:00:00Z', thumb, audioMatched: true },
+    { episodeNumber: 2, episodeId: 'GSH2', title: 'Crunchyroll Two', airDate: '2026-01-08T00:00:00Z' }] }]));
+  const seen = withAccount('94', () => db.prepare('SELECT episode_number n, title, image_url FROM episode_sync WHERE mal_id = 930 ORDER BY 1').all());
+  assert.deepEqual(seen.map((r) => r.title), ['Crunchyroll One', 'Crunchyroll Two'], 'the other account sees the titles');
+  assert.equal(seen[0].image_url, thumb, 'and the still');
+  const cols = catalogDb.prepare("SELECT name FROM pragma_table_info('catalog_episodes')").all().map((r) => r.name);
+  assert.ok(!cols.some((c) => /account|user|sender/.test(c)), `no account column: ${cols}`);
+  const row = catalogDb.prepare('SELECT * FROM catalog_episodes WHERE mal_id = 930 AND episode_number = 1').get();
+  assert.ok(!Object.values(row).some((v) => v === '93' || v === 93), 'no value names the sending account');
+  assert.equal(withAccount('94', () => db.prepare('SELECT COUNT(*) n FROM cr_season_map').get().n), 0, 'the sender\'s mapping stays in its own file');
+});

@@ -798,3 +798,14 @@ test('episode sources: a show added before watching gets TMDB titles and stills;
     assert.ok(require('../server/episodefill').skipped().some((s) => s.malId === 9503 && s.source === 'kitsu'));
   } finally { restore(); }
 });
+
+test('show panel credits TMDB and Kitsu only when an episode shown has a field from them', () => {
+  const episodes = require('../server/episodes');
+  addShow(9601, 'Credit Show', { episodes: 2 });
+  db.prepare('INSERT INTO episode_watch (mal_id, episode_number) VALUES (9601, 1), (9601, 2)').run();
+  assert.deepEqual(library.getEpisodes(9601).credits, []);
+  episodes.merge(9601, 2, { imageUrl: 'https://image.tmdb.org/t/p/w300/x.jpg' }, 'tmdb');
+  assert.deepEqual(library.getEpisodes(9601).credits.map((c) => c.name), ['TMDB']);
+  episodes.merge(9601, 1, { title: 'From Kitsu' }, 'kitsu');
+  assert.deepEqual(library.getEpisodes(9601).credits.map((c) => c.name), ['TMDB', 'Kitsu']);
+});

@@ -252,7 +252,7 @@ The frontend is plain HTML, CSS and JavaScript modules. The stylesheet leans on 
 
 ## Disclaimer
 
-Tsuzuku is a personal project, not affiliated with or endorsed by Crunchyroll, AniList or MyAnimeList. It only reads your own account's data through your own browser session. Metadata comes from AniList and Jikan under their respective terms.
+Tsuzuku is a personal project, not affiliated with or endorsed by Crunchyroll, AniList or MyAnimeList. It only reads your own account's data through your own browser session. Metadata comes from AniList and Jikan under their respective terms. Episode titles, air dates and stills also come from [TMDB](https://www.themoviedb.org/) and [Kitsu](https://kitsu.app/), and show ids are matched with [Fribb's anime-lists](https://github.com/Fribb/anime-lists). This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## License
 
