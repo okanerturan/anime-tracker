@@ -44,6 +44,15 @@ CREATE TABLE IF NOT EXISTS catalog_episodes (
 );
 -- Counting stored thumbnails without reading the rows that hold them.
 CREATE INDEX IF NOT EXISTS idx_catalog_episodes_has_blob ON catalog_episodes(mal_id) WHERE image_blob IS NOT NULL;
+-- When each episode source last answered for a show (shared, so one fetch serves every account), and
+-- how: 'ok', 'empty', 'unmapped', or 'skip: <reason>' when its numbering didn't line up (review list).
+CREATE TABLE IF NOT EXISTS catalog_episode_fetch (
+  mal_id INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  fetched_at TEXT NOT NULL,
+  outcome TEXT,
+  PRIMARY KEY(mal_id, source)
+);
 -- Cross-site ids for a show (Fribb anime-lists, refreshed weekly).
 CREATE TABLE IF NOT EXISTS catalog_idmap (
   mal_id INTEGER PRIMARY KEY,
@@ -260,7 +269,7 @@ const LEGACY_EPISODE_COLUMNS = [['image_source', 'image_source TEXT'], ['image_u
 // recommendations, the image index, AniList job queues, Crunchyroll season fetch times) lives in
 // one catalog file; everything about a person lives in their account file. Single-user mode keeps
 // all of it in one file, as before.
-const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state', 'catalog_jobs', 'catalog_lease', 'catalog_waiters', 'cr_series_claims', 'cr_season_claims', 'catalog_episodes', 'catalog_idmap']);
+const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state', 'catalog_jobs', 'catalog_lease', 'catalog_waiters', 'cr_series_claims', 'cr_season_claims', 'catalog_episodes', 'catalog_idmap', 'catalog_episode_fetch']);
 
 /** The table a CREATE TABLE / CREATE INDEX statement is about. */
 function tableOf(statement) {

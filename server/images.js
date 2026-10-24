@@ -11,7 +11,9 @@ const { sleep } = require('./util');
 
 const ALLOWED_HOSTS = [
   'cdn.myanimelist.net', 's4.anilist.co', 'img1.ak.crunchyroll.com', 'www.crunchyroll.com',
-  'imgsrv.crunchyroll.com', 'img.youtube.com', 'i.ytimg.com'
+  'imgsrv.crunchyroll.com', 'img.youtube.com', 'i.ytimg.com',
+  // Episode stills from the server-side episode sources (TMDB, Kitsu).
+  'image.tmdb.org', 'media.kitsu.app', 'media.kitsu.io'
 ];
 const RETRY_FAILED_AFTER_MS = 24 * 3600 * 1000;
 const EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/avif': '.avif' };
@@ -125,7 +127,7 @@ async function ensure(url) {
   const job = (async () => {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const res = await fetch(url, { headers: { 'User-Agent': 'anime-tracker-local/2.0' }, signal: AbortSignal.timeout(20000) });
+        const res = await require('./upstream').fetch(url, { headers: { 'User-Agent': 'anime-tracker-local/2.0' }, signal: AbortSignal.timeout(20000) });
         if (res.status === 429 || res.status >= 500) { await sleep(800 * (attempt + 1)); continue; }
         if (!res.ok) break;
         const mime = (res.headers.get('content-type') || 'image/jpeg').split(';')[0];

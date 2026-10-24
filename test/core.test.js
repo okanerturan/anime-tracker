@@ -638,3 +638,163 @@ test('UPSTREAM_DNS: lookups go to the configured resolver, not the system one', 
   } finally { server.closeAllConnections(); server.close(); }
   assert.equal(typeof upstream.fetch, 'function');
 });
+
+test('TMDB source: episodes, rate budget, outage pause and probe, bad token', async () => {
+  const { createTmdb } = require('../server/sources/tmdb');
+  let t = 0; const slept = [];
+  const clock = { now: () => t, sleep: async (ms) => { slept.push(ms); t += ms; } };
+  const json = (status, body, headers = {}) => new Response(JSON.stringify(body), { status, headers });
+  const calls = [];
+  let mode = 'ok';
+  const fetchImpl = async (url, opts) => {
+    calls.push({ url, auth: opts.headers.Authorization });
+    if (mode === 'down') return json(503, {});
+    if (mode === 'badtoken') return json(401, { status_message: 'Invalid API key' });
+    if (url.includes('/season/1')) return json(200, { episodes: [
+      { episode_number: 1, name: 'The Journey\'s End', air_date: '2023-09-29', still_path: '/a.jpg' },
+      { episode_number: 2, name: 'Episode 2', air_date: '', still_path: null }] });
+    return json(200, { seasons: [{ season_number: 0, episode_count: 3 }, { season_number: 1, episode_count: 28 }] });
+  };
+  const tmdb = createTmdb({ token: 'test-token', fetchImpl, ...clock });
+  assert.deepEqual(await tmdb.seasons(209867), [{ season: 1, episodes: 28 }]);
+  assert.deepEqual(await tmdb.season(209867, 1), [
+    { episodeNumber: 1, title: 'The Journey\'s End', aired: '2023-09-29', imageUrl: 'https://image.tmdb.org/t/p/w300/a.jpg' },
+    { episodeNumber: 2, title: null, aired: null, imageUrl: null }]);
+  assert.equal(calls[0].auth, 'Bearer test-token');
+  // Budget: the 21st request in a minute waits for a slot.
+  for (let i = 0; i < 18; i += 1) await tmdb.seasons(1); // 20 so far
+  assert.equal(slept.length, 0);
+  await tmdb.seasons(1);
+  assert.ok(slept.length === 1 && slept[0] > 50e3, `waited for the next minute: ${slept}`);
+  // Outage: three failures pause it; pages never wait (calls fail fast while paused).
+  mode = 'down';
+  for (let i = 0; i < 3; i += 1) await assert.rejects(tmdb.seasons(1), /503/);
+  assert.equal(tmdb.isAvailable(), false);
+  const before = calls.length;
+  await assert.rejects(tmdb.seasons(1), /paused/);
+  assert.equal(calls.length, before, 'no request while paused');
+  t += 31 * 60e3; mode = 'ok';
+  assert.equal(tmdb.isAvailable(), true);
+  assert.deepEqual(await tmdb.seasons(1), [{ season: 1, episodes: 28 }], 'probe succeeds and closes the breaker');
+  // A failed probe pauses again at once.
+  mode = 'down'; await assert.rejects(tmdb.seasons(1)); await assert.rejects(tmdb.seasons(1)); await assert.rejects(tmdb.seasons(1));
+  t += 31 * 60e3;
+  await assert.rejects(tmdb.seasons(1), /503/);
+  assert.equal(tmdb.isAvailable(), false, 'one failure after the pause reopens it');
+  // Bad token: paused for a day.
+  t += 31 * 60e3; mode = 'badtoken';
+  await assert.rejects(tmdb.seasons(1), /401/);
+  assert.equal(tmdb.isAvailable(), false);
+  assert.match(tmdb.status().reason, /401/);
+  t += 2 * 3600e3; assert.equal(tmdb.isAvailable(), false, 'still paused hours later');
+  // No token: off, nothing sent.
+  const off = createTmdb({ token: '', fetchImpl });
+  assert.equal(off.isAvailable(), false);
+});
+
+test('TMDB numbering: exact season, a 24-episode season over two 12-episode MAL entries, a mismatch skipped', () => {
+  const { lineUp, tmdbGroup } = require('../server/numbering');
+  const done = (malId, episodes) => ({ malId, episodes, aired: episodes, finished: true });
+  assert.deepEqual(lineUp([done(1, 12)], 12, 1), { offset: 0 }, 'exact season');
+  assert.deepEqual(lineUp([done(1, 12), done(2, 12)], 24, 1), { offset: 0 }, 'split cour, first half');
+  assert.deepEqual(lineUp([done(1, 12), done(2, 12)], 24, 2), { offset: 12 }, 'split cour, second half starts at TMDB 13');
+  assert.ok(lineUp([done(1, 12)], 24, 1).skip, '12 MAL episodes against 24 on TMDB: skipped');
+  assert.ok(lineUp([done(1, 13)], 12, 1).skip, 'counts differ by one: skipped');
+  // Airing: the aired episodes must fit; the second half of an airing split cour starts after the first.
+  assert.deepEqual(lineUp([{ malId: 3, episodes: 12, aired: 5, finished: false }], 12, 3), { offset: 0 });
+  assert.ok(lineUp([{ malId: 3, episodes: 12, aired: 5, finished: false }], 4, 3).skip, 'TMDB behind the airing');
+  assert.deepEqual(lineUp([done(1, 12), { malId: 2, episodes: 12, aired: 3, finished: false }], 15, 2), { offset: 12 });
+  assert.ok(lineUp([{ malId: 1, episodes: 12, aired: 12, finished: false }, done(2, 12)], 24, 2).skip, 'an earlier part without a final count');
+  // The group comes from the map and the relations.
+  for (const [id, start] of [[9401, '2023-01-01'], [9402, '2023-07-01'], [9403, '2024-01-01']]) {
+    db.prepare("INSERT OR REPLACE INTO media (mal_id, title, episodes, status, format, start_date) VALUES (?, 'S', 12, 'FINISHED', 'TV', ?)").run(id, start);
+  }
+  relate(9402, 9401, 'PREQUEL'); relate(9401, 9402, 'SEQUEL'); relate(9403, 9402, 'PREQUEL'); relate(9402, 9403, 'SEQUEL');
+  const map = db.prepare('INSERT OR REPLACE INTO catalog_idmap (mal_id, tmdb_tv_id, tmdb_season) VALUES (?, ?, ?)');
+  map.run(9401, 777, 1); map.run(9402, 777, 1); map.run(9403, 777, 2);
+  const g = tmdbGroup(9402);
+  assert.deepEqual([g.tvId, g.season, g.group.map((x) => x.malId)], [777, 1, [9401, 9402]], 'the third season maps elsewhere and is left out');
+  assert.deepEqual(lineUp(g.group, 24, 9402), { offset: 12 });
+  assert.equal(tmdbGroup(1), null, 'no mapping, no group');
+});
+
+test('Kitsu source: pages through episodes, an empty list is not a failure, outages pause it', async () => {
+  const { createKitsu } = require('../server/sources/kitsu');
+  let t = 0;
+  const clock = { now: () => t, sleep: async (ms) => { t += ms; } };
+  const ep = (n, title, thumb) => ({ attributes: { number: n, canonicalTitle: title, titles: {}, airdate: '2023-10-0' + n, thumbnail: thumb ? { original: thumb } : null } });
+  let mode = 'ok';
+  const fetchImpl = async (url) => {
+    if (mode === 'down') return new Response('{}', { status: 500 });
+    if (url.includes('/anime/1/')) return new Response(JSON.stringify({ meta: { count: 0 }, data: [], links: {} })); // Gnosia: no episodes
+    const second = url.includes('offset%5D=20');
+    return new Response(JSON.stringify({ meta: { count: 3 },
+      data: second ? [ep(3, 'Episode 3')] : [ep(1, 'First', 'https://media.kitsu.app/episode/1/thumbnail/a.png'), ep(2, 'Second')],
+      links: second ? {} : { next: 'https://kitsu.app/api/edge/anime/46474/episodes?page%5Blimit%5D=20&page%5Boffset%5D=20&sort=number' } }));
+  };
+  const kitsu = createKitsu({ fetchImpl, ...clock });
+  const r = await kitsu.episodes(46474);
+  assert.equal(r.count, 3);
+  assert.deepEqual(r.episodes.map((e) => [e.episodeNumber, e.title, e.imageUrl]), [[1, 'First', 'https://media.kitsu.app/episode/1/thumbnail/a.png'], [2, 'Second', null], [3, null, null]]);
+  assert.deepEqual(await kitsu.episodes(1), { count: 0, episodes: [] }, 'Gnosia-style empty list');
+  assert.equal(kitsu.isAvailable(), true, 'an empty list is not a failure');
+  mode = 'down';
+  for (let i = 0; i < 3; i += 1) await assert.rejects(kitsu.episodes(46474), /500/);
+  assert.equal(kitsu.isAvailable(), false);
+  t += 31 * 60e3; mode = 'ok';
+  assert.equal((await kitsu.episodes(46474)).count, 3);
+});
+
+test('episode sources: a show added before watching gets TMDB titles and stills; TMDB down leaves Kitsu and Jikan working', async () => {
+  const tmdb = require('../server/sources/tmdb');
+  const kitsu = require('../server/sources/kitsu');
+  const jikan = require('../server/sources/jikan');
+  const sync = require('../server/sync');
+  const saved = { tmdb: { ...tmdb }, kitsu: { ...kitsu }, jikan: { ...jikan } };
+  const restore = () => { Object.assign(tmdb, saved.tmdb); Object.assign(kitsu, saved.kitsu); Object.assign(jikan, saved.jikan); };
+  const map = db.prepare('INSERT OR REPLACE INTO catalog_idmap (mal_id, tmdb_tv_id, tmdb_season, kitsu_id) VALUES (?, ?, ?, ?)');
+  const titles = (id) => db.prepare('SELECT title FROM episode_sync WHERE mal_id = ? ORDER BY episode_number').all(id).map((r) => r.title);
+  const srcs = (id, f) => db.prepare(`SELECT ${f}_src s FROM catalog_episodes WHERE mal_id = ? ORDER BY episode_number`).all(id).map((r) => r.s);
+  try {
+    // Added, never played: no Crunchyroll data at all.
+    addShow(9501, 'Never Played', { episodes: 2, status: 'FINISHED' });
+    map.run(9501, 5501, 1, 7501);
+    let tmdbCalls = 0;
+    Object.assign(tmdb, { isAvailable: () => true, season: async () => { tmdbCalls += 1; return [
+      { episodeNumber: 1, title: 'Arrival', aired: '2026-01-01', imageUrl: 'https://image.tmdb.org/t/p/w300/1.jpg' },
+      { episodeNumber: 2, title: 'Departure', aired: '2026-01-08', imageUrl: 'https://image.tmdb.org/t/p/w300/2.jpg' }]; } });
+    Object.assign(kitsu, { isAvailable: () => true, episodes: async () => { throw new Error('Kitsu should not be asked: nothing is missing'); } });
+    Object.assign(jikan, { isAvailable: () => false });
+    const r = await sync.syncEpisodes(9501);
+    assert.deepEqual([r.sources.tmdb, r.sources.kitsu], ['ok', 'not due']);
+    assert.deepEqual(titles(9501), ['Arrival', 'Departure']);
+    const eps = library.getEpisodes(9501).seasons.flatMap((s) => s.episodes);
+    assert.ok(eps.every((e) => e.image.startsWith('/img/')), 'TMDB stills go through the image cache');
+    // Asked again soon: not due (nothing missing), no second request.
+    await sync.syncEpisodes(9501);
+    assert.equal(tmdbCalls, 1);
+
+    // TMDB down: Kitsu fills stills and some titles, Jikan the title Kitsu lacks.
+    addShow(9502, 'Down Day', { episodes: 2, status: 'FINISHED' });
+    map.run(9502, 5502, 1, 7502);
+    Object.assign(tmdb, { isAvailable: () => true, season: async () => { throw new Error('TMDB HTTP 503'); } });
+    Object.assign(kitsu, { isAvailable: () => true, episodes: async () => ({ count: 2, episodes: [
+      { episodeNumber: 1, title: 'Kitsu One', aired: '2026-02-01', imageUrl: 'https://media.kitsu.app/episode/1/thumbnail/a.png' },
+      { episodeNumber: 2, title: null, aired: '2026-02-08', imageUrl: 'https://media.kitsu.app/episode/2/thumbnail/b.png' }] }) });
+    Object.assign(jikan, { isAvailable: () => true, fetchEpisodes: async () => [{ mal_id: 2, title: 'Jikan Two' }], fetchEpisodeVideos: async () => [] });
+    const d = await sync.syncEpisodes(9502);
+    assert.match(d.sources.tmdb, /503/);
+    assert.equal(d.sources.kitsu, 'ok');
+    assert.deepEqual(titles(9502), ['Kitsu One', 'Jikan Two']);
+    assert.deepEqual(srcs(9502, 'image'), ['kitsu', 'kitsu']);
+    // A Kitsu count that doesn't match is skipped and listed for review.
+    addShow(9503, 'Count Off', { episodes: 12, status: 'FINISHED' });
+    map.run(9503, null, null, 7503);
+    Object.assign(kitsu, { episodes: async () => ({ count: 24, episodes: [{ episodeNumber: 1, title: 'Wrong Show One', aired: null, imageUrl: null }] }) });
+    Object.assign(jikan, { isAvailable: () => false });
+    const c = await sync.syncEpisodes(9503);
+    assert.match(c.sources.kitsu, /^skip: Kitsu lists 24, MAL 12/);
+    assert.equal(titles(9503)[0], 'Episode 1');
+    assert.ok(require('../server/episodefill').skipped().some((s) => s.malId === 9503 && s.source === 'kitsu'));
+  } finally { restore(); }
+});

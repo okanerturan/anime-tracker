@@ -315,7 +315,10 @@ export async function render(view) {
         h('p', { class: 'muted' }, 'Imports never un-watch anything or overwrite your ratings and list states.'))),
     section('Background metadata', [
       bg.phase !== 'idle' ? `Refreshing (${bg.phase})` : bg.lastCycle ? `Last refresh ${ago(bg.lastCycle.at)}` : 'No refresh yet',
-      `${bg.queueLength} queued`, `Jikan ${bg.jikanAvailable ? 'reachable' : 'down (skipped)'}`].join(' · '),
+      `${bg.queueLength} queued`,
+      ...(bg.episodeSources?.tmdbConfigured ? [`TMDB ${bg.episodeSources.tmdb ? 'reachable' : 'paused'}`] : []),
+      ...(bg.episodeSources ? [`Kitsu ${bg.episodeSources.kitsu ? 'reachable' : 'paused'}`] : []),
+      `Jikan ${bg.jikanAvailable ? 'reachable' : 'down (skipped)'}`].join(' · '),
       h('div', { class: 'stat-row' },
         h('div', { class: 'stat' }, h('div', { class: 'v' }, stats.library), h('div', { class: 'l' }, 'shows in library')),
         h('div', { class: 'stat' }, h('div', { class: 'v' }, `${(stats.episodes?.w ?? 0).toLocaleString()} / ${(stats.episodes?.n ?? 0).toLocaleString()}`), h('div', { class: 'l' }, 'episodes watched')),
@@ -325,6 +328,15 @@ export async function render(view) {
         h('b', {}, 'AniList is blocking this server. '),
         `Your browser fetches AniList data instead: the extension does it after each sync, and this page does it while it's open. Waiting: ${bg.anilist.pendingIds} shows, ${bg.anilist.pendingQueries} lookups.`) : null,
       h('div', {}, runBtn)),
+    // Episode sources that didn't line up with a show's numbering: left to the others, never guessed.
+    bg.episodeSources?.skipped?.length ? h('details', { class: 'collapse section' },
+      h('summary', {}, h('div', { class: 'section-head' },
+        h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Episode data left out'),
+        h('span', { class: 'sub' }, `${bg.episodeSources.skipped.length} show${bg.episodeSources.skipped.length === 1 ? '' : 's'} where TMDB or Kitsu number the episodes differently, so their titles and stills weren't matched by guess`))),
+      h('div', { class: 'collapse-body quiet-list' }, bg.episodeSources.skipped.map((x) => showRow({
+        show: { malId: x.malId, title: x.title || `MAL ${x.malId}` },
+        sub: `${x.source === 'tmdb' ? 'TMDB' : 'Kitsu'}: ${x.reason}`
+      })))) : null,
     bg.lastBackup ? section('Backups', `Nightly, last ${ago(bg.lastBackup.at)} · ${bg.lastBackup.kept} kept`,
       h('div', { class: 'panel' },
         h('p', {}, `Every table except episode thumbnails (the sync re-fetches those), gzipped: ${Math.round(bg.lastBackup.bytes / 1024).toLocaleString()} KB, ${bg.lastBackup.rows.toLocaleString()} rows. `,

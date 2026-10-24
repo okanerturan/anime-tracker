@@ -64,7 +64,14 @@ async function syncEpisodes(malId) {
     if (changed.includes('image')) images += 1;
   }
 
-  // 3. Jikan fallback only for what is still missing.
+  // 3. TMDB (when its numbering lines up), then Kitsu for what is still empty (server/episodefill.js).
+  let sources = null;
+  try {
+    sources = await require('./episodefill').fill(malId, media, aired);
+    titles += sources.titles; images += sources.stills;
+  } catch (err) { sources = { error: String(err.message || err) }; }
+
+  // 4. Jikan fallback only for what is still missing.
   rows = episodeRowsStmt.all(malId);
   const missingTitles = rows.filter((r) => isPlaceholder(r.title)).length;
   const missingImages = rows.filter((r) => !r.hasImage).length;
@@ -90,7 +97,7 @@ async function syncEpisodes(malId) {
     } catch {}
   }
   markSyncedStmt.run(malId);
-  return { malId, aired, titles, images };
+  return { malId, aired, titles, images, sources };
 }
 
 // Hosted mode: an item belongs to the account that queued it and runs inside that account (the
@@ -194,6 +201,18 @@ async function whenIdle(maxMs = 10 * 60 * 1000) {
   while ((state.running || state.queue.length) && Date.now() < until) await sleep(500);
 }
 
+// TMDB and Kitsu availability, and the shows in this library a source skipped because its episode
+// numbering didn't line up (the review list; in hosted mode the shared list, narrowed to your shows).
+function episodeSourcesStatus() {
+  try {
+    const fill = require('./episodefill');
+    const mine = new Set(db.prepare('SELECT mal_id FROM watchlist').all().map((r) => r.mal_id));
+    const { tmdb, kitsu } = fill.status();
+    return { tmdb: tmdb.available, tmdbReason: tmdb.reason, kitsu: kitsu.available, tmdbConfigured: tmdb.configured,
+      skipped: fill.skipped().filter((s) => mine.has(s.malId)).map(({ malId, title, source, reason, at }) => ({ malId, title, source, reason, at })) };
+  } catch { return null; }
+}
+
 function status() {
   // In-memory counters reset whenever the process (or Durable Object) restarts; fall back to the saved run.
   const savedRun = appState.get('episodeRun');
@@ -204,7 +223,8 @@ function status() {
     lastRunAt: state.lastRunAt || savedRun?.at || null,
     lastError: state.lastError || savedRun?.lastError || null,
     lastCycle: cycle, lastBackup: appState.get('backup'),
-    jikanAvailable: jikan.isAvailable()
+    jikanAvailable: jikan.isAvailable(),
+    episodeSources: episodeSourcesStatus()
   };
 }
 

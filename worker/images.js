@@ -6,7 +6,9 @@ const { sleep } = require('../server/util');
 
 const ALLOWED_HOSTS = [
   'cdn.myanimelist.net', 's4.anilist.co', 'img1.ak.crunchyroll.com', 'www.crunchyroll.com',
-  'imgsrv.crunchyroll.com', 'img.youtube.com', 'i.ytimg.com'
+  'imgsrv.crunchyroll.com', 'img.youtube.com', 'i.ytimg.com',
+  // Episode stills from the server-side episode sources (TMDB, Kitsu).
+  'image.tmdb.org', 'media.kitsu.app', 'media.kitsu.io'
 ];
 let bucket = null;
 function bindBucket(b) { bucket = b; }
