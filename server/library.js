@@ -19,7 +19,8 @@ ON CONFLICT(mal_id) DO UPDATE SET
 `);
 const addWatchlistStmt = db.prepare('INSERT INTO watchlist (mal_id, added_at) VALUES (?, CURRENT_TIMESTAMP) ON CONFLICT(mal_id) DO NOTHING');
 const removeWatchlistStmt = db.prepare('DELETE FROM watchlist WHERE mal_id = ?');
-const setWatchedStmt = db.prepare('UPDATE episode_sync SET watched = ?, watched_at = ?, updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?');
+// Watched state is yours alone: it lives in episode_watch (episode facts are shared, see schema.js).
+const setWatchedStmt = db.prepare('UPDATE episode_watch SET watched = ?, watched_at = ?, updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?');
 const getImageStmt = db.prepare('SELECT image_blob AS imageBlob, image_mime AS imageMime, updated_at AS updatedAt FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
 const inLibraryStmt = db.prepare('SELECT 1 FROM watchlist WHERE mal_id = ?');
 
@@ -181,9 +182,8 @@ function markWatchedElsewhere(malId) {
     addToLibrary({ malId, title: m.title, titleEnglish: m.title_english || '', imageUrl: m.cover_url || '', releaseDate: m.start_date, totalEpisodes: m.episodes });
   }
   const aired = airedCount(m) ?? m.episodes ?? 1;
-  const insert = db.prepare(`INSERT OR IGNORE INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, updated_at)
-    VALUES (?, ?, 1, ?, '', NULL, 0, CURRENT_TIMESTAMP)`);
-  db.transaction(() => { for (let n = 1; n <= aired; n += 1) insert.run(malId, n, `Episode ${n}`); })();
+  const insert = db.prepare('INSERT OR IGNORE INTO episode_watch (mal_id, episode_number, season, watched) VALUES (?, ?, 1, 0)');
+  db.transaction(() => { for (let n = 1; n <= aired; n += 1) insert.run(malId, n); })();
   return { malId, aired, addedToLibrary: !wasInLibrary, ...markWatchedThrough(malId, aired) };
 }
 
@@ -376,14 +376,14 @@ function setWatched(malId, episodeNumber, watched) {
 function markWatchedThrough(malId, episodeNumber, at = new Date().toISOString()) {
   const episodes = db.prepare('SELECT episode_number AS n FROM episode_sync WHERE mal_id = ? AND episode_number <= ? AND watched = 0 ORDER BY 1')
     .all(malId, episodeNumber).map((r) => r.n);
-  const info = db.prepare(`UPDATE episode_sync SET watched = 1, watched_at = COALESCE(watched_at, ?), updated_at = CURRENT_TIMESTAMP
+  const info = db.prepare(`UPDATE episode_watch SET watched = 1, watched_at = COALESCE(watched_at, ?), updated_at = CURRENT_TIMESTAMP
     WHERE mal_id = ? AND episode_number <= ? AND watched = 0`).run(at, malId, episodeNumber);
   return { ok: true, changed: info.changes, episodes };
 }
 
 /** Unmark specific episodes (the other half of an Undo). */
 function unmarkEpisodes(malId, episodes) {
-  const stmt = db.prepare('UPDATE episode_sync SET watched = 0, watched_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?');
+  const stmt = db.prepare('UPDATE episode_watch SET watched = 0, watched_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?');
   let changed = 0;
   db.transaction(() => { for (const n of episodes || []) changed += stmt.run(malId, Number(n)).changes || 0; })();
   return { ok: true, changed };
@@ -495,8 +495,7 @@ function acceptOddProgress(malId, undo = false) {
  */
 function importMalList(entries) {
   const summary = { shows: 0, added: 0, episodesMarked: 0, rated: 0, held: 0, dropped: 0, skipped: 0 };
-  const insertEp = db.prepare(`INSERT OR IGNORE INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, updated_at)
-    VALUES (?, ?, 1, ?, '', NULL, 0, CURRENT_TIMESTAMP)`);
+  const insertEp = db.prepare('INSERT OR IGNORE INTO episode_watch (mal_id, episode_number, season, watched) VALUES (?, ?, 1, 0)');
   const ratingStmt = db.prepare('UPDATE watchlist SET rating = ? WHERE mal_id = ? AND rating IS NULL');
   const statusStmt = db.prepare('UPDATE watchlist SET list_status = ? WHERE mal_id = ? AND list_status IS NULL');
   db.transaction(() => {
@@ -509,7 +508,7 @@ function importMalList(entries) {
       summary.shows += 1;
       if (!isInLibrary(malId)) { addToLibrary({ malId, title: e.title, titleEnglish: '', totalEpisodes: Number(e.episodes) || null }); summary.added += 1; }
       if (watched) {
-        for (let n = 1; n <= watched; n += 1) insertEp.run(malId, n, `Episode ${n}`);
+        for (let n = 1; n <= watched; n += 1) insertEp.run(malId, n);
         // The list's own finish/start date when it has one; otherwise no date at all, so imported
         // shows don't look "watched today" in Up Next, the rating strip or recommendation recency.
         const at = /^(19|20)\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])/.test(e.watchedAt || '') ? `${e.watchedAt.slice(0, 10)}T12:00:00Z` : null;

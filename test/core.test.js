@@ -551,3 +551,46 @@ test('a library show not played yet gets its season picked from the series list,
   assert.ok(!crunchyroll.wantedSeriesSeasons(50).some((w) => w.malId === 9201), 'not asked for again');
   assert.deepEqual(crunchyroll.chooseSeriesSeasons([{ malId: 9202, seasons: [{ id: 'X1', title: 'Other' }, { id: 'X2', title: 'Another' }] }]).seasonIds, [], 'no title fits and several seasons: no guess');
 });
+
+test('episode facts merge per field by source rank (spec scenarios)', () => {
+  const episodes = require('../server/episodes');
+  const get = () => db.prepare('SELECT * FROM catalog_episodes WHERE mal_id = 9301 AND episode_number = 1').get();
+  // A placeholder gets filled, even by the lowest real source.
+  episodes.merge(9301, 1, { title: 'Episode 1' }, 'jikan');
+  assert.equal(get()?.title ?? null, null, 'a placeholder is never stored as a title');
+  episodes.merge(9301, 1, { title: 'Kitsu Title' }, 'kitsu');
+  assert.deepEqual([get().title, get().title_src], ['Kitsu Title', 'kitsu']);
+  // A weaker source arriving later does not replace a stronger one.
+  episodes.merge(9301, 1, { title: 'Crunchyroll Title' }, 'crunchyroll');
+  assert.deepEqual(episodes.merge(9301, 1, { title: 'Jikan Title' }, 'jikan'), [], 'Jikan loses to Crunchyroll');
+  assert.equal(get().title, 'Crunchyroll Title');
+  // TMDB still beats AniList's; AniList's air date beats TMDB's.
+  episodes.merge(9301, 1, { imageUrl: 'https://s4.anilist.co/a.jpg', aired: '2026-01-05' }, 'anilist');
+  episodes.merge(9301, 1, { imageUrl: 'https://image.tmdb.org/t/p/w300/b.jpg', aired: '2026-01-06' }, 'tmdb');
+  assert.deepEqual([get().image_url, get().image_src, get().aired, get().aired_src], ['https://image.tmdb.org/t/p/w300/b.jpg', 'tmdb', '2026-01-05', 'anilist']);
+  // Equal rank: the newer value wins; another audio version's link never replaces your audio's.
+  episodes.merge(9301, 1, { url: 'https://www.crunchyroll.com/watch/GE1ENUS' }, 'crunchyroll', { sources: { url: 'crunchyroll-other' } });
+  episodes.merge(9301, 1, { url: 'https://www.crunchyroll.com/watch/GE1JAJP' }, 'crunchyroll');
+  assert.equal(episodes.merge(9301, 1, { url: 'https://www.crunchyroll.com/watch/GE1DEDE' }, 'crunchyroll', { sources: { url: 'crunchyroll-other' } }).length, 0);
+  assert.equal(get().url, 'https://www.crunchyroll.com/watch/GE1JAJP');
+  // Migrated ('legacy') facts give way to any real source.
+  db.prepare("INSERT OR REPLACE INTO catalog_episodes (mal_id, episode_number, title, title_src) VALUES (9301, 2, 'Old Import', 'legacy')").run();
+  episodes.merge(9301, 2, { title: 'Jikan Says' }, 'jikan');
+  assert.equal(db.prepare('SELECT title FROM catalog_episodes WHERE mal_id = 9301 AND episode_number = 2').get().title, 'Jikan Says');
+});
+
+test('a Crunchyroll title survives a later Jikan run; Jikan fills only the placeholder', async () => {
+  const jikan = require('../server/sources/jikan');
+  const sync = require('../server/sync');
+  addShow(9302, 'Ranked Show', { episodes: 2, status: 'FINISHED' });
+  rule('GRANK1', 9302);
+  await crunchyroll.applySeasonEpisodes([{ seasonId: 'GRANK1', episodes: [
+    { episodeNumber: 1, episodeId: 'R1E1', title: 'Crunchyroll One', airDate: '2026-01-01T00:00:00Z' },
+    { episodeNumber: 2, episodeId: 'R1E2', airDate: '2026-01-08T00:00:00Z' }] }]);
+  const saved = { isAvailable: jikan.isAvailable, fetchEpisodes: jikan.fetchEpisodes, fetchEpisodeVideos: jikan.fetchEpisodeVideos };
+  Object.assign(jikan, { isAvailable: () => true, fetchEpisodes: async () => [{ mal_id: 1, title: 'Jikan One' }, { mal_id: 2, title: 'Jikan Two' }], fetchEpisodeVideos: async () => [] });
+  try { await sync.syncEpisodes(9302); } finally { Object.assign(jikan, saved); }
+  const titles = db.prepare('SELECT episode_number n, title FROM episode_sync WHERE mal_id = 9302 ORDER BY 1').all().map((r) => r.title);
+  assert.deepEqual(titles, ['Crunchyroll One', 'Jikan Two']);
+  assert.equal(db.prepare('SELECT title_src FROM catalog_episodes WHERE mal_id = 9302 AND episode_number = 2').get().title_src, 'jikan');
+});

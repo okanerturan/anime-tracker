@@ -31,9 +31,11 @@ const setMappingStmt = db.prepare('UPDATE cr_history SET mal_id = ?, mal_episode
 const pendingStmt = db.prepare('SELECT * FROM cr_history WHERE applied = 0 ORDER BY date_played');
 const markAppliedStmt = db.prepare('UPDATE cr_history SET applied = 1 WHERE episode_id = ?');
 const getEpStmt = db.prepare('SELECT watched FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
-const insertEpStmt = db.prepare(`INSERT INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, watched_at, updated_at)
-  VALUES (?, ?, 1, ?, '', NULL, 1, ?, CURRENT_TIMESTAMP)`);
-const markEpStmt = db.prepare('UPDATE episode_sync SET watched = 1, watched_at = COALESCE(watched_at, ?), updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ? AND watched = 0');
+// A watched row (yours) for an episode the show didn't list yet; its title is a shared fact (merge).
+const insertEpStmt = db.prepare(`INSERT INTO episode_watch (mal_id, episode_number, season, watched, watched_at, updated_at)
+  VALUES (?, ?, 1, 1, ?, CURRENT_TIMESTAMP)`);
+const episodeFacts = require('./episodes');
+const markEpStmt = db.prepare('UPDATE episode_watch SET watched = 1, watched_at = COALESCE(watched_at, ?), updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ? AND watched = 0');
 const totalStmt = db.prepare('SELECT COALESCE(a.total_episodes, m.episodes) AS total FROM anime a LEFT JOIN media m USING(mal_id) WHERE a.mal_id = ?');
 const logStmt = db.prepare('INSERT INTO sync_log (source, summary) VALUES (?, ?)');
 
@@ -195,7 +197,8 @@ function applyRow(row) {
   }
   const total = totalStmt.get(row.mal_id)?.total;
   if (total && row.mal_episode > total) return 'beyond-total';
-  insertEpStmt.run(row.mal_id, row.mal_episode, row.episode_title || `Episode ${row.mal_episode}`, row.date_played);
+  insertEpStmt.run(row.mal_id, row.mal_episode, row.date_played);
+  if (row.episode_title) episodeFacts.merge(row.mal_id, row.mal_episode, { title: row.episode_title }, 'crunchyroll');
   return 'marked';
 }
 
@@ -402,16 +405,11 @@ function chooseSeriesSeasons(items) {
 }
 
 const epRowStmt = db.prepare('SELECT title, (image_blob IS NOT NULL OR image_url IS NOT NULL) AS hasImage FROM episode_sync WHERE mal_id = ? AND episode_number = ?');
-const setEpMetaStmt = db.prepare(`UPDATE episode_sync SET title = CASE WHEN title IS NULL OR title GLOB 'Episode [0-9]*' THEN ? ELSE title END,
-  aired = COALESCE(?, aired),
-  -- A Crunchyroll watch link beats a MyAnimeList or old slug link (those can't play the episode); a link
-  -- the extension picked for the audio you watch (audioMatched) also replaces an older Crunchyroll one,
-  -- which may be another language's version.
-  url = CASE WHEN COALESCE(url,'') = '' OR url NOT LIKE '%crunchyroll.com/watch/%' OR ? = 1 THEN COALESCE(NULLIF(?, ''), url) ELSE url END,
-  updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?`);
-const insertAiredStmt = db.prepare(`INSERT OR IGNORE INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, updated_at)
-  VALUES (?, ?, 1, ?, ?, ?, 0, CURRENT_TIMESTAMP)`);
-const setEpImageUrlStmt = db.prepare(`UPDATE episode_sync SET image_url = ?, image_source = 'crunchyroll', updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?`);
+// An aired episode's row in your list (watched state); its facts go through the shared merge, where a
+// Crunchyroll watch link outranks MyAnimeList and slug links, and a link the extension picked for the
+// audio you watch (audioMatched) outranks one that may be another language's version.
+const insertAiredStmt = db.prepare(`INSERT OR IGNORE INTO episode_watch (mal_id, episode_number, season, watched, updated_at)
+  VALUES (?, ?, 1, 0, CURRENT_TIMESTAMP)`);
 
 /** Apply full Crunchyroll season episode lists (titles, thumbnails, air dates) sent by the extension. */
 async function applySeasonEpisodes(seasons) {
@@ -446,19 +444,19 @@ async function applySeasonEpisodes(seasons) {
       if (!row && aired) {
         const total = totalStmt.get(malId)?.total;
         if (!total || episodeNumber <= total) {
-          insertAiredStmt.run(malId, episodeNumber, ep.title || `Episode ${episodeNumber}`, url, ep.airDate || null);
+          insertAiredStmt.run(malId, episodeNumber);
           summary.added += 1;
           row = epRowStmt.get(malId, episodeNumber);
         }
       }
       if (!row) continue;
-      if (ep.title && (!row.title || /^Episode \d+$/.test(row.title))) summary.titles += 1;
-      setEpMetaStmt.run(ep.title || null, ep.airDate || null, ep.audioMatched ? 1 : 0, url, malId, episodeNumber);
       // Store where the still lives; the shared image cache fetches it once for everyone (/img/…).
-      if (!row.hasImage && ep.thumb && images.isAllowed(ep.thumb)) {
-        setEpImageUrlStmt.run(ep.thumb, malId, episodeNumber);
-        summary.images += 1;
-      }
+      const changed = episodeFacts.merge(malId, episodeNumber, {
+        title: ep.title || null, aired: ep.airDate || null, url: url || null,
+        imageUrl: ep.thumb && images.isAllowed(ep.thumb) ? ep.thumb : null
+      }, 'crunchyroll', { sources: { url: ep.audioMatched ? 'crunchyroll' : 'crunchyroll-other', image: 'crunchyroll' } });
+      if (changed.includes('title')) summary.titles += 1;
+      if (changed.includes('image')) summary.images += 1;
       } catch (err) { summary.errors = (summary.errors || 0) + 1; }
     }
   }

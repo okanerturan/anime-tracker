@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const Database = require('better-sqlite3');
-const { applySchema, CATALOG_TABLES } = require('./schema');
+const { applySchema, CATALOG_TABLES, installEpisodeView } = require('./schema');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data');
@@ -40,10 +40,14 @@ function connect(file, part = 'all') {
   conn.pragma('journal_mode = WAL');
   conn.pragma('foreign_keys = ON');
   conn.pragma('busy_timeout = 5000');
-  applySchema(conn, part);
+  applySchema(conn, part, { catalog: part === 'account' ? catalogConn : null });
   // Hosted mode: the shared catalog is attached, so unqualified `media` (and friends) resolve to
-  // it and the existing joins keep working with nothing copied into the account file.
-  if (part === 'account') conn.prepare('ATTACH DATABASE ? AS catalog').run(CATALOG_FILE);
+  // it and the existing joins keep working with nothing copied into the account file. The episode
+  // view joins this file's watched state with the catalog's episode facts.
+  if (part === 'account') {
+    conn.prepare('ATTACH DATABASE ? AS catalog').run(CATALOG_FILE);
+    installEpisodeView(conn, 'account');
+  }
   return conn;
 }
 

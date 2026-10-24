@@ -104,9 +104,9 @@ function cdp(url) {
       not_a_table: { columns: ['x'], rows: [[1]] } } };
     const code3 = (await run("post('/auth/recovery/regenerate')"))?.recoveryCodes?.[0];
     const imported = await run(`post('/auth/account/import', ${JSON.stringify(sample)})`);
-    check('imports an export', imported?.imported?.watchlist === 2 && imported.imported.episode_sync === 2 && !('not_a_table' in imported.imported), JSON.stringify(imported));
+    check('imports an export', imported?.imported?.watchlist === 2 && imported.imported.episode_watch === 2 && !('not_a_table' in imported.imported), JSON.stringify(imported));
     const exported = await run("fetch('/auth/account/export').then((r) => r.json())");
-    check('exports it back', exported?.tables?.watchlist?.rows?.length === 2 && !exported.tables.episode_sync.columns.includes('image_blob'));
+    check('exports it back', exported?.tables?.watchlist?.rows?.length === 2 && exported.tables.episode_watch?.rows?.length === 2 && !exported.tables.episode_watch.columns.includes('image_blob') && !('episode_sync' in exported.tables));
     const deleted = await run(`post('/auth/account/delete', { code: ${JSON.stringify(code3 || '')} })`);
     check('deletes the account with a recovery code', deleted?.deleted === true, deleted?.error);
     check('signed out and the data file is gone', !(await run("fetch('/auth/state').then((r) => r.json())"))?.signedIn && !fs.existsSync(path.join(tmp, 'accounts', '1.db')));

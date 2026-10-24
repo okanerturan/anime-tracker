@@ -92,3 +92,19 @@ test('global settings are shared by every account; personal ones are not', () =>
   state.set('refreshCycle', { ok: true });
   assert.equal(state.get('refreshCycle')?.ok, true);
 });
+
+test('episodes: watched state in the account file, facts in the catalog, joined by the episode view', () => {
+  const { catalogDb } = require('../server/db');
+  catalogDb.prepare("INSERT OR REPLACE INTO catalog_episodes (mal_id, episode_number, title, title_src) VALUES (710, 1, 'Shared Title', 'tmdb')").run();
+  withAccount('71', () => {
+    db.prepare("INSERT INTO anime (mal_id, title) VALUES (710, 'Ep Show')").run();
+    db.prepare('INSERT INTO episode_sync (mal_id, episode_number, watched) VALUES (710, 1, 1), (710, 2, 0)').run();
+  });
+  const rows = withAccount('71', () => db.prepare('SELECT episode_number, title, watched FROM episode_sync WHERE mal_id = 710 ORDER BY 1').all());
+  assert.deepEqual(rows, [{ episode_number: 1, title: 'Shared Title', watched: 1 }, { episode_number: 2, title: 'Episode 2', watched: 0 }]);
+  const tables = withAccount('71', () => db.prepare("SELECT name FROM main.sqlite_master WHERE type = 'table'").all().map((r) => r.name));
+  assert.ok(tables.includes('episode_watch') && !tables.includes('catalog_episodes'), 'facts are not stored in the account file');
+  assert.equal(withAccount('72', () => db.prepare('SELECT COUNT(*) n FROM episode_sync WHERE mal_id = 710').get().n), 0, 'another account sees no watch rows of this one');
+  assert.throws(() => withAccount('71', () => db.prepare("UPDATE catalog_episodes SET title = 'x' WHERE mal_id = 710").run()), /catalog worker/);
+  assert.throws(() => withAccount('71', () => db.prepare('INSERT OR REPLACE INTO catalog_idmap (mal_id) VALUES (710)').run()), /catalog worker/);
+});

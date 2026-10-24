@@ -17,26 +17,43 @@ CREATE TABLE IF NOT EXISTS watchlist (
   synced_at TEXT,
   FOREIGN KEY(mal_id) REFERENCES anime(mal_id) ON DELETE CASCADE
 );
-CREATE TABLE IF NOT EXISTS episode_sync (
+-- Episodes. What you watched is yours (episode_watch, in your file); what an episode is (title, air
+-- date, still, Crunchyroll link, and which source said so) is shared (catalog_episodes). Reads use the
+-- episode_sync view that joins them (installEpisodeView), so queries see one row per episode as before.
+CREATE TABLE IF NOT EXISTS episode_watch (
   mal_id INTEGER NOT NULL,
   episode_number INTEGER NOT NULL,
   season INTEGER DEFAULT 1,
-  title TEXT,
-  url TEXT,
-  aired TEXT,
   watched INTEGER DEFAULT 0,
   watched_at TEXT,
-  image_blob BLOB,
-  image_mime TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(mal_id, episode_number),
   FOREIGN KEY(mal_id) REFERENCES anime(mal_id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_episode_sync_mal ON episode_sync(mal_id);
--- Covers the per-show progress summary (Library, Up Next) without touching rows that hold thumbnails.
-CREATE INDEX IF NOT EXISTS idx_episode_sync_progress ON episode_sync(mal_id, watched, episode_number, watched_at);
+-- Covers the per-show progress summary (Library, Up Next).
+CREATE INDEX IF NOT EXISTS idx_episode_watch_progress ON episode_watch(mal_id, watched, episode_number, watched_at);
+CREATE TABLE IF NOT EXISTS catalog_episodes (
+  mal_id INTEGER NOT NULL,
+  episode_number INTEGER NOT NULL,
+  title TEXT, title_src TEXT, title_at TEXT,
+  url TEXT, url_src TEXT,
+  aired TEXT, aired_src TEXT,
+  image_url TEXT, image_blob BLOB, image_mime TEXT, image_src TEXT, image_at TEXT,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(mal_id, episode_number)
+);
 -- Counting stored thumbnails without reading the rows that hold them.
-CREATE INDEX IF NOT EXISTS idx_episode_sync_has_image ON episode_sync(mal_id) WHERE image_blob IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_catalog_episodes_has_blob ON catalog_episodes(mal_id) WHERE image_blob IS NOT NULL;
+-- Cross-site ids for a show (Fribb anime-lists, refreshed weekly).
+CREATE TABLE IF NOT EXISTS catalog_idmap (
+  mal_id INTEGER PRIMARY KEY,
+  anilist_id INTEGER,
+  kitsu_id INTEGER,
+  tmdb_tv_id INTEGER,
+  tmdb_season INTEGER,
+  tvdb_id INTEGER,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
 -- AniList metadata for any title we know about (library, relations, recommendations)
 CREATE TABLE IF NOT EXISTS media (
@@ -221,7 +238,6 @@ CREATE TABLE IF NOT EXISTS sync_log (
 const ADDED_COLUMNS = [
   ['anime', 'release_date', 'release_date TEXT'],
   ['watchlist', 'synced_at', 'synced_at TEXT'],
-  ['episode_sync', 'image_source', 'image_source TEXT'],
   ['media', 'external_links', 'external_links TEXT'],
   // Your own list state: NULL (active), 'on_hold' or 'dropped'; and a 1-5 rating.
   ['watchlist', 'list_status', 'list_status TEXT'],
@@ -236,16 +252,15 @@ const ADDED_COLUMNS = [
   ['media', 'synonyms', 'synonyms TEXT'],
   // 1 when AniList gave the start day (month-only dates are stored as the 1st), 0 when it didn't.
   ['media', 'start_day_known', 'start_day_known INTEGER'],
-  // An episode still's source URL: served through the shared image cache (/img/…) instead of a blob in
-  // every account's file. Rows that still hold an image_blob keep working through /api/episode-image.
-  ['episode_sync', 'image_url', 'image_url TEXT']
 ];
+// Columns the pre-split episode_sync table gained over time; added before migrating an old file.
+const LEGACY_EPISODE_COLUMNS = [['image_source', 'image_source TEXT'], ['image_url', 'image_url TEXT']];
 
 // Hosted mode splits the tables: what is the same for everyone (show metadata, relations,
 // recommendations, the image index, AniList job queues, Crunchyroll season fetch times) lives in
 // one catalog file; everything about a person lives in their account file. Single-user mode keeps
 // all of it in one file, as before.
-const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state', 'catalog_jobs', 'catalog_lease', 'catalog_waiters', 'cr_series_claims', 'cr_season_claims']);
+const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state', 'catalog_jobs', 'catalog_lease', 'catalog_waiters', 'cr_series_claims', 'cr_season_claims', 'catalog_episodes', 'catalog_idmap']);
 
 /** The table a CREATE TABLE / CREATE INDEX statement is about. */
 function tableOf(statement) {
@@ -261,14 +276,133 @@ function schemaFor(part) {
   }).join(';\n') + ';';
 }
 
-/** part: 'all' (single-user file), 'account' (an account's file) or 'catalog' (the shared file). */
-function applySchema(db, part = 'all') {
+const isTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
+
+/**
+ * Move a pre-split episode_sync table into episode_watch (this file) and catalog_episodes (`facts`:
+ * this file in single-user mode, the catalog connection in hosted mode). Sources are inferred where
+ * the row shows them: a title next to a Crunchyroll link came from Crunchyroll (the extension or
+ * AniList's Crunchyroll list), a still keeps its image_source; anything else is 'legacy', the lowest
+ * rank, so any real source can improve it. A Crunchyroll link or still may be another audio version,
+ * so it ranks below one the extension picked for your audio. Existing catalog facts win.
+ * The old table is kept as episode_sync_legacy for one release.
+ */
+function migrateEpisodes(db, facts) {
+  if (!isTable(db, 'episode_sync')) return null;
+  const cols = db.prepare("SELECT name FROM pragma_table_info('episode_sync')").all().map((r) => r.name);
+  for (const [column, ddl] of LEGACY_EPISODE_COLUMNS) if (!cols.includes(column)) db.exec(`ALTER TABLE episode_sync ADD COLUMN ${ddl}`);
+  const rows = db.prepare('SELECT * FROM episode_sync').all();
+  // A row whose show is gone (no anime row) was never shown; it stays in episode_sync_legacy only.
+  const putWatch = db.prepare(`INSERT OR IGNORE INTO episode_watch (mal_id, episode_number, season, watched, watched_at, updated_at)
+    SELECT @mal_id, @episode_number, @season, @watched, @watched_at, @updated_at WHERE EXISTS (SELECT 1 FROM main.anime WHERE mal_id = @mal_id)`);
+  const putFacts = facts.prepare(`INSERT INTO catalog_episodes (mal_id, episode_number, title, title_src, url, url_src, aired, aired_src,
+      image_url, image_blob, image_mime, image_src, updated_at)
+    VALUES (@mal_id, @episode_number, @title, @title_src, @url, @url_src, @aired, @aired_src, @image_url, @image_blob, @image_mime, @image_src, @updated_at)
+    ON CONFLICT(mal_id, episode_number) DO UPDATE SET
+      title = COALESCE(catalog_episodes.title, excluded.title), title_src = COALESCE(catalog_episodes.title_src, excluded.title_src),
+      url = COALESCE(catalog_episodes.url, excluded.url), url_src = COALESCE(catalog_episodes.url_src, excluded.url_src),
+      aired = COALESCE(catalog_episodes.aired, excluded.aired), aired_src = COALESCE(catalog_episodes.aired_src, excluded.aired_src),
+      image_url = COALESCE(catalog_episodes.image_url, excluded.image_url), image_src = COALESCE(catalog_episodes.image_src, excluded.image_src),
+      image_blob = COALESCE(catalog_episodes.image_blob, excluded.image_blob), image_mime = COALESCE(catalog_episodes.image_mime, excluded.image_mime)`);
+  const placeholder = (t) => !t || /^Episode \d+(\.0)?( \(from history\))?$/i.test(String(t).trim());
+  const IMAGE_SOURCES = { crunchyroll: 'crunchyroll-other', anilist: 'anilist', jikan: 'jikan' };
+  let orphans = 0;
+  const move = () => {
+    for (const r of rows) {
+      const watch = { mal_id: r.mal_id, episode_number: r.episode_number, season: r.season ?? 1, watched: r.watched ? 1 : 0, watched_at: r.watched_at, updated_at: r.updated_at };
+      if (!putWatch.run(watch).changes) { orphans += 1; continue; }
+      const hasImage = r.image_blob != null || r.image_url != null;
+      const fromCr = /crunchyroll\.com\//.test(r.url || '');
+      putFacts.run({
+        mal_id: r.mal_id, episode_number: r.episode_number,
+        title: placeholder(r.title) ? null : r.title, title_src: placeholder(r.title) ? null : fromCr ? 'crunchyroll-other' : 'legacy',
+        url: r.url || null, url_src: !r.url ? null : /crunchyroll\.com\/watch\//.test(r.url) ? 'crunchyroll-other' : 'legacy',
+        aired: r.aired || null, aired_src: r.aired ? 'legacy' : null,
+        image_url: r.image_url || null, image_blob: r.image_blob ?? null, image_mime: r.image_mime ?? null,
+        image_src: hasImage ? (IMAGE_SOURCES[r.image_source] || 'legacy') : null,
+        updated_at: r.updated_at
+      });
+    }
+  };
+  if (facts === db) db.transaction(move)(); else { facts.transaction(() => db.transaction(move)())(); }
+  for (const idx of ['idx_episode_sync_mal', 'idx_episode_sync_progress', 'idx_episode_sync_has_image']) db.exec(`DROP INDEX IF EXISTS ${idx}`);
+  db.exec('ALTER TABLE episode_sync RENAME TO episode_sync_legacy');
+  return { rows: rows.length, orphans };
+}
+
+const EPISODE_VIEW = (temp) => `CREATE ${temp ? 'TEMP ' : ''}VIEW IF NOT EXISTS episode_sync AS
+  SELECT w.mal_id, w.episode_number, w.season,
+    COALESCE(c.title, 'Episode ' || w.episode_number) AS title,
+    c.url, c.aired, w.watched, w.watched_at, c.image_blob, c.image_mime,
+    COALESCE(c.updated_at, w.updated_at) AS updated_at, c.image_src AS image_source, c.image_url
+  FROM episode_watch w LEFT JOIN catalog_episodes c ON c.mal_id = w.mal_id AND c.episode_number = w.episode_number`;
+
+// Writes through the view. Watched state always goes to episode_watch. Facts go to catalog_episodes
+// only in single-user mode (hosted mode writes facts through the catalog's merge, never from an
+// account connection); a fact written this way is 'legacy' (lowest rank) and fills only what's empty
+// on insert, as INSERT OR IGNORE into the old table did.
+const WATCH_TRIGGERS = (temp) => `
+CREATE ${temp ? 'TEMP ' : ''}TRIGGER IF NOT EXISTS episode_sync_insert INSTEAD OF INSERT ON episode_sync BEGIN
+  INSERT INTO episode_watch (mal_id, episode_number, season, watched, watched_at, updated_at)
+    VALUES (NEW.mal_id, NEW.episode_number, COALESCE(NEW.season, 1), COALESCE(NEW.watched, 0), NEW.watched_at, COALESCE(NEW.updated_at, CURRENT_TIMESTAMP));
+  ${temp ? '' : `INSERT OR IGNORE INTO catalog_episodes (mal_id, episode_number) VALUES (NEW.mal_id, NEW.episode_number);
+  UPDATE catalog_episodes SET
+    title = CASE WHEN (title IS NULL) AND NEW.title IS NOT NULL AND NEW.title NOT GLOB 'Episode [0-9]*' THEN NEW.title ELSE title END,
+    title_src = CASE WHEN (title IS NULL) AND NEW.title IS NOT NULL AND NEW.title NOT GLOB 'Episode [0-9]*' THEN 'legacy' ELSE title_src END,
+    url = CASE WHEN url IS NULL AND COALESCE(NEW.url, '') <> '' THEN NEW.url ELSE url END,
+    url_src = CASE WHEN url IS NULL AND COALESCE(NEW.url, '') <> '' THEN CASE WHEN NEW.url LIKE '%crunchyroll.com/watch/%' THEN 'crunchyroll-other' ELSE 'legacy' END ELSE url_src END,
+    aired = COALESCE(aired, NEW.aired), aired_src = CASE WHEN aired IS NULL AND NEW.aired IS NOT NULL THEN 'legacy' ELSE aired_src END,
+    image_url = COALESCE(image_url, NEW.image_url), image_blob = COALESCE(image_blob, NEW.image_blob), image_mime = COALESCE(image_mime, NEW.image_mime),
+    image_src = CASE WHEN image_src IS NULL AND (NEW.image_url IS NOT NULL OR NEW.image_blob IS NOT NULL) THEN COALESCE(NEW.image_source, 'legacy') ELSE image_src END
+  WHERE mal_id = NEW.mal_id AND episode_number = NEW.episode_number;`}
+END;
+CREATE ${temp ? 'TEMP ' : ''}TRIGGER IF NOT EXISTS episode_sync_update INSTEAD OF UPDATE ON episode_sync BEGIN
+  UPDATE episode_watch SET season = NEW.season, watched = NEW.watched, watched_at = NEW.watched_at,
+      updated_at = CASE WHEN NEW.watched IS NOT OLD.watched OR NEW.watched_at IS NOT OLD.watched_at THEN CURRENT_TIMESTAMP ELSE updated_at END
+    WHERE mal_id = OLD.mal_id AND episode_number = OLD.episode_number;
+  ${temp ? '' : `INSERT OR IGNORE INTO catalog_episodes (mal_id, episode_number) SELECT NEW.mal_id, NEW.episode_number
+    WHERE NEW.title IS NOT OLD.title OR NEW.url IS NOT OLD.url OR NEW.aired IS NOT OLD.aired OR NEW.image_url IS NOT OLD.image_url OR NEW.image_blob IS NOT OLD.image_blob;
+  UPDATE catalog_episodes SET
+    title = CASE WHEN NEW.title IS NOT OLD.title THEN NULLIF(NEW.title, 'Episode ' || NEW.episode_number) ELSE title END,
+    title_src = CASE WHEN NEW.title IS NOT OLD.title THEN 'legacy' ELSE title_src END,
+    url = CASE WHEN NEW.url IS NOT OLD.url THEN NEW.url ELSE url END,
+    url_src = CASE WHEN NEW.url IS NOT OLD.url THEN CASE WHEN NEW.url LIKE '%crunchyroll.com/watch/%' THEN 'crunchyroll-other' ELSE 'legacy' END ELSE url_src END,
+    aired = CASE WHEN NEW.aired IS NOT OLD.aired THEN NEW.aired ELSE aired END,
+    image_url = CASE WHEN NEW.image_url IS NOT OLD.image_url THEN NEW.image_url ELSE image_url END,
+    image_blob = CASE WHEN NEW.image_blob IS NOT OLD.image_blob THEN NEW.image_blob ELSE image_blob END,
+    image_mime = CASE WHEN NEW.image_mime IS NOT OLD.image_mime THEN NEW.image_mime ELSE image_mime END,
+    image_src = CASE WHEN NEW.image_source IS NOT OLD.image_source THEN NEW.image_source ELSE image_src END,
+    updated_at = CURRENT_TIMESTAMP
+  WHERE mal_id = NEW.mal_id AND episode_number = NEW.episode_number
+    AND (NEW.title IS NOT OLD.title OR NEW.url IS NOT OLD.url OR NEW.aired IS NOT OLD.aired OR NEW.image_url IS NOT OLD.image_url OR NEW.image_blob IS NOT OLD.image_blob OR NEW.image_source IS NOT OLD.image_source);`}
+END;
+CREATE ${temp ? 'TEMP ' : ''}TRIGGER IF NOT EXISTS episode_sync_delete INSTEAD OF DELETE ON episode_sync BEGIN
+  DELETE FROM episode_watch WHERE mal_id = OLD.mal_id AND episode_number = OLD.episode_number;
+END;`;
+
+/**
+ * The episode_sync view and its write triggers. Single-user file: stored in the file. Account
+ * connection (hosted): TEMP, created after the catalog is attached (a stored view can't reach an
+ * attached database), and its triggers write watched state only.
+ */
+function installEpisodeView(db, part = 'all') {
+  const temp = part === 'account';
+  db.exec(`${EPISODE_VIEW(temp)};\n${WATCH_TRIGGERS(temp)}`);
+}
+
+/**
+ * part: 'all' (single-user file), 'account' (an account's file) or 'catalog' (the shared file).
+ * `catalog`: the catalog connection when applying 'account', for migrating an old episode table.
+ */
+function applySchema(db, part = 'all', { catalog = null } = {}) {
   db.exec(schemaFor(part));
   for (const [table, column, ddl] of ADDED_COLUMNS) {
     if (part !== 'all' && (part === 'catalog') !== CATALOG_TABLES.has(table)) continue;
     const cols = db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all().map((r) => r.name);
     if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
   }
+  if (part === 'all') { migrateEpisodes(db, db); installEpisodeView(db, 'all'); }
+  if (part === 'account' && catalog) migrateEpisodes(db, catalog);
 }
 
-module.exports = { SCHEMA, CATALOG_TABLES, applySchema, schemaFor };
+module.exports = { SCHEMA, CATALOG_TABLES, applySchema, schemaFor, installEpisodeView, migrateEpisodes };

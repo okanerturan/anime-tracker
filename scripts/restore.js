@@ -28,7 +28,7 @@ function counts(file, name) {
   try {
     if (name === 'accounts.db') return { accounts: n('accounts'), passkeys: n('passkeys') };
     if (name === 'catalog.db') return { media: n('media'), image_cache: n('image_cache') };
-    return { watchlist: n('watchlist'), episode_sync: n('episode_sync'), cr_history: n('cr_history') };
+    return { watchlist: n('watchlist'), episode_watch: n('episode_watch'), cr_history: n('cr_history') };
   } finally { d.close(); }
 }
 

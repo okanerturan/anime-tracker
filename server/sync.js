@@ -14,18 +14,16 @@ const appState = require('./state');
 
 const getMediaStmt = db.prepare('SELECT * FROM media WHERE mal_id = ?');
 const episodeRowsStmt = db.prepare('SELECT episode_number AS n, title, (image_blob IS NOT NULL OR image_url IS NOT NULL) AS hasImage FROM episode_sync WHERE mal_id = ?');
-const insertPlaceholderStmt = db.prepare(`INSERT OR IGNORE INTO episode_sync (mal_id, episode_number, season, title, url, aired, watched, updated_at)
-  VALUES (?, ?, 1, ?, '', NULL, 0, CURRENT_TIMESTAMP)`);
-const setTitleStmt = db.prepare(`UPDATE episode_sync SET title = ?, url = CASE WHEN COALESCE(url,'') = '' THEN ? ELSE url END, updated_at = CURRENT_TIMESTAMP
-  WHERE mal_id = ? AND episode_number = ?`);
-// Episode stills are stored as their source URL and served through the shared image cache (/img/…).
-const setImageStmt = db.prepare('UPDATE episode_sync SET image_url = ?, image_source = ?, updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ?');
+const insertPlaceholderStmt = db.prepare('INSERT OR IGNORE INTO episode_watch (mal_id, episode_number, season, watched) VALUES (?, ?, 1, 0)');
+// Episode facts (titles, stills as source URLs served through the image cache) go through the shared
+// merge, which keeps the best-ranked source per field (server/episodes.js).
+const episodes = require('./episodes');
 const setTotalStmt = db.prepare('UPDATE anime SET total_episodes = COALESCE(?, total_episodes), release_date = COALESCE(release_date, ?) WHERE mal_id = ?');
 const markSyncedStmt = db.prepare('UPDATE watchlist SET synced_at = CURRENT_TIMESTAMP WHERE mal_id = ?');
 
 const state = { running: false, queue: [], queued: new Set(), completed: 0, failed: 0, lastRunAt: null, lastError: null, phase: 'idle' };
 
-const isPlaceholder = (title) => !title || /^Episode \d+( \(from history\))?$/i.test(title);
+const { isPlaceholder } = require('./episodes');
 
 function parseStreamingEpisodes(json) {
   let list = [];
@@ -48,7 +46,7 @@ async function syncEpisodes(malId) {
 
   // 1. Make sure every aired episode exists.
   if (aired && aired > 0 && aired <= 2000) {
-    for (let n = 1; n <= aired; n += 1) insertPlaceholderStmt.run(malId, n, `Episode ${n}`);
+    for (let n = 1; n <= aired; n += 1) insertPlaceholderStmt.run(malId, n);
   }
 
   // 2. Titles + thumbnails from AniList streaming episodes.
@@ -58,14 +56,12 @@ async function syncEpisodes(malId) {
   for (const row of rows) {
     const s = streaming.get(row.n);
     if (!s) continue;
-    if (isPlaceholder(row.title) && s.title) { setTitleStmt.run(s.title, s.url || '', malId, row.n); titles += 1; }
-    if (!row.hasImage && s.thumbnail) {
-      try {
-        if (!imagesMod.isAllowed(s.thumbnail)) throw new Error('image host not allowed');
-        setImageStmt.run(s.thumbnail, 'anilist', malId, row.n);
-        images += 1;
-      } catch {}
-    }
+    const changed = episodes.merge(malId, row.n, {
+      title: s.title || null, url: s.url || null,
+      imageUrl: s.thumbnail && imagesMod.isAllowed(s.thumbnail) ? s.thumbnail : null
+    }, 'anilist');
+    if (changed.includes('title')) titles += 1;
+    if (changed.includes('image')) images += 1;
   }
 
   // 3. Jikan fallback only for what is still missing.
@@ -78,7 +74,7 @@ async function syncEpisodes(malId) {
         for (const ep of await jikan.fetchEpisodes(malId)) {
           const n = Number(ep.mal_id);
           const row = rows.find((r) => r.n === n);
-          if (row && isPlaceholder(row.title) && ep.title) { setTitleStmt.run(ep.title, ep.url || '', malId, n); titles += 1; }
+          if (row && isPlaceholder(row.title) && ep.title && episodes.merge(malId, n, { title: ep.title, url: ep.url || null }, 'jikan').includes('title')) titles += 1;
         }
       }
       if (missingImages) {
@@ -87,7 +83,7 @@ async function syncEpisodes(malId) {
           const row = rows.find((r) => r.n === n);
           const url = v.images?.jpg?.image_url;
           if (row && !row.hasImage && url) {
-            if (imagesMod.isAllowed(url)) { setImageStmt.run(url, 'jikan', malId, n); images += 1; }
+            if (imagesMod.isAllowed(url) && episodes.merge(malId, n, { imageUrl: url }, 'jikan').includes('image')) images += 1;
           }
         }
       }

@@ -6,7 +6,7 @@ const { db } = require('../db');
 const { schemaFor } = require('../schema');
 
 const FORMAT = 'anime-tracker-account-export';
-const SKIP = { episode_sync: new Set(['image_blob', 'image_mime']) }; // stills travel as URLs
+const SKIP = {};
 const tablesOfAccount = () => [...schemaFor('account').matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]);
 
 /** Everything that belongs to the current account, as plain JSON. */
@@ -24,9 +24,13 @@ function importAccount(data) {
   if (!data || data.format !== FORMAT || !data.tables) throw Object.assign(new Error('That file isn\'t an Anime Tracker account export.'), { status: 400 });
   const counts = {};
   const allowed = new Set(tablesOfAccount());
+  // Exports from before the episode split carry watched state in episode_sync: its watch columns
+  // load into episode_watch (episode facts are shared now and come back from the catalog).
+  const tables = { ...data.tables };
+  if (tables.episode_sync && !tables.episode_watch) tables.episode_watch = tables.episode_sync;
   const run = db.transaction(() => {
     db.pragma('defer_foreign_keys = ON');
-    for (const [t, { columns, rows }] of Object.entries(data.tables)) {
+    for (const [t, { columns, rows }] of Object.entries(tables)) {
       if (!allowed.has(t) || !Array.isArray(columns) || !Array.isArray(rows)) continue;
       const known = new Set(db.prepare(`SELECT name FROM pragma_table_info('${t}')`).all().map((r) => r.name));
       const keep = columns.map((c, i) => [c, i]).filter(([c]) => known.has(c) && !SKIP[t]?.has(c));

@@ -62,9 +62,9 @@ test('snapshots: full first run, nothing twice, only what changed, copies carrie
   assert.equal(r.day, '2026-11-01');
   const live = counts(db.fileOf('2'), 'account');
   assert.deepEqual(r.files['accounts/2.db'], live, 'the restored account matches the live one');
-  assert.deepEqual(live, { watchlist: 1, episode_sync: 1, cr_history: 0 }, 'real rows compared, not two empty files');
+  assert.deepEqual(live, { watchlist: 1, episode_watch: 1, cr_history: 0 }, 'real rows compared, not two empty files');
   const r1 = await restore({ to: path.join(tmp, 'drill-2'), day: '2026-11-01', accounts: ['1'] });
-  assert.equal(r1.files['accounts/1.db'].episode_sync, 2, "account 1's later change is in its restore");
+  assert.equal(r1.files['accounts/1.db'].episode_watch, 2, "account 1's later change is in its restore");
   assert.equal(r.files['catalog.db'].media, 1);
   assert.ok(!fs.existsSync(path.join(out, 'accounts', '1.db')), 'only the asked-for account');
   await assert.rejects(restore({ to: out, day: '2026-09-01' }), /No snapshot on or before/);
