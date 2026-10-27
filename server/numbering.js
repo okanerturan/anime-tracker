@@ -4,15 +4,18 @@
 // often points both halves of a split cour at the same TMDB season. So the unit is a group: the MAL
 // entries of one series (prequel/sequel chain) that map to the same TMDB TV id and season, in order.
 // Each entry's TMDB episodes then start after the ones before it. The group must account for the
-// whole TMDB season (finished) or fit inside it (airing); otherwise nothing is guessed.
+// whole TMDB season (finished) or fit inside it (airing); otherwise nothing is guessed. One exception:
+// when the group starts the TMDB season (its first entry has no prequel, or the prequel is in TMDB's
+// previous season), TMDB may list more episodes than MAL has so far (the next part isn't on MAL or in
+// the map yet), and the group's episodes are simply TMDB's first ones.
 const { db } = require('./db');
 
 /**
  * `group`: [{ malId, episodes (total or null), aired, finished }] in airing order; `tmdbCount`: episodes
- * in the TMDB season. Returns { offset } for `malId` (TMDB episode = offset + MAL episode), or
- * { skip: reason }.
+ * in the TMDB season; `startsSeason`: the group begins the TMDB season. Returns { offset } for `malId`
+ * (TMDB episode = offset + MAL episode), or { skip: reason }.
  */
-function lineUp(group, tmdbCount, malId) {
+function lineUp(group, tmdbCount, malId, { startsSeason = false } = {}) {
   const at = group.findIndex((g) => g.malId === malId);
   if (at < 0) return { skip: 'not in its group' };
   if (!tmdbCount) return { skip: 'TMDB season has no episodes' };
@@ -31,17 +34,17 @@ function lineUp(group, tmdbCount, malId) {
       else if (g === group.at(-1)) { if (before + (g.aired || 0) > tmdbCount) return { skip: 'TMDB season is shorter than the aired episodes' }; total = null; break; }
       else return { skip: 'a part of the same TMDB season has no final count' };
     }
-    if (total != null && total !== tmdbCount) return { skip: `${total} MAL episodes in this TMDB season, TMDB lists ${tmdbCount}` };
+    if (total != null && total !== tmdbCount && !(startsSeason && total < tmdbCount)) return { skip: `${total} MAL episodes in this TMDB season, TMDB lists ${tmdbCount}` };
     return { offset: before };
   }
   // Airing, the last part: its aired episodes must fit, and TMDB can't list more than its total.
   if (before + (self.aired || 0) > tmdbCount) return { skip: 'TMDB season is shorter than the aired episodes' };
-  if (self.episodes && tmdbCount > before + self.episodes) return { skip: `TMDB lists ${tmdbCount}, more than ${before + self.episodes}` };
+  if (self.episodes && tmdbCount > before + self.episodes && !startsSeason) return { skip: `TMDB lists ${tmdbCount}, more than ${before + self.episodes}` };
   return { offset: before };
 }
 
 const airedOf = (m) => require('./library').airedCount(m) ?? 0;
-const mediaStmt = db.prepare('SELECT mal_id, episodes, status, next_airing_episode, start_date, format FROM media WHERE mal_id = ?');
+const mediaStmt = db.prepare('SELECT mal_id, episodes, status, next_airing_episode, start_date, format, is_full FROM media WHERE mal_id = ?');
 const relStmt = db.prepare(`SELECT r.related_mal_id AS id FROM media_relation r JOIN media m ON m.mal_id = r.related_mal_id
   WHERE r.mal_id = ? AND r.relation_type = ? AND m.format IN ('TV','ONA','TV_SHORT')`);
 const mapStmt = db.prepare('SELECT tmdb_tv_id, tmdb_season FROM catalog_idmap WHERE mal_id = ?');
@@ -65,7 +68,12 @@ function tmdbGroup(malId) {
     const m = mediaStmt.get(id) || { mal_id: id };
     return { malId: id, episodes: m.episodes || null, aired: airedOf(m), finished: m.status === 'FINISHED', start: m.start_date || '9999' };
   }).sort((a, b) => a.start.localeCompare(b.start) || a.malId - b.malId);
-  return { tvId: map.tmdb_tv_id, season, group };
+  // Does the group begin the TMDB season? Its first entry has no TV prequel, or every TV prequel is
+  // mapped to the same show's previous season. "No prequel" counts only once its relations are fetched.
+  const prequels = relStmt.all(group[0].malId, 'PREQUEL').map((r) => mapStmt.get(r.id));
+  const startsSeason = season >= 1 && ((!prequels.length && Boolean(mediaStmt.get(group[0].malId)?.is_full))
+    || prequels.every((m) => m && m.tmdb_tv_id === map.tmdb_tv_id && (m.tmdb_season ?? 1) === season - 1));
+  return { tvId: map.tmdb_tv_id, season, group, startsSeason };
 }
 
 module.exports = { lineUp, tmdbGroup };

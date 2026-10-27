@@ -707,7 +707,7 @@ test('TMDB numbering: exact season, a 24-episode season over two 12-episode MAL 
   assert.ok(lineUp([{ malId: 1, episodes: 12, aired: 12, finished: false }, done(2, 12)], 24, 2).skip, 'an earlier part without a final count');
   // The group comes from the map and the relations.
   for (const [id, start] of [[9401, '2023-01-01'], [9402, '2023-07-01'], [9403, '2024-01-01']]) {
-    db.prepare("INSERT OR REPLACE INTO media (mal_id, title, episodes, status, format, start_date) VALUES (?, 'S', 12, 'FINISHED', 'TV', ?)").run(id, start);
+    db.prepare("INSERT OR REPLACE INTO media (mal_id, title, episodes, status, format, start_date, is_full) VALUES (?, 'S', 12, 'FINISHED', 'TV', ?, 1)").run(id, start);
   }
   relate(9402, 9401, 'PREQUEL'); relate(9401, 9402, 'SEQUEL'); relate(9403, 9402, 'PREQUEL'); relate(9402, 9403, 'SEQUEL');
   const map = db.prepare('INSERT OR REPLACE INTO catalog_idmap (mal_id, tmdb_tv_id, tmdb_season) VALUES (?, ?, ?)');
@@ -715,7 +715,14 @@ test('TMDB numbering: exact season, a 24-episode season over two 12-episode MAL 
   const g = tmdbGroup(9402);
   assert.deepEqual([g.tvId, g.season, g.group.map((x) => x.malId)], [777, 1, [9401, 9402]], 'the third season maps elsewhere and is left out');
   assert.deepEqual(lineUp(g.group, 24, 9402), { offset: 12 });
+  assert.equal(g.startsSeason, true, 'no prequel: the group starts the TMDB season');
+  assert.equal(tmdbGroup(9403).startsSeason, true, 'its prequel is in TMDB season 1, so it starts season 2');
   assert.equal(tmdbGroup(1), null, 'no mapping, no group');
+  // A season start may be shorter on MAL than on TMDB (the next arc isn't on MAL yet): TMDB's first episodes.
+  assert.deepEqual(lineUp([{ malId: 5, episodes: 12, aired: 4, finished: false }], 24, 5, { startsSeason: true }), { offset: 0 });
+  assert.deepEqual(lineUp([done(1, 12)], 24, 1, { startsSeason: true }), { offset: 0 });
+  assert.ok(lineUp([done(1, 12)], 24, 1).skip, 'not confirmed as a season start: still skipped');
+  assert.ok(lineUp([done(1, 25)], 24, 1, { startsSeason: true }).skip, 'TMDB shorter than MAL: still skipped');
 });
 
 test('Kitsu source: pages through episodes, an empty list is not a failure, outages pause it', async () => {

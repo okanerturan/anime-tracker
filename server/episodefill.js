@@ -70,7 +70,7 @@ async function fill(malId, media, aired, { tmdb = require('./sources/tmdb'), kit
       else {
         try {
           const list = await tmdb.season(group.tvId, group.season);
-          const fit = lineUp(group.group, list.length, malId);
+          const fit = lineUp(group.group, list.length, malId, { startsSeason: group.startsSeason });
           if (fit.skip) out.tmdb = `skip: ${fit.skip}`;
           else { apply(list, 'tmdb', fit.offset); out.tmdb = list.length ? 'ok' : 'empty'; }
           record(malId, 'tmdb', out.tmdb, now);
