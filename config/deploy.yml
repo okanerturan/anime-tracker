@@ -1,7 +1,7 @@
 # Tsuzuku (anime-tracker) on hub, the Hetzner box shared with other apps
-# (~/code/backlog/hetzner-consolidation.md), behind kamal-proxy. Visitors never come here directly:
-# the Worker at anime-tracker.okan.workers.dev checks the passphrase and forwards with X-Origin-Auth,
-# and the app refuses requests without it (AGENTS.md). Deploy: bin/kamal deploy (see AGENTS.md).
+# (~/code/backlog/hetzner-consolidation.md), behind kamal-proxy, which routes by hostname and gets the
+# certificate. tsuzuku.okanerturan.com is a DNS-only record (Cloudflare's proxy off) pointing here; the app
+# checks the passphrase itself (server/passgate.js). Deploy: bin/kamal deploy (see AGENTS.md).
 service: anime-tracker
 image: anime-tracker
 
@@ -16,7 +16,7 @@ servers:
 
 proxy:
   ssl: true
-  host: anime-tracker.178-104-118-172.sslip.io
+  host: tsuzuku.okanerturan.com
   app_port: 3000
   healthcheck:
     path: /up
@@ -36,12 +36,12 @@ builder:
 
 env:
   clear:
-    # One account behind the Worker's passphrase until accounts are switched on (migration step 5).
+    # One account behind a passphrase until accounts are switched on (migration step 5).
     AUTH_MODE: passphrase
     TIMEZONE: Europe/Tirane
     BACKUP_DIR: /data/backups
   secret:
-    - ORIGIN_SECRET
+    - APP_PASSPHRASE
     - TMDB_API_READ_ACCESS_TOKEN
 
 aliases:

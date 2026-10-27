@@ -83,4 +83,4 @@ new episodes and seasons, and your progress on every show page.
 | `notifications` | Tells you when a show you are watching has a new episode (can be turned off). |
 | `https://www.crunchyroll.com/*` | Reads your watch history and season episode lists, and shows your progress card on show pages. |
 | `https://graphql.anilist.co/*` | Looks up public show information (titles, episode counts) for your tracker. |
-| `https://*.workers.dev/*`, `http://localhost/*`, `http://127.0.0.1/*` | Sends your history to the tracker address you enter (a self-hosted tracker runs on one of these). |
+| `https://tsuzuku.okanerturan.com/*`, `https://*.workers.dev/*`, `http://localhost/*`, `http://127.0.0.1/*` | Sends your history to the tracker address you enter: the hosted tracker, or a self-hosted one on one of the others. |

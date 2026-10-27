@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tsuzuku: sync for Crunchyroll",
-  "version": "1.14.3",
+  "version": "1.15.0",
   "description": "Keeps your Tsuzuku watch list up to date with your Crunchyroll watch history.",
   "permissions": [
     "alarms",
@@ -13,6 +13,7 @@
     "https://graphql.anilist.co/*",
     "http://localhost/*",
     "http://127.0.0.1/*",
+    "https://tsuzuku.okanerturan.com/*",
     "https://*.workers.dev/*"
   ],
   "background": {
@@ -52,6 +53,7 @@
       "matches": [
         "http://localhost/*",
         "http://127.0.0.1/*",
+        "https://tsuzuku.okanerturan.com/*",
         "https://*.workers.dev/*"
       ],
       "js": [
@@ -61,7 +63,7 @@
     },
     {
       "matches": [
-        "https://anime-tracker.okan.workers.dev/*",
+        "https://tsuzuku.okanerturan.com/*",
         "http://localhost/*",
         "http://127.0.0.1/*"
       ],

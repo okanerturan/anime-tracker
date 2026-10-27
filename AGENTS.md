@@ -3,21 +3,23 @@
 ## Where it runs (since 2026-10-23)
 
 - **App:** container `anime-tracker-web` on hub (178.104.118.172), Kamal 2, `AUTH_MODE=passphrase`, data in
-  `/srv/anime-tracker` (`anime-tracker.db`, image cache, `backups/`). Origin:
-  `https://anime-tracker.178-104-118-172.sslip.io`, which refuses anything without `X-Origin-Auth`.
-- **Front:** the Cloudflare Worker `anime-tracker` (anime-tracker.okan.workers.dev) still checks the passphrase
-  (its `APP_PASSPHRASE` secret) and, because its `ORIGIN_URL` secret is set, forwards everything to the hub
-  with `ORIGIN_SECRET`. Nothing else is left on Cloudflare: no Durable Object, no R2.
-- **No Cloudflare fallback any more:** since 2026-10-27 the Worker is the gate-only build (`wrangler.gate.jsonc`,
-  `worker/gate.mjs`); its migration v2 deleted the old Durable Object and its data, and the images it had
-  cached in R2 now live in the hub's image cache. The Durable Object's daily backups (2026-10-13 to -22,
-  everything in them is also on the hub) are in `/srv/anime-tracker/backups/archive/` (see its README.txt).
-  If the hub is lost, restore from restic (Storage Box) onto a new box; checked 2026-10-27 by restoring
-  the nightly file into a scratch folder.
+  `/srv/anime-tracker` (`anime-tracker.db`, image cache, `backups/`). Address since 2026-10-28:
+  `https://tsuzuku.okanerturan.com`, a DNS-only A record in the okanerturan.com zone on Cloudflare (proxy
+  off, like BoxitApp's hosts); kamal-proxy routes by hostname and gets the Let's Encrypt certificate. The app
+  checks the passphrase itself (`server/passgate.js`, `APP_PASSPHRASE`); there is no front Worker and no
+  origin lock any more (`ORIGIN_SECRET` unset, so `server/accounts/origin.js` lets everything through).
+- **Old address:** the Worker `anime-tracker` (anime-tracker.okan.workers.dev) only answers 308 to the same path
+  on the new address (`wrangler.redirect.jsonc`, `worker/redirect.mjs`, `npm run deploy:redirect`; never
+  `npm run deploy`, that is the self-hosted Durable Object build). Extension 1.15.0 rewrites a saved
+  workers.dev address to the new one. Delete the Worker once nothing uses the old address. Nothing else is
+  on Cloudflare: the Durable Object (migration v2, 2026-10-27) and the R2 images bucket are deleted; the
+  images are in the hub's image cache. The Durable Object's daily backups (2026-10-13 to -22, everything in
+  them is also on the hub) are in `/srv/anime-tracker/backups/archive/` (see its README.txt).
+- **Recovery:** if the hub is lost, restore from restic (Storage Box) onto a new box and point the DNS record
+  at it; checked 2026-10-27 by restoring the nightly file into a scratch folder.
 - **Deploy the app:** `bin/kamal deploy` from this Mac (builds amd64 locally, needs Docker: `colima start`;
-  the image goes to the hub through Kamal's local registry, no registry account). Deploy the Worker:
-  `npm run deploy:gate` (never `npm run deploy`: that is the self-hosted Durable Object build). Secrets:
-  `~/.config/anime-tracker/hub.env` (ORIGIN_SECRET, same value as the Worker's).
+  the image goes to the hub through Kamal's local registry, no registry account). Secrets:
+  `~/.config/anime-tracker/hub.env` (`APP_PASSPHRASE`, `TMDB_API_READ_ACCESS_TOKEN`), read by `.kamal/secrets`.
 - **Backups:** `server/localbackup.js` writes `/srv/anime-tracker/backups/<day>/anime-tracker.db.gz` nightly
   (~03:00 Europe/Tirane, 14 days kept); hub-backup's restic run ships it and `images/` to the Storage Box. Restore:
   stop the container (`bin/kamal app stop`), gunzip a copy over `/srv/anime-tracker/anime-tracker.db`
@@ -29,7 +31,9 @@
   episode sources and the ID map look hosts up there instead of the system resolver; needed on this Mac
   without the VPN (the ISP answers `api.themoviedb.org` itself), not on the hub.
 
-The sections below describe the accounts mode (`AUTH_MODE=accounts`), built but not switched on yet.
+The sections below describe the accounts mode (`AUTH_MODE=accounts`), built but not switched on yet. They
+predate the move off Cloudflare: the front Worker, R2 images and R2 snapshots need redoing for a direct
+address, the hub's disk and restic before accounts are switched on.
 
 # Operating the hosted tracker
 
@@ -110,7 +114,7 @@ then `READ_ONLY off`. No other account is touched. `--all` restores every accoun
 ## Deploy (Kamal)
 
 `Dockerfile` (Node 26, better-sqlite3 built in the image, runs as `node` on port 3000) and
-`config/deploy.yml` (hub 178.104.118.172, `anime-tracker.178-104-118-172.sslip.io`, 1 GB / 1 CPU,
+`config/deploy.yml` (hub 178.104.118.172, `tsuzuku.okanerturan.com`, 1 GB / 1 CPU,
 `/srv/anime-tracker:/data`, health check `GET /up`). Secrets come from the environment through
 `.kamal/secrets`, which holds only variable names.
 

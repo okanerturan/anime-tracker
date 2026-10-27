@@ -7,6 +7,13 @@ const set = (v) => chrome.storage.local.set(v);
 
 chrome.runtime.onInstalled.addListener(() => chrome.alarms.create('sync', { periodInMinutes: 30, delayInMinutes: 1 }));
 chrome.runtime.onStartup.addListener(() => chrome.alarms.create('sync', { periodInMinutes: 30, delayInMinutes: 1 }));
+// The hosted tracker moved off workers.dev (2026-10-28). The old address only redirects, and a redirect
+// to another host drops the Authorization header, so syncs to it would fail: point saved settings at
+// the new one.
+const MOVED = { 'https://anime-tracker.okan.workers.dev': 'https://tsuzuku.okanerturan.com' };
+chrome.storage.local.get({ trackerUrl: null }).then(({ trackerUrl }) => {
+  if (MOVED[trackerUrl]) chrome.storage.local.set({ trackerUrl: MOVED[trackerUrl] });
+});
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === 'sync') syncNow({ reason: 'alarm' }).catch(() => {});
   if (a.name === 'after-watch') syncNow({ reason: 'watch' }).catch(() => {});

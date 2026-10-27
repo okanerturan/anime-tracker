@@ -1,0 +1,17 @@
+// The live Worker since 2026-10-28: anime-tracker.okan.workers.dev only redirects to the tracker's own
+// address on the hub. Delete it (npx wrangler delete -c wrangler.redirect.jsonc) once nothing uses the old
+// address. Before this it was the passphrase gate (wrangler.gate.jsonc) and, until 2026-10-22, the
+// Durable Object build (wrangler.jsonc); migration v2 deleted that class and its data.
+// Deploy: npm run deploy:redirect.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "anime-tracker",
+  "main": "worker/redirect.mjs",
+  "compatibility_date": "2026-10-01",
+  "vars": { "TARGET": "https://tsuzuku.okanerturan.com" },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TrackerDO"] },
+    { "tag": "v2", "deleted_classes": ["TrackerDO"] }
+  ],
+  "observability": { "enabled": true }
+}

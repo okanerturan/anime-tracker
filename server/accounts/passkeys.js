@@ -1,11 +1,11 @@
 'use strict';
 // Passkeys (WebAuthn) for sign-in (D5). The relying party is the address people use
-// (anime-tracker.okan.workers.dev); RP_ID and APP_ORIGIN override it for local runs and tests.
+// (tsuzuku.okanerturan.com); RP_ID and APP_ORIGIN override it for local runs and tests.
 // Each ceremony gets a one-time "flow" id that carries its challenge for 5 minutes.
 const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require('@simplewebauthn/server');
 const { adb, secret } = require('./store');
 
-const rpID = () => process.env.RP_ID || 'anime-tracker.okan.workers.dev';
+const rpID = () => process.env.RP_ID || 'tsuzuku.okanerturan.com';
 const origin = () => process.env.APP_ORIGIN || `https://${rpID()}`;
 const FLOW_MS = 5 * 60e3;
 const flows = new Map(); // flow id -> { challenge, purpose, accountId, expires }
