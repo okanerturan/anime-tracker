@@ -1,13 +1,13 @@
 // The live Worker since the move to the hub: passphrase gate in front of the hub (ORIGIN_URL,
-// ORIGIN_SECRET and APP_PASSPHRASE secrets), plus images cached in R2 before the move. The Durable
-// Object build (wrangler.jsonc) ran under this name until 2026-10-22; migration v2 deleted its class
-// and data (a final copy is in the hub's backups). Deploy: npm run deploy:gate.
+// ORIGIN_SECRET and APP_PASSPHRASE secrets), nothing else. The Durable Object build (wrangler.jsonc)
+// ran under this name until 2026-10-22; migration v2 deleted its class and data, and the images it
+// had cached in R2 were copied to the hub (2026-10-27). Copies of both are in the hub's backups.
+// Deploy: npm run deploy:gate.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "anime-tracker",
   "main": "worker/gate.mjs",
   "compatibility_date": "2026-10-01",
-  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "anime-tracker-images" }],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["TrackerDO"] },
     { "tag": "v2", "deleted_classes": ["TrackerDO"] }

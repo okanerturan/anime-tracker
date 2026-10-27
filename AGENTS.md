@@ -7,17 +7,19 @@
   `https://anime-tracker.178-104-118-172.sslip.io`, which refuses anything without `X-Origin-Auth`.
 - **Front:** the Cloudflare Worker `anime-tracker` (anime-tracker.okan.workers.dev) still checks the passphrase
   (its `APP_PASSPHRASE` secret) and, because its `ORIGIN_URL` secret is set, forwards everything to the hub
-  with `ORIGIN_SECRET`. Images it cached in R2 before the move are served from its R2 binding.
+  with `ORIGIN_SECRET`. Nothing else is left on Cloudflare: no Durable Object, no R2.
 - **No Cloudflare fallback any more:** since 2026-10-27 the Worker is the gate-only build (`wrangler.gate.jsonc`,
-  `worker/gate.mjs`); its migration v2 deleted the old Durable Object and its data. The Durable Object's last
-  backup (2026-10-22, all of it also on the hub) is kept as
-  `/srv/anime-tracker/backups/cloudflare-do-final-2026-10-22.json.gz`. If the hub is lost, restore from
-  restic (Storage Box) onto a new box; checked 2026-10-27 by restoring the nightly file into a scratch folder.
+  `worker/gate.mjs`); its migration v2 deleted the old Durable Object and its data, and the images it had
+  cached in R2 now live in the hub's image cache. The Durable Object's daily backups (2026-10-13 to -22,
+  everything in them is also on the hub) are in `/srv/anime-tracker/backups/archive/` (see its README.txt).
+  If the hub is lost, restore from restic (Storage Box) onto a new box; checked 2026-10-27 by restoring
+  the nightly file into a scratch folder.
 - **Deploy the app:** `bin/kamal deploy` from this Mac (builds amd64 locally, needs Docker: `colima start`;
   the image goes to the hub through Kamal's local registry, no registry account). Deploy the Worker:
-  `npm run deploy:gate` (never `npm run deploy`: that is the self-hosted Durable Object build). Secrets: `~/.config/anime-tracker/hub.env` (ORIGIN_SECRET, same value as the Worker's).
+  `npm run deploy:gate` (never `npm run deploy`: that is the self-hosted Durable Object build). Secrets:
+  `~/.config/anime-tracker/hub.env` (ORIGIN_SECRET, same value as the Worker's).
 - **Backups:** `server/localbackup.js` writes `/srv/anime-tracker/backups/<day>/anime-tracker.db.gz` nightly
-  (~03:00 Europe/Tirane, 14 days kept); hub-backup's restic run ships the folder to the Storage Box. Restore:
+  (~03:00 Europe/Tirane, 14 days kept); hub-backup's restic run ships it and `images/` to the Storage Box. Restore:
   stop the container (`bin/kamal app stop`), gunzip a copy over `/srv/anime-tracker/anime-tracker.db`
   (delete its `-wal`/`-shm`), `bin/kamal app boot`.
 - **Watching:** hub-check alerts if `anime-tracker-web` is down or `backups/last-backup.json` is older than 26 h.

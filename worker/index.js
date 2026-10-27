@@ -149,9 +149,10 @@ const MAINTENANCE = `<!doctype html><meta charset="utf-8"><meta name="viewport" 
 
 /** Forward to the hub with the shared secret (the hub refuses requests without it). */
 async function toHub(request, env, url, viaBearer = false) {
-  // Images this Worker cached in R2 before the move are served straight from there.
+  // Images this Worker cached in R2 before the move are served straight from there (when the
+  // IMAGES bucket is still bound; once they are copied to the server it can be dropped).
   const img = url.pathname.match(/^\/img\/([0-9a-f]{40})$/);
-  if (img && request.method === 'GET') {
+  if (img && env.IMAGES && request.method === 'GET') {
     const obj = await env.IMAGES.get(`img/${img[1]}`);
     if (obj) return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType || 'image/jpeg', 'Cache-Control': 'public, max-age=31536000, immutable' } });
   }
