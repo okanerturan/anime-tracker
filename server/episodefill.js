@@ -7,7 +7,7 @@
 const { catalog } = require('./db');
 const episodes = require('./episodes');
 const images = require('./images');
-const { lineUp, tmdbGroup } = require('./numbering');
+const { lineUp, tmdbGroup, lineUpAcross, seasonEpisode, tmdbChain } = require('./numbering');
 
 const HOUR = 3600e3;
 const getFetchStmt = catalog.prepare('SELECT fetched_at, outcome FROM catalog_episode_fetch WHERE mal_id = ? AND source = ?');
@@ -68,15 +68,33 @@ async function fill(malId, media, aired, { tmdb = require('./sources/tmdb'), kit
       const group = tmdbGroup(malId);
       if (!group) { out.tmdb = 'unmapped'; record(malId, 'tmdb', out.tmdb, now); }
       else {
+        // When the mapped season doesn't line up (or doesn't exist), read TMDB's seasons as one run.
+        const across = async (why) => {
+          const c = tmdbChain(malId);
+          const counts = c ? await tmdb.seasons(c.tvId) : [];
+          const fit = c ? lineUpAcross(c.chain, counts, malId) : { skip: 'no series' };
+          if (fit.skip) return `skip: ${why}; ${fit.skip}`;
+          const seasons = new Map();
+          const list = [];
+          for (let n = 1; n <= upTo; n += 1) {
+            const at = seasonEpisode(counts, fit.offset + n);
+            if (!at) break;
+            if (!seasons.has(at.season)) seasons.set(at.season, await tmdb.season(c.tvId, at.season));
+            const e = seasons.get(at.season).find((x) => x.episodeNumber === at.episode);
+            if (e) list.push({ ...e, episodeNumber: n });
+          }
+          apply(list, 'tmdb');
+          return 'ok (across seasons)';
+        };
         try {
-          const list = await tmdb.season(group.tvId, group.season);
-          const fit = lineUp(group.group, list.length, malId, { startsSeason: group.startsSeason });
-          if (fit.skip) out.tmdb = `skip: ${fit.skip}`;
+          let list = null;
+          try { list = await tmdb.season(group.tvId, group.season); } catch (err) { if (!err.notFound) throw err; }
+          const fit = list ? lineUp(group.group, list.length, malId, { startsSeason: group.startsSeason }) : { skip: 'TMDB has no such season' };
+          if (fit.skip) out.tmdb = await across(fit.skip);
           else { apply(list, 'tmdb', fit.offset); out.tmdb = list.length ? 'ok' : 'empty'; }
           record(malId, 'tmdb', out.tmdb, now);
         } catch (err) {
           out.tmdb = err.paused ? 'paused' : String(err.message || err);
-          if (err.notFound) record(malId, 'tmdb', 'skip: TMDB has no such season', now);
         }
       }
     }

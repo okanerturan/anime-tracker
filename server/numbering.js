@@ -76,4 +76,64 @@ function tmdbGroup(malId) {
   return { tvId: map.tmdb_tv_id, season, group, startsSeason };
 }
 
-module.exports = { lineUp, tmdbGroup };
+/**
+ * The fallback when a show doesn't line up with its mapped TMDB season: TMDB's seasons read as one
+ * continuous run of episodes. `chain`: the series' MAL entries mapped to the same TMDB show (any
+ * season), in airing order; `seasonCounts`: [{ season, episodes }] from TMDB. The show starts after the
+ * earlier entries (each needs a final count). A finished show must end exactly where a TMDB season ends
+ * (Gintama: 201 MAL episodes = TMDB seasons 1-4); an airing one must start exactly where one starts.
+ * Returns { offset } in that continuous numbering, or { skip: reason }.
+ */
+function lineUpAcross(chain, seasonCounts, malId) {
+  const at = chain.findIndex((g) => g.malId === malId);
+  if (at < 0) return { skip: 'not in its series' };
+  let before = 0;
+  for (const g of chain.slice(0, at)) {
+    if (!g.finished || !g.episodes) return { skip: 'an earlier season has no final count' };
+    before += g.episodes;
+  }
+  const bounds = [0];
+  for (const c of [...seasonCounts].sort((x, y) => x.season - y.season)) bounds.push(bounds.at(-1) + (c.episodes || 0));
+  const total = bounds.at(-1);
+  const self = chain[at];
+  if (self.finished) {
+    if (!self.episodes) return { skip: 'no final count' };
+    const end = before + self.episodes;
+    if (end > total || !bounds.includes(end)) return { skip: `episodes ${before + 1}-${end} across TMDB seasons don't end where a season ends` };
+    return { offset: before };
+  }
+  if (!bounds.includes(before) || before + (self.aired || 0) > total) return { skip: 'across TMDB seasons, this season doesn\'t start where one starts' };
+  return { offset: before };
+}
+
+/** In continuous numbering, which TMDB season and episode is episode `n`? (`bounds` as above.) */
+function seasonEpisode(seasonCounts, n) {
+  let start = 0;
+  for (const c of [...seasonCounts].sort((x, y) => x.season - y.season)) {
+    if (n <= start + c.episodes) return { season: c.season, episode: n - start };
+    start += c.episodes;
+  }
+  return null;
+}
+
+/** The series' MAL entries mapped to `malId`'s TMDB show, any season, in airing order. */
+function tmdbChain(malId) {
+  const map = mapStmt.get(malId);
+  if (!map?.tmdb_tv_id) return null;
+  const ids = new Set([malId]);
+  const walk = (id, type) => {
+    for (let hops = 0; hops < 12; hops += 1) {
+      const next = relStmt.all(id, type).map((r) => r.id).find((x) => !ids.has(x));
+      if (!next || mapStmt.get(next)?.tmdb_tv_id !== map.tmdb_tv_id) return;
+      ids.add(next); id = next;
+    }
+  };
+  walk(malId, 'PREQUEL'); walk(malId, 'SEQUEL');
+  const chain = [...ids].map((id) => {
+    const m = mediaStmt.get(id) || { mal_id: id };
+    return { malId: id, episodes: m.episodes || null, aired: airedOf(m), finished: m.status === 'FINISHED', start: m.start_date || '9999' };
+  }).sort((a, b) => a.start.localeCompare(b.start) || a.malId - b.malId);
+  return { tvId: map.tmdb_tv_id, chain };
+}
+
+module.exports = { lineUp, tmdbGroup, lineUpAcross, seasonEpisode, tmdbChain };

@@ -816,3 +816,41 @@ test('show panel credits TMDB and Kitsu only when an episode shown has a field f
   episodes.merge(9601, 1, { title: 'From Kitsu' }, 'kitsu');
   assert.deepEqual(library.getEpisodes(9601).credits.map((c) => c.name), ['TMDB', 'Kitsu']);
 });
+
+test('TMDB across seasons: a long entry spanning TMDB seasons, a sequel inside an earlier TMDB season', async () => {
+  const { lineUpAcross, seasonEpisode } = require('../server/numbering');
+  const done = (malId, episodes) => ({ malId, episodes, aired: episodes, finished: true });
+  const gintama = [{ season: 1, episodes: 49 }, { season: 2, episodes: 51 }, { season: 3, episodes: 51 }, { season: 4, episodes: 50 }];
+  assert.deepEqual(lineUpAcross([done(1, 201)], gintama, 1), { offset: 0 }, '201 = 49 + 51 + 51 + 50');
+  assert.ok(lineUpAcross([done(1, 200)], gintama, 1).skip, 'ends inside a season: skipped');
+  // JJK: TMDB season 1 holds both MAL seasons (24 + 23 = 47).
+  const jjk = [{ season: 1, episodes: 47 }];
+  assert.deepEqual(lineUpAcross([done(1, 24), done(2, 23)], jjk, 2), { offset: 24 });
+  assert.deepEqual(seasonEpisode(jjk, 25), { season: 1, episode: 25 });
+  assert.deepEqual(seasonEpisode(gintama, 50), { season: 2, episode: 1 });
+  assert.ok(lineUpAcross([{ malId: 1, episodes: 24, aired: 24, finished: false }, done(2, 23)], jjk, 2).skip, 'an earlier season without a final count');
+  // Airing: must start where a TMDB season starts.
+  assert.deepEqual(lineUpAcross([done(1, 12), { malId: 2, episodes: 12, aired: 3, finished: false }], [{ season: 1, episodes: 12 }, { season: 2, episodes: 5 }], 2), { offset: 12 });
+  assert.ok(lineUpAcross([done(1, 13), { malId: 2, episodes: 12, aired: 3, finished: false }], [{ season: 1, episodes: 12 }, { season: 2, episodes: 5 }], 2).skip);
+
+  // End to end: the mapped season 404s, the episodes come from TMDB season 1, 25-26.
+  const tmdb = require('../server/sources/tmdb');
+  const saved = { ...tmdb };
+  for (const [id, start, eps] of [[9701, '2020-10-01', 2], [9702, '2023-07-01', 2]]) {
+    db.prepare("INSERT OR REPLACE INTO media (mal_id, title, episodes, status, format, start_date, is_full) VALUES (?, 'J', ?, 'FINISHED', 'TV', ?, 1)").run(id, eps, start);
+  }
+  library.addToLibrary({ malId: 9702, title: 'Sequel Inside', titleEnglish: 'Sequel Inside', totalEpisodes: 2 });
+  relate(9702, 9701, 'PREQUEL'); relate(9701, 9702, 'SEQUEL');
+  const map = db.prepare('INSERT OR REPLACE INTO catalog_idmap (mal_id, tmdb_tv_id, tmdb_season) VALUES (?, 888, ?)');
+  map.run(9701, 1); map.run(9702, 2);
+  try {
+    Object.assign(tmdb, {
+      isAvailable: () => true,
+      seasons: async () => [{ season: 1, episodes: 4 }],
+      season: async (tv, s) => { if (s !== 1) throw Object.assign(new Error('TMDB 404'), { notFound: true }); return [1, 2, 3, 4].map((n) => ({ episodeNumber: n, title: `T${n}`, aired: null, imageUrl: null })); }
+    });
+    const r = await require('../server/episodefill').fill(9702, db.prepare('SELECT * FROM media WHERE mal_id = 9702').get(), 2);
+    assert.equal(r.tmdb, 'ok (across seasons)');
+    assert.deepEqual(db.prepare('SELECT title FROM catalog_episodes WHERE mal_id = 9702 ORDER BY episode_number').all().map((x) => x.title), ['T3', 'T4']);
+  } finally { Object.assign(tmdb, saved); }
+});
