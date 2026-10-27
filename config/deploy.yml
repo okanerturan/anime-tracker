@@ -42,6 +42,7 @@ env:
     BACKUP_DIR: /data/backups
   secret:
     - ORIGIN_SECRET
+    - TMDB_API_READ_ACCESS_TOKEN
 
 aliases:
   logs: app logs -f
