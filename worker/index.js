@@ -94,6 +94,7 @@ async function handle(request, env) {
     const url = new URL(request.url);
     const passphrase = env.APP_PASSPHRASE;
     if (!passphrase) return new Response('APP_PASSPHRASE secret is not set', { status: 500 });
+    if (!env.ORIGIN_URL && !env.TRACKER) return new Response('ORIGIN_URL secret is not set', { status: 500 });
 
     if (url.pathname === '/login') {
       if (request.method === 'POST') {
@@ -127,6 +128,7 @@ async function handle(request, env) {
     // checked by the tracker itself (unknown tokens get 404).
     if (request.method === 'GET' && /^\/calendar\/[a-f0-9]{48}\.ics$/.test(url.pathname)) return env.ORIGIN_URL ? toHub(request, env, url) : tracker(env).fetch(request);
     if (url.pathname.startsWith('/internal/')) {
+      if (env.ORIGIN_URL) return new Response('Not found', { status: 404 });
       if (!viaBearer) return new Response('Forbidden', { status: 403 });
       return tracker(env).fetch(request);
     }
@@ -135,11 +137,8 @@ async function handle(request, env) {
       return Response.redirect(new URL('/login', url).toString(), 303);
     }
     // Hub mode (ORIGIN_URL set): the passphrase check stays here, everything else is served by the hub.
-    // Deleting the ORIGIN_URL secret switches back to the Durable Object at once.
-    if (env.ORIGIN_URL) {
-      if (url.pathname.startsWith('/internal/')) return new Response('Not found', { status: 404 });
-      return toHub(request, env, url, viaBearer);
-    }
+    // In the Durable Object build, deleting the ORIGIN_URL secret switches back to the Durable Object.
+    if (env.ORIGIN_URL) return toHub(request, env, url, viaBearer);
     if (isApi) return tracker(env).fetch(request);
     return env.ASSETS.fetch(request);
 }

@@ -146,7 +146,7 @@ Three ways, all single-user behind a passphrase you choose, so the tracker works
 - **R2**: posters and covers.
 - **Cron**: every three hours it refreshes AniList metadata, adds newly aired episodes and fetches their titles and thumbnails. Once a day the same run writes a backup.
 
-AniList blocks Cloudflare's network, so on Workers your browser runs the tracker's AniList requests for it (see Limitations). The same Worker can also sit in front of a Docker copy: with an `ORIGIN_URL` secret set it keeps the passphrase gate and forwards everything else to your server.
+AniList blocks Cloudflare's network, so on Workers your browser runs the tracker's AniList requests for it (see Limitations). The same Worker can also sit in front of a Docker copy: with an `ORIGIN_URL` secret set it keeps the passphrase gate and forwards everything else to your server. Once the server is the only copy, `wrangler.gate.jsonc` deploys just that gate (`npm run deploy:gate`); its second migration deletes the Durable Object and its data, so take a backup first.
 
 To deploy:
 

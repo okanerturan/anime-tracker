@@ -18,7 +18,8 @@
     "ext:package": "node scripts/package-extension.mjs",
     "cws:status": "node scripts/cws.mjs fetch-status",
     "cws:publish": "node scripts/cws.mjs upload-and-publish",
-    "ext:assets": "node scripts/store-assets.mjs"
+    "ext:assets": "node scripts/store-assets.mjs",
+    "deploy:gate": "env -u CLOUDFLARE_API_TOKEN wrangler deploy -c wrangler.gate.jsonc"
   },
   "dependencies": {
     "@simplewebauthn/server": "14.0.3",
