@@ -162,7 +162,9 @@ async function refreshCycle() {
          OR COALESCE(e.c,0) < COALESCE(CASE WHEN m.next_airing_episode IS NOT NULL THEN m.next_airing_episode - 1 ELSE m.episodes END, 0)
          OR (m.status = 'RELEASING' AND w.synced_at < datetime('now','-6 hours'))
          OR (COALESCE(e.c,0) > 0 AND (e.i < e.c OR e.p > 0) AND w.synced_at < datetime('now','-3 days'))
-    `).all().map((r) => r.id);
+         -- Never asked TMDB (it outranks AniList's titles and stills): once per show.
+         OR (? AND COALESCE(e.c,0) > 0 AND NOT EXISTS (SELECT 1 FROM catalog_episode_fetch f WHERE f.mal_id = w.mal_id AND f.source = 'tmdb'))
+    `).all(require('./sources/tmdb').isAvailable() ? 1 : 0).map((r) => r.id);
     need.forEach(enqueue);
     summary.episodesQueued = need.length;
 
