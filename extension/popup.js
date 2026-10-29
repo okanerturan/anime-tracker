@@ -62,17 +62,14 @@ async function loadUpNext(s) {
       const name = clean(x.nextEpisodeTitle);
       const url = x.nextEpisodeUrl || `${s.trackerUrl}/#/library?anime=${x.malId}`;
       const item = el('div', 'item');
-      // Episode still with its number and the show's progress along the bottom.
+      // Episode still with its number. No bar along the bottom: there it reads as how far into this
+      // episode you got (Crunchyroll's playhead), and the show's progress is in the details line.
       const thumb = el('div', 'thumb');
       const img = el('img'); img.alt = '';
       // Image routes need the key too, and an <img> can't send a header: fetch, then show the blob.
       const src = (x.nextEpisodeImage || x.image || '').replace(/^\//, `${s.trackerUrl}/`);
       if (src) fetch(src, { headers: auth }).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
-      const bar = el('div', 'bar'); const fill = el('i');
-      const of = x.totalEpisodes || x.aired;
-      if (of) fill.style.width = `${Math.min(100, Math.round((100 * x.watched) / of))}%`;
-      bar.append(fill);
-      thumb.append(img, el('span', 'ep', `E${x.nextEpisode}`), bar);
+      thumb.append(img, el('span', 'ep', `E${x.nextEpisode}`));
       // Title (stretched link over the card), episode name, then the details line.
       const text = el('div', 'text');
       const t = el('a', 't'); t.href = url; t.target = '_blank'; t.rel = 'noopener';

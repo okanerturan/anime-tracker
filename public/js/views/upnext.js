@@ -70,15 +70,18 @@ function epCard(item, mode, onChange) {
     // (No "AIRING" tag here: every show in this row is one you're watching; the tags that remain say something.)
     const name = realTitle(item.nextEpisodeTitle);
     line = `Episode ${item.nextEpisode}${name ? ` · ${name}` : ''}`;
-    frac = item.aired ? Math.min(item.furthest || item.watched, item.aired) / item.aired : 0;
+    // No bar under the episode still: there it reads as how far into this episode you got. The show's
+    // progress is the count instead.
+    frac = null;
     const toGo = timeFor(item.remaining, item.episodeMinutes);
     // Short enough for one line on every card; a paused episode says "Resume · 11 min" on its Play button instead.
+    if (item.aired) meta.push(`${Math.min(item.furthest || item.watched, item.aired)}/${item.totalEpisodes || item.aired}`);
     meta.push(`${item.remaining} ep${item.remaining === 1 ? '' : 's'} left`);
     if (toGo) meta.push(toGo);
     if (item.lastWatchedAt) meta.push(ago(item.lastWatchedAt));
   } else if (mode === 'airing') {
     line = `Episode ${item.nextAiringEpisode} ${relTime(item.nextAiringAt)}`;
-    frac = item.aired ? item.watched / item.aired : 0;
+    frac = null;
     meta.push(`watched ${item.watched} of ${item.aired}`);
     badge = h('span', { class: 'pill airing badge-start' }, 'NEW EPISODE SOON');
   } else if (mode === 'season') {
