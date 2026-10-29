@@ -80,10 +80,10 @@
       header img { width: 24px; height: 24px; border-radius: 6px; }
       header button { margin-left: auto; background: none; border: 0; color: #8a90a1; font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 4px; }
       @media (hover: hover) and (pointer: fine) { header button:hover { color: #eef0f5; } }
-      /* Earlier seasons: small and quiet; ends in an ellipsis rather than running off the card. */
+      /* Earlier seasons: small and quiet; a long name wraps instead of being cut off. */
       .others { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; font-size: 12.5px; color: #8a90a1; }
       .others li { display: flex; gap: 8px; justify-content: space-between; }
-      .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .t { min-width: 0; overflow-wrap: anywhere; }
       .p { flex: none; font-variant-numeric: tabular-nums; }
       .title { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere;
         display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
