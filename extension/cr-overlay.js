@@ -19,6 +19,15 @@
 
   function remove() { host?.remove(); host = null; }
 
+  /** The words every title starts with (whole words only; '' when that would be too short to mean anything). */
+  function sharedStart(titles) {
+    if (titles.length < 2) return '';
+    let n = 0;
+    while (titles.every((t) => n < t.length && t[n] === titles[0][n])) n += 1;
+    const cut = titles.every((t) => t.length === n || /[\s:,–-]/.test(t[n])) ? n : titles[0].lastIndexOf(' ', n);
+    return cut >= 8 ? titles[0].slice(0, cut) : '';
+  }
+
   function render(info, seriesId) {
     remove();
     if (!info || !info.shows || !info.shows.length || dismissedFor === seriesId) return;
@@ -28,8 +37,15 @@
     const current = info.shows.find((s) => s.nextEpisode && s.watched < (s.aired || 0)) || info.shows[info.shows.length - 1];
     // Earlier seasons: a small list above; the current one is the card's title, its count inline.
     const count = (s) => (s.aired && s.watched >= s.aired ? `✓${s.rating ? ` · ★${s.rating}` : ''}` : `${s.watched}/${s.aired ?? '?'}`);
+    // Seasons share the series name ("Reborn as a Vending Machine, … Season 2"), and a long one cut to
+    // fit leaves rows that look identical: drop the shared start, keep what tells them apart.
+    const shared = sharedStart(info.shows.map((s) => s.title));
+    const short = (s, i) => {
+      const rest = s.title.slice(shared.length).replace(/^[\s:,–-]+/, '');
+      return rest || (i === 0 ? 'Season 1' : s.title);
+    };
     const others = info.shows.slice(-4).filter((s) => s !== current).map((s) =>
-      `<li><span class="t" title="${esc(s.title)}">${esc(s.title)}</span><span class="p">${count(s)}</span></li>`).join('');
+      `<li><span class="t" title="${esc(s.title)}">${esc(short(s, info.shows.indexOf(s)))}</span><span class="p">${count(s)}</span></li>`).join('');
     const rows = `${others ? `<ul class="others">${others}</ul>` : ''}${current ? `<p class="title">${esc(current.title)} <span class="count">${count(current)}</span></p>` : ''}`;
     // Finished and not rated yet: rate it right here (ratings steer the tracker's recommendations).
     const finished = current && current.aired && current.watched >= current.aired && current.status === 'FINISHED';
