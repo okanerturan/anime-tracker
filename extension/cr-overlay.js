@@ -19,6 +19,14 @@
 
   function remove() { host?.remove(); host = null; }
 
+  /** Watched, out but not watched, not out yet: one mark each. Past 30 episodes the count alone says it. */
+  function episodeMarks(s) {
+    const n = s && (s.total || s.aired);
+    if (!n || n > 30) return '';
+    const marks = Array.from({ length: n }, (_, i) => `<i class="${i < s.watched ? 'done' : i < (s.aired || 0) ? '' : 'later'}"></i>`).join('');
+    return `<div class="eps" role="img" aria-label="${s.watched} of ${n} episodes watched">${marks}</div>`;
+  }
+
   /** The words every title starts with (whole words only; '' when that would be too short to mean anything). */
   function sharedStart(titles) {
     if (titles.length < 2) return '';
@@ -88,8 +96,11 @@
       .title { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere;
         display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
       .count { font-weight: 500; color: #7f8fb0; font-variant-numeric: tabular-nums; white-space: nowrap; }
-      .bar { height: 5px; border-radius: 3px; background: #2f3442; overflow: hidden; }
-      .bar i { display: block; height: 100%; border-radius: 3px; background: #f47521; }
+      /* One segment per episode, so it reads as episodes watched, not how far into one you got. */
+      .eps { display: flex; gap: 3px; }
+      .eps i { flex: 1; height: 6px; border-radius: 2px; background: #3a4052; }
+      .eps i.done { background: #f47521; }
+      .eps i.later { background: none; box-shadow: inset 0 0 0 1px #3a4052; }
       .next { color: #f6a35b; font-weight: 600; }
       /* The next episode, one click away on the site you're already on. */
       a.next.play { display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; padding: 10px 14px;
@@ -117,7 +128,7 @@
     <div class="card" role="complementary" aria-label="Tsuzuku">
       <header><img src="${chrome.runtime.getURL('icons/icon-32.png')}" alt="">Tsuzuku<button type="button" aria-label="Hide">×</button></header>
       ${rows}
-      ${current && current.aired ? `<div class="bar" role="img" aria-label="${current.watched} of ${current.aired} watched"><i style="width:${Math.min(100, Math.round((100 * current.watched) / current.aired))}%"></i></div>` : ''}
+      ${episodeMarks(current)}
       ${current && current.nextEpisodeUrl && current.watched < (current.aired || 0)
         ? `<a class="next play" href="${esc(current.nextEpisodeUrl)}">▶ Play episode ${current.nextEpisode}</a>`
         : `<div class="next">${esc(next)}</div>`}
