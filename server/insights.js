@@ -51,16 +51,28 @@ function upNext() {
   const byId = new Map(rows.map((r) => [r.mal_id, r]));
   const continueWatching = []; const airingSoon = []; const stalled = []; const caughtUpAiring = []; const onHold = [];
   let dropped = 0;
+  // Library shows with nothing watched yet still belong in Continue once you've begun them: opened on
+  // Crunchyroll (even a few seconds), or the next season of one you finished, out now. Value: when.
+  const begun = new Map();
+  for (const x of db.prepare(`SELECT h.mal_id, MAX(h.date_played) AS at FROM cr_history h JOIN media m ON m.mal_id = h.mal_id
+    WHERE h.mal_id > 0 AND h.date_played IS NOT NULL AND COALESCE(h.dismissed, 0) = 0 AND m.start_date IS NOT NULL AND h.date_played >= m.start_date GROUP BY h.mal_id`).all()) begun.set(x.mal_id, x.at);
+  for (const x of db.prepare(`SELECT r.related_mal_id AS id, r.mal_id AS src FROM media_relation r WHERE r.relation_type = 'SEQUEL'`).all()) {
+    const seq = byId.get(x.id); const src = byId.get(x.src);
+    if (!seq || seq.watched || !src || !src.watched || !seq.start_date || begun.has(x.id)) continue;
+    const srcAired = library.airedCount({ status: src.status, next_airing_episode: src.next_airing_episode, episodes: src.episodes }) ?? src.ep_rows;
+    if (srcAired && src.watched / srcAired >= 0.75) begun.set(x.id, [seq.start_date, src.last_watched].filter(Boolean).sort().at(-1));
+  }
 
   for (const r of rows) {
-    if (!r.watched) continue;
+    if (!r.watched && !begun.has(r.mal_id)) continue;
     // Dropped shows leave Up Next entirely; held ones get their own shelf.
     if (r.list_status === 'dropped') { dropped += 1; continue; }
     const aired = library.airedCount({ status: r.status, next_airing_episode: r.next_airing_episode, episodes: r.episodes }) ?? r.ep_rows;
     // Progress = furthest episode watched; isolated gaps before it are usually history noise, not "unwatched".
     const furthest = r.max_watched || 0;
     const remaining = Math.max(0, (aired || 0) - furthest);
-    const lastAgeDays = r.last_watched ? (now - new Date(r.last_watched).getTime()) / DAY : 9999;
+    const lastAt = r.last_watched || begun.get(r.mal_id);
+    const lastAgeDays = lastAt ? (now - new Date(lastAt).getTime()) / DAY : 9999;
     const nextEp = remaining > 0 ? furthest + 1 : null;
     const nextRow = nextEp ? nextRowStmt.get(r.mal_id, nextEp) : null;
     // Where "Play" goes: the exact episode when Crunchyroll's URL is known, else the series page.
@@ -118,8 +130,9 @@ function upNext() {
   `).all();
   const seen = new Set();
   const newSeasonCards = [];
+  const inContinue = new Set(continueWatching.map((x) => x.malId));
   for (const s of newSeasons) {
-    if (seen.has(s.mal_id)) continue;
+    if (seen.has(s.mal_id) || inContinue.has(s.mal_id)) continue;
     seen.add(s.mal_id);
     const src = byId.get(s.src_id);
     // Only suggest sequels for shows you finished (or nearly).

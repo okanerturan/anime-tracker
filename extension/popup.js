@@ -54,7 +54,10 @@ async function loadUpNext(s) {
     const data = await res.json();
     const all = data.continueWatching;
     const items = all.slice(0, SHOWN);
-    $('count').textContent = all.length > SHOWN ? `${SHOWN} of ${all.length}` : all.length ? String(all.length) : '';
+    // The same rule as the icon's badge (background.js): an episode out in the last 7 days you haven't watched.
+    const isNew = (x) => x.latestAiredAt && Date.now() - new Date(x.latestAiredAt).getTime() < 7 * 86400000;
+    const fresh = all.filter(isNew).length;
+    $('count').textContent = [all.length ? `${all.length} show${all.length === 1 ? '' : 's'}` : '', fresh ? `${fresh} new this week` : ''].filter(Boolean).join(' · ');
     $('all').hidden = all.length <= SHOWN;
     box.replaceChildren();
     if (!items.length) { box.append(empty("You're all caught up.")); return; }
@@ -74,7 +77,7 @@ async function loadUpNext(s) {
       const text = el('div', 'text');
       const t = el('a', 't'); t.href = url; t.target = '_blank'; t.rel = 'noopener';
       t.title = x.title;
-      if (x.latestAiredAt && Date.now() - new Date(x.latestAiredAt).getTime() < 3 * 86400000) t.append(el('span', 'new', 'New'));
+      if (isNew(x)) t.append(el('span', 'new', 'New'));
       t.append(x.title);
       const sub = el('div', 's', name ? `E${x.nextEpisode} · ${name}` : `Episode ${x.nextEpisode}`);
       sub.title = sub.textContent;

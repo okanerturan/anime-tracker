@@ -472,6 +472,24 @@ test('Just finished: seasons of one series finished together are one row; a sepa
   assert.equal(rows.length, 2);
 });
 
+test('Up Next: a season in your library with nothing watched yet is in Continue once begun (next season of one you finished, out now); otherwise it stays out', async () => {
+  const old = '2025-01-06T21:00:00Z';
+  addShow(9201, 'Begun Show', { start_date: '2024-04-07', status: 'FINISHED' });
+  addShow(9202, 'Begun Show Season 2', { start_date: new Date(Date.now() - 20 * 86400000).toISOString().slice(0, 10), status: 'RELEASING', episodes: 12 });
+  addShow(9203, 'Not Begun Show', { start_date: '2024-01-01', status: 'FINISHED' });
+  relate(9201, 9202, 'SEQUEL');
+  const ep = db.prepare('INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, watched, watched_at, aired) VALUES (?, ?, ?, ?, ?)');
+  for (let n = 1; n <= 12; n += 1) ep.run(9201, n, 1, old, null);
+  for (let n = 1; n <= 3; n += 1) ep.run(9202, n, 0, null, new Date(Date.now() - (20 - 7 * (n - 1)) * 86400000).toISOString());
+  for (let n = 1; n <= 12; n += 1) ep.run(9203, n, 0, null, null);
+  const u = await insights.upNext();
+  const item = u.continueWatching.find((x) => x.malId === 9202);
+  assert.ok(item, 'the begun season is in Continue');
+  assert.equal(item.nextEpisode, 1);
+  assert.ok(!u.newSeasons.some((x) => x.malId === 9202), 'and not also under New seasons');
+  assert.ok(!u.continueWatching.some((x) => x.malId === 9203), 'a library show never begun stays out');
+});
+
 test('audio versions: a link picked for the audio you watch replaces another language\'s; the season is asked for again until then', async () => {
   addShow(985, 'Sub Watcher', { episodes: 2 });
   rule('GS00999990JAJP', 985);
