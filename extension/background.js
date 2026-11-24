@@ -90,7 +90,7 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
         // Library shows not played yet: the tracker picks their season from the series' list.
         wantSeriesSeasons: status.wantSeriesSeasons || [],
         chooseSeasons: async (items) => (await postTracker(cfg.trackerUrl, '/api/crunchyroll/series-seasons', { items })).seasonIds });
-      const result = await postTracker(cfg.trackerUrl, '/api/crunchyroll/ingest', { rows: got.rows });
+      const result = await postTracker(cfg.trackerUrl, '/api/crunchyroll/ingest', { rows: got.rows, account: got.account || null });
       const episodes = got.seasons && got.seasons.length ? await postTracker(cfg.trackerUrl, '/api/crunchyroll/episodes', { seasons: got.seasons }) : null;
       const links = got.series && got.series.length ? await postTracker(cfg.trackerUrl, '/api/crunchyroll/series', { results: got.series }).catch(() => null) : null;
       // AniList relay: answer what the tracker couldn't fetch itself, then re-run mapping for plays it deferred.

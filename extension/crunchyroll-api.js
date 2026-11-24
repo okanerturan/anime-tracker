@@ -124,5 +124,6 @@ async function crunchyrollSync({ base = 'https://www.crunchyroll.com', clientId,
   const rows = await fetchHistory(base, token, { since: full ? null : since, maxPages: full ? 100 : 20 });
   const seasons = [...await fetchSeasons(base, token, wantSeasons), ...await fetchSeriesSeasons(base, token, wantSeriesSeasons, chooseSeasons)];
   const series = await searchSeries(base, token, wantSeries);
-  return { rows, seasons, series };
+  // Whose history this is: the tracker follows one Crunchyroll account and refuses anyone else's.
+  return { rows, seasons, series, account: { id: token.account_id, profile: token.profile_id || null } };
 }

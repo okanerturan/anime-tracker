@@ -204,6 +204,8 @@ const routes = {
     if (!Array.isArray(rows)) return sendJSON(res, 400, { error: 'rows array required' });
     // Hosted mode takes history in batches of 500 plays (the extension sends a first sync in pieces).
     if (require('./db').MULTI && rows.length > 500) return sendJSON(res, 413, { error: 'Send at most 500 plays per request.', maxRows: 500 });
+    const other = crunchyroll.otherAccount(body.account);
+    if (other) return sendJSON(res, 409, { error: other });
     return sendJSON(res, 200, await crunchyroll.ingest(rows, { source: body.source === 'manual' ? 'manual' : 'extension' }));
   },
   // Season lists of Crunchyroll series for library shows you haven't played yet: pick each show's season.

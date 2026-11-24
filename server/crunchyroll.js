@@ -203,6 +203,26 @@ function applyRow(row) {
 }
 
 /** Ingest rows, resolve mappings, apply watched state. */
+/**
+ * The tracker follows one Crunchyroll account: the first one that syncs. History from any other account
+ * (someone else signed in to Crunchyroll in the same browser) is refused instead of merged into yours.
+ * Returns the refusal message, or null when the history may come in. Extensions before 1.15.6 don't say
+ * whose history it is and are let through.
+ */
+function otherAccount(account) {
+  const id = account && typeof account.id === 'string' ? account.id.slice(0, 80) : '';
+  if (!id) return null;
+  const profile = typeof account.profile === 'string' && account.profile ? account.profile.slice(0, 80) : null;
+  const state = require('./state');
+  const known = state.get('crAccount');
+  if (!known || !known.id) { state.set('crAccount', { id, profile }); return null; }
+  const refuse = "Crunchyroll is signed in to a different account than the one Tsuzuku follows, so this sync was skipped. Sign back in to your own account (or use a separate Chrome profile for others).";
+  if (known.id !== id) return refuse;
+  if (profile && known.profile && profile !== known.profile) return refuse.replace('a different account', 'a different profile');
+  if (profile && !known.profile) state.set('crAccount', { id, profile });
+  return null;
+}
+
 async function ingest(rawRows, { source = 'extension' } = {}) {
   const rows = rawRows.map(normalizeRow).filter((r) => r && r.series_title && r.date_played);
   const store = db.transaction((list) => { for (const r of list) upsertRowStmt.run(r); });
@@ -578,4 +598,4 @@ function hideSampled(seasonId, undo = false) {
   return { ok: true };
 }
 
-module.exports = { resolveWaitingSeason, ruleFromCandidates, hideSampled, ingest, status, remapSeason, confirmSeason, trackSeason, dismissPlay, normalizeRow, applySeasonEpisodes, wantedSeasons, wantedSeriesSeasons, chooseSeriesSeasons };
+module.exports = { otherAccount, resolveWaitingSeason, ruleFromCandidates, hideSampled, ingest, status, remapSeason, confirmSeason, trackSeason, dismissPlay, normalizeRow, applySeasonEpisodes, wantedSeasons, wantedSeriesSeasons, chooseSeriesSeasons };

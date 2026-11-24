@@ -872,3 +872,14 @@ test('TMDB across seasons: a long entry spanning TMDB seasons, a sequel inside a
     assert.deepEqual(db.prepare('SELECT title FROM catalog_episodes WHERE mal_id = 9702 ORDER BY episode_number').all().map((x) => x.title), ['T3', 'T4']);
   } finally { Object.assign(tmdb, saved); }
 });
+
+test('sync follows one Crunchyroll account: another account or profile in the same browser is refused', () => {
+  db.prepare("DELETE FROM app_state WHERE key = 'crAccount'").run();
+  assert.equal(crunchyroll.otherAccount(null), null, 'older extensions that do not say whose history it is get through');
+  assert.equal(crunchyroll.otherAccount({ id: 'acc-me', profile: null }), null, 'the first account is remembered');
+  assert.equal(crunchyroll.otherAccount({ id: 'acc-me', profile: 'p-me' }), null, 'a profile id seen later is remembered too');
+  assert.match(crunchyroll.otherAccount({ id: 'acc-sister', profile: 'p-x' }), /different account/);
+  assert.match(crunchyroll.otherAccount({ id: 'acc-me', profile: 'p-kid' }), /different profile/);
+  assert.equal(crunchyroll.otherAccount({ id: 'acc-me', profile: 'p-me' }), null);
+  assert.equal(appState.get('crAccount').id, 'acc-me');
+});
