@@ -31,8 +31,9 @@ No analytics, advertising, tracking or data sales. Nothing is sent to the extens
 
 ## What it stores in your browser
 
-Your tracker address, an optional tracker key, the time and result of the last sync, and your
-settings (notifications, the progress card), in Chrome's extension storage on your device.
+Your tracker address, an optional tracker key, the time and result of the last sync, your
+settings (notifications, the progress card), and a copy of the short "up next" list the popup
+shows (so it can appear at once), in Chrome's extension storage on your device.
 Uninstalling the extension removes them.
 
 ## Contact
