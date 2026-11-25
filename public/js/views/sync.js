@@ -335,11 +335,17 @@ export async function render(view) {
     bg.episodeSources?.skipped?.length ? h('details', { class: 'collapse section' },
       h('summary', {}, h('div', { class: 'section-head' },
         h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Episode data left out'),
-        h('span', { class: 'sub' }, `${bg.episodeSources.skipped.length} show${bg.episodeSources.skipped.length === 1 ? '' : 's'} where TMDB or Kitsu number the episodes differently, so their titles and stills weren't matched by guess`))),
-      h('div', { class: 'collapse-body quiet-list' }, bg.episodeSources.skipped.map((x) => showRow({
-        show: { malId: x.malId, title: x.title || `MAL ${x.malId}` },
-        sub: `${x.source === 'tmdb' ? 'TMDB' : 'Kitsu'}: ${x.reason}`
-      })))) : null,
+        h('span', { class: 'sub' }, `${bg.episodeSources.skipped.length} show${bg.episodeSources.skipped.length === 1 ? '' : 's'} still missing episode titles or stills: no source had them, and TMDB or Kitsu number the episodes differently, so they weren't matched by guess`))),
+      h('div', { class: 'collapse-body quiet-list' }, bg.episodeSources.skipped.map((x) => {
+        const m = x.missing || {};
+        const what = [m.titles ? `${m.titles} title${m.titles === 1 ? '' : 's'}` : '', m.stills ? `${m.stills} still${m.stills === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ');
+        const row = showRow({
+          show: { malId: x.malId, title: x.title || `MAL ${x.malId}`, image: x.image },
+          sub: `${what ? `Missing ${what}. ` : ''}${x.source === 'tmdb' ? 'TMDB' : 'Kitsu'}: ${x.reason}`
+        });
+        row.title = x.reason;
+        return row;
+      }))) : null,
     bg.lastBackup ? section('Backups', `Nightly, last ${ago(bg.lastBackup.at)} · ${bg.lastBackup.kept} kept`,
       h('div', { class: 'panel' },
         h('p', {}, `Every table except episode thumbnails (the sync re-fetches those), gzipped: ${Math.round(bg.lastBackup.bytes / 1024).toLocaleString()} KB, ${bg.lastBackup.rows.toLocaleString()} rows. `,

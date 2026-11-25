@@ -60,6 +60,10 @@ async function fill(malId, media, aired, { tmdb = require('./sources/tmdb'), kit
     }
   };
 
+  // A movie or a one-episode special: its one episode is the show itself, so it takes the show's title
+  // (only into an empty field; every real source outranks it).
+  if (total === 1 && (media?.title_english || media?.title)) episodes.merge(malId, 1, { title: media.title_english || media.title }, 'show', { now: new Date(now).toISOString() });
+
   // TMDB: outranks AniList for titles and stills, so it is asked once even when nothing is missing.
   const g0 = gaps(malId, upTo);
   if (due(malId, 'tmdb', { airing, missing: g0.titles + g0.stills, now })) {
@@ -90,7 +94,16 @@ async function fill(malId, media, aired, { tmdb = require('./sources/tmdb'), kit
           let list = null;
           try { list = await tmdb.season(group.tvId, group.season); } catch (err) { if (!err.notFound) throw err; }
           const fit = list ? lineUp(group.group, list.length, malId, { startsSeason: group.startsSeason }) : { skip: 'TMDB has no such season' };
-          if (fit.skip) out.tmdb = await across(fit.skip);
+          const k = list && list.length && group.group.length === 1 && total ? total / list.length : 0;
+          if (fit.skip && Number.isInteger(k) && k >= 2 && k <= 8) {
+            // Shorts bundled k to a TMDB episode (e.g. 120 MAL shorts, 24 TMDB episodes): each short shows
+            // its bundle's still. Titles stay the shorts' own.
+            for (let n = 1; n <= upTo; n += 1) {
+              const e = list[Math.ceil(n / k) - 1];
+              if (e && episodes.merge(malId, n, { imageUrl: still(e.imageUrl) }, 'tmdb', { now: new Date(now).toISOString() }).includes('image')) out.stills += 1;
+            }
+            out.tmdb = `ok (${k} shorts per TMDB episode, stills only)`;
+          } else if (fit.skip) out.tmdb = await across(fit.skip);
           else { apply(list, 'tmdb', fit.offset); out.tmdb = list.length ? 'ok' : 'empty'; }
           record(malId, 'tmdb', out.tmdb, now);
         } catch (err) {
@@ -108,7 +121,11 @@ async function fill(malId, media, aired, { tmdb = require('./sources/tmdb'), kit
     else if (!kitsu.isAvailable()) out.kitsu = 'paused';
     else {
       try {
-        const { count, episodes: list } = await kitsu.episodes(kitsuId);
+        const got = await kitsu.episodes(kitsuId);
+        const { count } = got;
+        // Kitsu often lists an empty placeholder past an airing show's total (13 for a 12-episode show):
+        // those carry nothing, so they don't count against the numbering.
+        const list = total ? got.episodes.filter((e) => e.episodeNumber <= total || e.title || e.imageUrl) : got.episodes;
         const numbers = list.map((e) => e.episodeNumber);
         if (!list.length) out.kitsu = 'empty';
         // Per MAL entry: the count must match a finished show; any show's numbering must start at 1
@@ -127,10 +144,24 @@ async function fill(malId, media, aired, { tmdb = require('./sources/tmdb'), kit
   return out;
 }
 
-const skippedStmt = catalog.prepare(`SELECT f.mal_id AS malId, f.source, f.outcome, f.fetched_at AS at, m.title
+const skippedStmt = catalog.prepare(`SELECT f.mal_id AS malId, f.source, f.outcome, f.fetched_at AS at, m.title, m.cover_url,
+    m.status, m.episodes, m.next_airing_episode
   FROM catalog_episode_fetch f LEFT JOIN media m ON m.mal_id = f.mal_id WHERE f.outcome LIKE 'skip:%' ORDER BY f.fetched_at DESC LIMIT 200`);
-/** Shows a source skipped because its numbering didn't line up (the review list). */
-const skipped = () => skippedStmt.all().map((r) => ({ ...r, reason: r.outcome.slice(6) }));
+/**
+ * Shows a source skipped because its numbering didn't line up, and that still miss a title or a still
+ * no other source filled (the review list). A one-episode movie or special isn't expected to have a still.
+ */
+function skipped() {
+  const out = [];
+  for (const r of skippedStmt.all()) {
+    const aired = require('./library').airedCount({ status: r.status, next_airing_episode: r.next_airing_episode, episodes: r.episodes }) ?? 0;
+    const g = gaps(r.malId, aired);
+    if (r.episodes === 1) g.stills = 0;
+    if (!g.titles && !g.stills) continue;
+    out.push({ malId: r.malId, source: r.source, at: r.at, title: r.title, image: images.localUrl(r.cover_url), missing: g, reason: r.outcome.slice(6) });
+  }
+  return out;
+}
 
 function status() {
   return { tmdb: require('./sources/tmdb').status(), kitsu: require('./sources/kitsu').status(), skipped: skipped().length };

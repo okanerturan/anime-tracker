@@ -211,7 +211,7 @@ function episodeSourcesStatus() {
     const mine = new Set(db.prepare('SELECT mal_id FROM watchlist').all().map((r) => r.mal_id));
     const { tmdb, kitsu } = fill.status();
     return { tmdb: tmdb.available, tmdbReason: tmdb.reason, kitsu: kitsu.available, tmdbConfigured: tmdb.configured,
-      skipped: fill.skipped().filter((s) => mine.has(s.malId)).map(({ malId, title, source, reason, at }) => ({ malId, title, source, reason, at })) };
+      skipped: fill.skipped().filter((s) => mine.has(s.malId)).map(({ malId, title, image, missing, source, reason, at }) => ({ malId, title, image, missing, source, reason, at })) };
   } catch { return null; }
 }
 

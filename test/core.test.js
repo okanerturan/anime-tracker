@@ -883,3 +883,37 @@ test('sync follows one Crunchyroll account: another account or profile in the sa
   assert.equal(crunchyroll.otherAccount({ id: 'acc-me', profile: 'p-me' }), null);
   assert.equal(appState.get('crAccount').id, 'acc-me');
 });
+
+test('episode sources: shorts bundled per TMDB episode get their bundle\'s still, Kitsu placeholders past the total are ignored, a movie takes the show title, and the left-out list only shows what is still missing', async () => {
+  const fillMod = require('../server/episodefill');
+  const tmdbStub = (list) => ({ isAvailable: () => true, seasons: async () => [{ season: 1, episodes: list.length }], season: async () => list });
+  const kitsuOff = { isAvailable: () => false };
+  const add = (id, eps, format) => db.prepare("INSERT OR REPLACE INTO media (mal_id, title, episodes, status, format, start_date, is_full) VALUES (?, ?, ?, 'FINISHED', ?, '2016-07-01', 1)").run(id, `Show ${id}`, eps, format);
+  db.prepare('INSERT OR REPLACE INTO catalog_idmap (mal_id, tmdb_tv_id, tmdb_season, kitsu_id) VALUES (?, ?, 1, ?)').run(9801, 777, null);
+
+  // 10 shorts, TMDB has 2 episodes of 5: stills only.
+  add(9801, 10, 'TV_SHORT');
+  const stills = [1, 2].map((n) => ({ episodeNumber: n, title: `Bundle ${n}`, aired: null, imageUrl: `https://image.tmdb.org/t/p/w300/b${n}.jpg` }));
+  const r = await fillMod.fill(9801, db.prepare('SELECT * FROM media WHERE mal_id = 9801').get(), 10, { tmdb: tmdbStub(stills), kitsu: kitsuOff });
+  assert.equal(r.tmdb, 'ok (5 shorts per TMDB episode, stills only)');
+  const rows = db.prepare('SELECT episode_number n, title, image_url FROM catalog_episodes WHERE mal_id = 9801 ORDER BY n').all();
+  assert.equal(rows.length, 10);
+  assert.ok(rows[4].image_url.endsWith('b1.jpg') && rows[5].image_url.endsWith('b2.jpg'));
+  assert.ok(rows.every((x) => !x.title), 'bundle titles are not the shorts\' titles');
+
+  // Kitsu lists 13 for a 12-episode show, the 13th empty: still used.
+  add(9802, 3, 'TV');
+  db.prepare('INSERT OR REPLACE INTO catalog_idmap (mal_id, kitsu_id) VALUES (?, ?)').run(9802, 555);
+  const kitsu = { isAvailable: () => true, episodes: async () => ({ count: 3, episodes: [1, 2, 3, 4].map((n) => ({ episodeNumber: n, title: n <= 3 ? `K${n}` : null, aired: null, imageUrl: null })) }) };
+  const r2 = await fillMod.fill(9802, db.prepare('SELECT * FROM media WHERE mal_id = 9802').get(), 3, { tmdb: { isAvailable: () => false }, kitsu });
+  assert.equal(r2.kitsu, 'ok');
+  assert.deepEqual(db.prepare('SELECT title FROM catalog_episodes WHERE mal_id = 9802 ORDER BY episode_number').all().map((x) => x.title), ['K1', 'K2', 'K3']);
+
+  // A movie: its one episode is titled after it, and no still is expected, so it leaves the list.
+  add(9803, 1, 'MOVIE');
+  db.prepare("INSERT OR REPLACE INTO catalog_episode_fetch (mal_id, source, fetched_at, outcome) VALUES (9803, 'tmdb', '2026-11-01T00:00:00Z', 'skip: test')").run();
+  assert.ok(fillMod.skipped().some((x) => x.malId === 9803), 'listed while its title is missing');
+  await fillMod.fill(9803, db.prepare('SELECT * FROM media WHERE mal_id = 9803').get(), 1, { tmdb: { isAvailable: () => false }, kitsu: kitsuOff });
+  assert.equal(db.prepare('SELECT title FROM catalog_episodes WHERE mal_id = 9803 AND episode_number = 1').get().title, 'Show 9803');
+  assert.ok(!fillMod.skipped().some((x) => x.malId === 9803), 'gone once nothing is missing');
+});
