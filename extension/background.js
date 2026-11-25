@@ -109,6 +109,23 @@ async function crunchyrollSyncNamed(opts) {
   catch (err) { if (err instanceof TypeError && /fetch/i.test(err.message)) throw new Error(`Couldn't reach crunchyroll.com (${err.message}). Check you're online and signed in there.`); throw err; }
 }
 
+/**
+ * Send the plays in batches of 500 (a tracker with accounts takes no more per request; a first or full
+ * sync is thousands). One answer comes back: counts added up, the rest from the last batch.
+ */
+const INGEST_BATCH = 500;
+const SUMMED = ['received', 'stored', 'marked', 'already', 'partial', 'unmapped', 'newRules', 'newAnime'];
+async function ingest(trackerUrl, rows, account) {
+  let total = null;
+  for (let i = 0; i < Math.max(1, rows.length); i += INGEST_BATCH) {
+    const r = await postTracker(trackerUrl, '/api/crunchyroll/ingest', { rows: rows.slice(i, i + INGEST_BATCH), account });
+    if (!total) { total = r; continue; }
+    const sums = Object.fromEntries(SUMMED.filter((k) => typeof r[k] === 'number' || typeof total[k] === 'number').map((k) => [k, (total[k] || 0) + (r[k] || 0)]));
+    total = { ...total, ...r, ...sums, deferred: Boolean(total.deferred || r.deferred) };
+  }
+  return total;
+}
+
 async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
   if (running) return running;
   running = (async () => {
@@ -125,7 +142,7 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
         // Library shows not played yet: the tracker picks their season from the series' list.
         wantSeriesSeasons: status.wantSeriesSeasons || [],
         chooseSeasons: async (items) => (await postTracker(cfg.trackerUrl, '/api/crunchyroll/series-seasons', { items })).seasonIds });
-      const result = await postTracker(cfg.trackerUrl, '/api/crunchyroll/ingest', { rows: got.rows, account: got.account || null });
+      const result = await ingest(cfg.trackerUrl, got.rows, got.account || null);
       const episodes = got.seasons && got.seasons.length ? await postTracker(cfg.trackerUrl, '/api/crunchyroll/episodes', { seasons: got.seasons }) : null;
       const links = got.series && got.series.length ? await postTracker(cfg.trackerUrl, '/api/crunchyroll/series', { results: got.series }).catch(() => null) : null;
       // AniList relay: answer what the tracker couldn't fetch itself, then re-run mapping for plays it deferred.

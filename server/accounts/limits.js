@@ -35,9 +35,11 @@ function check(rule, who, now = Date.now()) {
 function reset() { windows.clear(); }
 
 /**
- * The client's address. Behind the front Worker the real one arrives in X-Client-IP, trusted only
- * when the origin secret matched (req.originTrusted is set by the origin lock); otherwise the socket.
+ * The client's address (server/guesses.js has the rule): the address kamal-proxy reports when the app is
+ * reached through it, the front Worker's X-Client-IP only with the origin lock, else the socket's peer.
+ * Without this every caller behind the proxy would share one address, and one person's wrong tries
+ * would use up everyone's allowance.
  */
-const clientIp = (req) => (req.originTrusted && req.headers['x-client-ip']) || req.socket?.remoteAddress || 'unknown';
+const clientIp = (req) => require('../guesses').clientIp(req);
 
 module.exports = { hit, check, reset, clientIp, RULES };

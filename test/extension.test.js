@@ -96,6 +96,33 @@ test('a sync sends the plays with the Crunchyroll account they belong to, then k
   assert.equal(w.local.lastError, null);
 });
 
+test('a first or full sync goes up in batches of 500 plays, and the popup gets one summed answer', async () => {
+  const batches = [];
+  const many = Array.from({ length: 1200 }, (_, i) => ({ ...play, id: `EP${i}` }));
+  const net = (url, opts) => {
+    if (url.includes('/watch-history')) return json({ data: /page=1&/.test(url) ? many.slice(0, 100) : [] });
+    if (url === `${TRACKER}/api/crunchyroll/ingest`) {
+      const body = JSON.parse(opts.body); batches.push(body);
+      return json({ received: body.rows.length, stored: body.rows.length, marked: body.rows.length, newAnime: batches.length === 1 ? 2 : 0, needsReview: batches.length, deferred: batches.length === 2 });
+    }
+    return working()(url, opts);
+  };
+  // The page fallback hands the worker a whole history at once: 1,200 plays.
+  const w = startWorker({ local: { ...settled }, net });
+  const r = await w.send({ type: 'page-data', data: { rows: many.map((x) => ({ episodeId: x.id })), seasons: [], series: [], account: { id: 'acc-1', profile: null } } });
+  assert.equal(r.ok, true);
+  assert.deepEqual(batches.filter((b) => b.rows.length).map((b) => b.rows.length), [500, 500, 200]);
+  assert.ok(batches.every((b) => b.account && b.account.id === 'acc-1'), 'each batch says whose history it is');
+  assert.equal(batches[0].rows[0].episodeId, 'EP0'); assert.equal(batches[2].rows.at(-1).episodeId, 'EP1199');
+  assert.equal(r.result.marked, 1200); assert.equal(r.result.received, 1200); assert.equal(r.result.newAnime, 2);
+  assert.equal(r.result.needsReview, 3, 'a current count comes from the last batch, not a sum');
+  // An ordinary sync with nothing new still sends one (empty) request, so the tracker logs the sync.
+  const quiet = [];
+  const w2 = startWorker({ local: { ...settled }, net: (url, opts) => { if (url.includes('/watch-history')) return json({ data: [] }); if (url.endsWith('/ingest')) quiet.push(JSON.parse(opts.body).rows.length); return working()(url, opts); } });
+  assert.equal((await w2.send({ type: 'sync-now' })).ok, true);
+  assert.deepEqual(quiet, [0]);
+});
+
 test('a failed sync names what failed; a Crunchyroll failure carries what the page needs to fetch the history itself', async () => {
   const noCr = startWorker({ local: { ...settled }, net: (url, opts, fail) => (url.includes('crunchyroll.com') ? fail('Failed to fetch') : working()(url, opts)) });
   const a = await noCr.send({ type: 'sync-now' });
