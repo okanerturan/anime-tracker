@@ -204,7 +204,7 @@ const routes = {
     const seen = st.get('extension');
     const last = db.prepare("SELECT at FROM sync_log WHERE source = 'extension' ORDER BY id DESC LIMIT 1").get();
     return sendJSON(res, 200, {
-      mode: require('./passgate').enabled() ? 'passphrase' : 'open',
+      mode: Boolean(process.env.APP_PASSPHRASE) ? 'passphrase' : 'open',
       crunchyroll: cr && cr.id ? { since: cr.at || null, profile: Boolean(cr.profile), ending: String(cr.id).slice(-4) } : null,
       extension: { seen: seen?.version || null, seenAt: seen?.at || null, latest: require('../extension/manifest.json').version, lastSyncAt: last ? `${last.at.replace(' ', 'T')}Z` : null }
     });
@@ -212,7 +212,7 @@ const routes = {
   // Only the signed-in page asks (custom header, never set cross-site); the extension already has it.
   'POST /api/me/passphrase': (req, res) => {
     requireClientHeader(req);
-    if (require('./db').MULTI || !require('./passgate').enabled()) return sendJSON(res, 404, { error: 'not found' });
+    if (require('./db').MULTI || !Boolean(process.env.APP_PASSPHRASE)) return sendJSON(res, 404, { error: 'not found' });
     res.setHeader('Cache-Control', 'no-store');
     return sendJSON(res, 200, { passphrase: process.env.APP_PASSPHRASE });
   },
