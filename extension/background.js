@@ -210,7 +210,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       syncNow().catch(() => {});
       return;
     } else if (msg.type === 'set-tracker-url') {
-      await set({ trackerUrl: String(msg.url || DEFAULTS.trackerUrl).replace(/\/+$/, '') });
+      // "tsuzuku.okanerturan.com" typed without https:// would make every request a relative path that fails.
+      let url = String(msg.url || DEFAULTS.trackerUrl).trim().replace(/\/+$/, '');
+      if (!/^https?:\/\//i.test(url)) url = `${/^(localhost|127\.|\[::1\])/.test(url) ? 'http' : 'https'}://${url}`;
+      await set({ trackerUrl: MOVED[url] || url, lastError: null });
       reply({ ok: true });
     } else if (msg.type === 'series-info') {
       // For the card on crunchyroll.com: which of your shows belong to this series, and your progress.
