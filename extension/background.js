@@ -2,7 +2,9 @@
 importScripts('crunchyroll-api.js', 'anilist-relay.js'); /* global crunchyrollSync, runAniListRelay */
 
 const DEFAULTS = { trackerUrl: 'http://localhost:8080', trackerKey: '', clientId: null, lastSync: null, lastResult: null, lastError: null, notifyNew: true, notified: null, overlay: true };
-const get = () => chrome.storage.local.get(DEFAULTS);
+// Every read maps an old tracker address to its new one (see MOVED below), so a copy saved or typed
+// back in later can't send syncs to an address that only redirects.
+const get = async () => { const c = await chrome.storage.local.get(DEFAULTS); const to = MOVED[String(c.trackerUrl).replace(/\/+$/, '')]; if (to) { c.trackerUrl = to; chrome.storage.local.set({ trackerUrl: to }); } return c; };
 const set = (v) => chrome.storage.local.set(v);
 
 chrome.runtime.onInstalled.addListener(() => chrome.alarms.create('sync', { periodInMinutes: 30, delayInMinutes: 1 }));
