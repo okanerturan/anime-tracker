@@ -7,6 +7,7 @@ const http = require('http');
 const routes = require('./server/routes');
 const sync = require('./server/sync');
 const { serveStatic } = require('./server/static');
+const compress = require('./server/compress');
 const { MULTI, withAccount, db } = require('./server/db');
 const quota = require('./server/accounts/quota');
 
@@ -25,6 +26,8 @@ const HOST = process.env.HOST || '127.0.0.1';
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  // JSON answers go out compressed when the browser or the extension accepts it (sendJSON uses this).
+  res.sendText = (status, headers, body) => compress.send(req, res, status, headers, body);
   if (auth) require('./server/accounts/log').attach(req, res);
   // Origin lock (any mode, when ORIGIN_SECRET is set): only the front Worker, holding the secret,
   // reaches the hub; then its X-Client-IP can be trusted for rate limits. GET /up is the proxy's

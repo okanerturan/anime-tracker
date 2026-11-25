@@ -43,3 +43,81 @@ test('passphrase gate: same rules and same cookie as the Cloudflare build, behin
   assert.equal(pre.status, 204); assert.equal(pre.headers.get('access-control-allow-origin'), 'chrome-extension://abc');
   assert.equal((await go('/calendar/' + '0'.repeat(48) + '.ics')).status, 404, 'calendar feed reaches the tracker, which checks the token');
 });
+
+// Raw responses (fetch would decode them): status, headers and the bytes as sent.
+const http = require('http');
+const zlib = require('zlib');
+const raw = (p, headers = {}, method = 'GET', body = null) => new Promise((resolve, reject) => {
+  const req = http.request(`${BASE}${p}`, { method, headers: { 'X-Origin-Auth': 'origin-s', Authorization: `Bearer ${PASS}`, ...headers } }, (res) => {
+    const chunks = [];
+    res.on('data', (c) => chunks.push(c));
+    res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+  });
+  req.on('error', reject);
+  req.end(body);
+});
+
+test('JSON and static text go out compressed when the client accepts it, the same bytes once decoded; small answers and clients that ask for nothing get them plain', async () => {
+  for (let id = 1; id <= 12; id += 1) {
+    const add = await raw('/api/watchlist/add', { 'Content-Type': 'application/json', 'X-Tracker-Client': 'app' }, 'POST', JSON.stringify({ anime: { malId: 9000 + id, title: `A Show With A Fairly Long Title, Season ${id}`, totalEpisodes: 12 } }));
+    assert.equal(add.status, 200);
+  }
+  const plain = await raw('/api/watchlist');
+  assert.equal(plain.headers['content-encoding'], undefined, 'nothing asked, nothing encoded (health checks, scripts)');
+  assert.ok(plain.body.length > 1024 && JSON.parse(plain.body).length === 12);
+  assert.match(plain.headers.vary, /Accept-Encoding/);
+
+  const br = await raw('/api/watchlist', { 'Accept-Encoding': 'gzip, deflate, br' });
+  assert.equal(br.headers['content-encoding'], 'br');
+  assert.equal(Number(br.headers['content-length']), br.body.length);
+  assert.ok(br.body.length < plain.body.length / 2, 'actually smaller');
+  assert.deepEqual(zlib.brotliDecompressSync(br.body), plain.body);
+
+  const gz = await raw('/api/watchlist', { 'Accept-Encoding': 'br;q=0, gzip' });
+  assert.equal(gz.headers['content-encoding'], 'gzip', 'q=0 means "not this one"');
+  assert.deepEqual(zlib.gunzipSync(gz.body), plain.body);
+
+  const small = await raw('/api/stats', { 'Accept-Encoding': 'br' });
+  assert.equal(small.status, 200);
+  assert.equal(small.headers['content-encoding'], undefined, 'a tiny answer is not worth encoding');
+
+  // The extension's requests carry an Origin: the gate's "Vary: Origin" must survive.
+  const ext = await raw('/api/watchlist', { 'Accept-Encoding': 'br', Origin: 'chrome-extension://abc' });
+  assert.match(ext.headers.vary, /Origin/); assert.match(ext.headers.vary, /Accept-Encoding/);
+  assert.equal(ext.headers['access-control-allow-origin'], 'chrome-extension://abc');
+
+  // Errors keep working through the same path.
+  assert.equal((await raw('/api/nope', { 'Accept-Encoding': 'br' })).status, 404);
+});
+
+test('static files: compressed, with an ETag, and a 304 with no body for a browser that already has the file', async () => {
+  const onDisk = fs.readFileSync(path.join(__dirname, '..', 'public', 'styles.css'));
+  const plain = await raw('/styles.css');
+  assert.equal(plain.status, 200);
+  assert.equal(plain.headers['content-encoding'], undefined);
+  assert.deepEqual(plain.body, onDisk);
+  assert.equal(plain.headers['cache-control'], 'no-cache');
+  assert.match(plain.headers.etag, /^"[0-9a-f]{20}"$/);
+
+  const br = await raw('/styles.css', { 'Accept-Encoding': 'gzip, br' });
+  assert.equal(br.headers['content-encoding'], 'br');
+  assert.deepEqual(zlib.brotliDecompressSync(br.body), onDisk);
+  assert.ok(br.body.length < onDisk.length / 3);
+  assert.notEqual(br.headers.etag, plain.headers.etag, 'different bytes, different ETag');
+  const gz = await raw('/styles.css', { 'Accept-Encoding': 'gzip' });
+  assert.deepEqual(zlib.gunzipSync(gz.body), onDisk);
+
+  for (const tag of [plain.headers.etag, br.headers.etag, `W/${gz.headers.etag}`, `"zzz", ${br.headers.etag}`]) {
+    const again = await raw('/styles.css', { 'Accept-Encoding': 'gzip, br', 'If-None-Match': tag });
+    assert.equal(again.status, 304, tag);
+    assert.equal(again.body.length, 0);
+    assert.equal(again.headers.etag, br.headers.etag);
+  }
+  assert.equal((await raw('/styles.css', { 'If-None-Match': '"0000"' })).status, 200, 'an old copy gets the new file');
+  assert.equal((await raw('/js/main.js', { 'Accept-Encoding': 'br' })).headers['content-encoding'], 'br');
+  assert.equal((await raw('/favicon.svg', { 'Accept-Encoding': 'br' })).status, 200);
+  assert.equal((await raw('/icons/nope.png')).status, 404);
+  assert.equal((await raw('/js')).status, 404, 'a directory is not a file');
+  assert.equal((await raw('/%E0%A4%A')).status, 400, 'a broken escape is refused, not a crash');
+  assert.equal((await raw('/up')).body.toString(), 'ok');
+});
