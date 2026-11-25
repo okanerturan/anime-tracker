@@ -71,3 +71,18 @@ test('hosted: two account files merge their facts into one catalog, watched stat
   assert.equal(a.prepare("SELECT COUNT(*) n FROM main.sqlite_master WHERE name = 'catalog_episodes'").get().n, 0, 'no facts in the account file');
   for (const conn of [a, b, catalog]) conn.close();
 });
+
+test('the old table is dropped once its newest row is a week old, and nothing changes for the reader', () => {
+  const conn = oldFile('drop.db', FIXTURE);
+  applySchema(conn, 'all');
+  const before = conn.prepare('SELECT * FROM episode_sync ORDER BY mal_id, episode_number').all();
+  applySchema(conn, 'all'); // the next start, the same day: still there, as a way back
+  assert.equal(conn.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name = 'episode_sync_legacy'").get().n, 1);
+  conn.prepare("UPDATE episode_sync_legacy SET updated_at = datetime('now', '-8 days')").run();
+  conn.prepare("UPDATE episode_sync_legacy SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-9 days') WHERE episode_number = 1").run(); // both date formats in use
+  applySchema(conn, 'all'); // a start more than a week after the split
+  assert.equal(conn.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name = 'episode_sync_legacy'").get().n, 0, 'gone');
+  assert.deepEqual(conn.prepare('SELECT * FROM episode_sync ORDER BY mal_id, episode_number').all(), before, 'every episode reads the same');
+  applySchema(conn, 'all'); // and later starts have nothing to do
+  assert.equal(conn.prepare('SELECT COUNT(*) n FROM episode_watch').get().n, FIXTURE.length);
+});

@@ -558,6 +558,23 @@ test('local backups: one gzipped copy per day, a re-run replaces the day, old da
   }
 });
 
+test('local backups: one per day, due at the first check after 03:00 local time', () => {
+  const { isDue } = require('../server/localbackup');
+  const at = (iso) => Date.parse(iso);
+  const tz = 'Europe/Tirane'; // UTC+1 in winter: 03:00 local is 02:00 UTC
+  assert.equal(isDue(null, at('2026-11-25T12:00:00Z'), tz), true, 'never backed up');
+  assert.equal(isDue('2026-11-25T02:05:00Z', at('2026-11-25T23:50:00Z'), tz), false, 'made at 03:05 local: nothing more that day');
+  assert.equal(isDue('2026-11-25T02:05:00Z', at('2026-11-26T01:55:00Z'), tz), false, '02:55 local the next night: not yet');
+  assert.equal(isDue('2026-11-25T02:05:00Z', at('2026-11-26T02:00:00Z'), tz), true, '03:00 local: due');
+  assert.equal(isDue('2026-11-25T10:52:00Z', at('2026-11-26T02:10:00Z'), tz), true, 'a copy made mid-morning (the old drifting schedule) is followed by one at 03:00, not 20 hours later');
+  assert.equal(isDue('2026-11-26T02:10:00Z', at('2026-11-26T02:25:00Z'), tz), false, 'and then not again');
+  assert.equal(isDue('2026-11-25T01:30:00Z', at('2026-11-25T02:00:00Z'), tz), true, 'a copy from before 03:00 belongs to the day before');
+  assert.equal(isDue('2026-11-25T02:00:00Z', at('2026-11-26T01:59:00Z'), tz), false, 'a day runs from 03:00 to 03:00');
+  assert.equal(isDue('2026-11-23T23:00:00Z', at('2026-11-25T01:30:00Z'), tz), true, 'over 26 hours old: due whatever the clock says');
+  assert.equal(isDue('2026-11-25T03:05:00Z', at('2026-11-26T03:00:00Z'), 'UTC'), true, 'UTC when no time zone is set');
+  assert.equal(isDue('not a date', at('2026-11-25T12:00:00Z'), tz), true);
+});
+
 test('a library show not played yet gets its season picked from the series list, episodes and links included', async () => {
   addShow(9201, 'TOUGEN ANKI: Nikko Kegon Falls Arc', { status: 'RELEASING', episodes: 12 });
   db.prepare("UPDATE media SET cr_series_id = 'GSERIESTA' WHERE mal_id = 9201").run();

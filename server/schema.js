@@ -294,7 +294,7 @@ const isTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WH
  * AniList's Crunchyroll list), a still keeps its image_source; anything else is 'legacy', the lowest
  * rank, so any real source can improve it. A Crunchyroll link or still may be another audio version,
  * so it ranks below one the extension picked for your audio. Existing catalog facts win.
- * The old table is kept as episode_sync_legacy for one release.
+ * The old table is kept as episode_sync_legacy for a week (dropLegacyEpisodes), as a way back.
  */
 function migrateEpisodes(db, facts) {
   if (!isTable(db, 'episode_sync')) return null;
@@ -337,6 +337,18 @@ function migrateEpisodes(db, facts) {
   for (const idx of ['idx_episode_sync_mal', 'idx_episode_sync_progress', 'idx_episode_sync_has_image']) db.exec(`DROP INDEX IF EXISTS ${idx}`);
   db.exec('ALTER TABLE episode_sync RENAME TO episode_sync_legacy');
   return { rows: rows.length, orphans };
+}
+
+/**
+ * Drop the pre-split table once its newest row is a week old. Nothing reads it; it only existed so a
+ * bad split could be undone, and its rows stopped changing the moment the split ran.
+ */
+function dropLegacyEpisodes(db) {
+  if (!isTable(db, 'episode_sync_legacy')) return false;
+  const { recent } = db.prepare("SELECT datetime(MAX(updated_at)) > datetime('now', '-7 days') AS recent FROM episode_sync_legacy").get();
+  if (recent) return false;
+  db.exec('DROP TABLE episode_sync_legacy');
+  return true;
 }
 
 const EPISODE_VIEW = (temp) => `CREATE ${temp ? 'TEMP ' : ''}VIEW IF NOT EXISTS episode_sync AS
@@ -412,6 +424,7 @@ function applySchema(db, part = 'all', { catalog = null } = {}) {
   }
   if (part === 'all') { migrateEpisodes(db, db); installEpisodeView(db, 'all'); }
   if (part === 'account' && catalog) migrateEpisodes(db, catalog);
+  if (part !== 'catalog') dropLegacyEpisodes(db);
 }
 
-module.exports = { SCHEMA, CATALOG_TABLES, applySchema, schemaFor, installEpisodeView, migrateEpisodes };
+module.exports = { SCHEMA, CATALOG_TABLES, applySchema, schemaFor, installEpisodeView, migrateEpisodes, dropLegacyEpisodes };
