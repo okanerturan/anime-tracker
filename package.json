@@ -1,7 +1,7 @@
 {
   "name": "anime-tracker",
   "version": "2.0.0",
-  "description": "Turns your Crunchyroll watch history into a self-updating watch list: what to watch next, new seasons, recommendations and viewing stats. Runs locally or on Cloudflare.",
+  "description": "Turns your Crunchyroll watch history into a self-updating watch list: what to watch next, new seasons, recommendations and viewing stats. Runs locally or in Docker.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -45,8 +45,7 @@
     "anilist",
     "myanimelist",
     "watchlist",
-    "cloudflare-workers",
-    "durable-objects",
+    "self-hosted",
     "chrome-extension"
   ]
 }

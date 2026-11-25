@@ -11,7 +11,10 @@
 - **Old address:** the Worker `anime-tracker` (anime-tracker.okan.workers.dev) only answers 308 to the same path
   on the new address (`wrangler.redirect.jsonc`, `worker/redirect.mjs`, `npm run deploy:redirect`; never
   `npm run deploy`, that is the self-hosted Durable Object build). Extension 1.15.0 rewrites a saved
-  workers.dev address to the new one. Delete the Worker once nothing uses the old address. Nothing else is
+  workers.dev address to the new one. Delete the Worker once nothing uses the old address. The self-hosted
+  Cloudflare build is retired (2026-11-25): it is out of the README, CI no longer builds it
+  (`node worker/build.mjs`), and the extension has no `*.workers.dev` access since 1.16.5; its code and npm
+  scripts are still in the repo, and `test/db-facade.test.js` still covers its SQLite facade. Nothing else is
   on Cloudflare: the Durable Object (migration v2, 2026-10-27) and the R2 images bucket are deleted; the
   images are in the hub's image cache. The Durable Object's daily backups (2026-10-13 to -22, everything in
   them is also on the hub) are in `/srv/anime-tracker/backups/archive/` (see its README.txt).
@@ -38,7 +41,7 @@ address, the hub's disk and restic before accounts are switched on.
 # Operating the hosted tracker
 
 Notes for whoever runs the hosted build (`AUTH_MODE=accounts`) on the hub. The single-user tracker
-(Cloudflare Durable Object or `node server.js` at home) needs none of this.
+(`node server.js` at home, or the hub in passphrase mode) needs none of this.
 
 ## Kill switches
 

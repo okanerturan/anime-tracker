@@ -152,3 +152,57 @@ test('an episode tab is remembered across the worker being stopped, so leaving i
   await tick();
   assert.deepEqual(after.alarms, ['after-watch'], 'a tab that was never on an episode schedules nothing');
 });
+
+/**
+ * A content script on a page: `deliver(data)` is the page posting a message to itself, `posted` what
+ * the script posted back. `runtime.alive = false` models the extension having been reloaded since the
+ * page opened, when every chrome.runtime call throws.
+ */
+function onPage(file, answer = () => ({}), alive = true) {
+  const handlers = []; const posted = []; const sent = [];
+  const window = { addEventListener: (type, fn) => { if (type === 'message') handlers.push(fn); }, postMessage: (m) => posted.push(JSON.parse(JSON.stringify(m))) };
+  const gone = () => { throw new Error('Extension context invalidated.'); };
+  const runtime = { alive, lastError: undefined,
+    getManifest() { if (!this.alive) gone(); return { version: '9.9.9' }; },
+    sendMessage(msg, cb) { if (!this.alive) gone(); sent.push(msg.type); if (cb) cb(answer(msg)); } };
+  const context = vm.createContext({ window, location: { origin: TRACKER }, chrome: { runtime }, console });
+  vm.runInContext(fs.readFileSync(path.join(EXT, file), 'utf8'), context, { filename: file });
+  const deliver = (data) => { for (const fn of handlers) fn({ source: window, origin: TRACKER, data }); };
+  return { deliver, posted, sent, runtime };
+}
+
+test('the tracker page\'s Sync now gets an answer even after the extension was reloaded under it', () => {
+  const p = onPage('page-sync-bridge.js', (msg) => (msg.type === 'bridge-hello' ? { ok: true } : { ok: true, marked: 3 }));
+  assert.deepEqual(p.posted, [{ source: 'anime-tracker-ext', type: 'hello', version: '9.9.9' }]);
+  p.deliver({ source: 'anime-tracker-page', type: 'sync-now' });
+  assert.deepEqual(p.posted.at(-1), { source: 'anime-tracker-ext', type: 'sync-done', ok: true, marked: 3 });
+  p.runtime.alive = false;
+  p.deliver({ source: 'anime-tracker-page', type: 'sync-now' });
+  assert.deepEqual(p.posted.at(-1), { source: 'anime-tracker-ext', type: 'sync-done', ok: false, error: 'The extension was reloaded; refresh this page.' },
+    'the page is told, so its button stops spinning');
+  assert.doesNotThrow(() => p.deliver({ source: 'anime-tracker-page', type: 'ping' }));
+  // A page opened while the extension is already gone: no error, no button.
+  assert.doesNotThrow(() => onPage('page-sync-bridge.js', () => ({}), false));
+});
+
+test('the Crunchyroll page bridge: asks for a sync when one is due, hands a failed one to the page, and stays quiet once cut off', () => {
+  const due = onPage('page-bridge.js', (msg) => (msg.type === 'cr-config' ? { shouldSync: true }
+    : { ok: false, error: 'token 401', since: '2026-11-24T00:00:00Z', wantSeasons: ['SE9'], wantSeries: [] }));
+  due.deliver({ source: 'anime-tracker-main', type: 'cr-config', clientId: 'cid' });
+  assert.deepEqual(due.sent, ['cr-config', 'sync-now']);
+  assert.deepEqual(due.posted, [{ source: 'anime-tracker-bridge', type: 'fetch-history', since: '2026-11-24T00:00:00Z', wantSeasons: ['SE9'], wantSeries: [] }]);
+
+  const notDue = onPage('page-bridge.js', () => ({ shouldSync: false }));
+  notDue.deliver({ source: 'anime-tracker-main', type: 'cr-config', clientId: 'cid' });
+  assert.deepEqual(notDue.sent, ['cr-config'], 'no sync asked for');
+
+  const trackerDown = onPage('page-bridge.js', (msg) => (msg.type === 'cr-config' ? { shouldSync: true } : { ok: false, error: "Can't reach the tracker at https://tracker.test." }));
+  trackerDown.deliver({ source: 'anime-tracker-main', type: 'cr-config', clientId: 'cid' });
+  assert.deepEqual(trackerDown.posted, [], 'the page can\'t help when it is the tracker that is unreachable');
+
+  const cutOff = onPage('page-bridge.js');
+  cutOff.runtime.alive = false;
+  assert.doesNotThrow(() => cutOff.deliver({ source: 'anime-tracker-main', type: 'cr-config', clientId: 'cid' }));
+  assert.doesNotThrow(() => cutOff.deliver({ source: 'anime-tracker-main', type: 'history-data', data: {} }));
+  assert.deepEqual(cutOff.posted, []);
+});

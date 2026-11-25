@@ -48,7 +48,7 @@ chrome.tabs.onUpdated.addListener(inTurn(async (tabId, info) => {
 }));
 chrome.tabs.onRemoved.addListener(inTurn(async (tabId) => { if ((await watchTabs.all())[tabId]) { await watchTabs.put(tabId, null); leftWatchPage(); } }));
 
-// The hosted tracker (Cloudflare) needs the passphrase as a bearer key; the local one ignores it.
+// A tracker behind a passphrase needs it as a bearer key; a local one ignores it.
 const VERSION = chrome.runtime.getManifest().version;
 const authHeaders = (key) => ({ 'X-Extension-Version': VERSION, ...(key ? { Authorization: `Bearer ${key}` } : {}) });
 let trackerKey = '';
@@ -220,7 +220,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     } else if (msg.type === 'page-data') {
       reply(await syncNow({ data: msg.data, reason: 'page' }));
     } else if (msg.type === 'bridge-hello' || msg.type === 'page-sync') {
-      // Only the tracker this extension syncs to may ask (page-sync-bridge.js runs on any workers.dev page).
+      // Only the tracker this extension syncs to may ask (page-sync-bridge.js runs on every address a tracker can have).
       const cfg = await get();
       let mine = false;
       try { mine = Boolean(sender.origin) && new URL(cfg.trackerUrl).origin === sender.origin; } catch {}
