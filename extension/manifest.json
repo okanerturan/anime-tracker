@@ -13,7 +13,8 @@
     "https://graphql.anilist.co/*",
     "http://localhost/*",
     "http://127.0.0.1/*",
-    "https://tsuzuku.okanerturan.com/*"
+    "https://tsuzuku.okanerturan.com/*",
+    "https://*.workers.dev/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -52,7 +53,8 @@
       "matches": [
         "http://localhost/*",
         "http://127.0.0.1/*",
-        "https://tsuzuku.okanerturan.com/*"
+        "https://tsuzuku.okanerturan.com/*",
+        "https://*.workers.dev/*"
       ],
       "js": [
         "page-sync-bridge.js"

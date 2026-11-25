@@ -12,6 +12,9 @@ and sends nothing to its developer.
   watched, how far you got) and the episode lists of seasons you watched. It reads these from
   crunchyroll.com in your own browser, using your existing Crunchyroll sign-in.
 - **The Crunchyroll page you are on**, only to show your progress card for that show.
+- **Your Crunchyroll account ID** (and profile ID, when Crunchyroll gives one). It goes to your tracker
+  with each sync, so the tracker follows one account and skips history from anyone else signed in to
+  Crunchyroll in the same browser.
 
 It never reads or stores your Crunchyroll password. The short-lived access token it obtains from your
 own session stays in memory and is never stored or sent anywhere except back to Crunchyroll.

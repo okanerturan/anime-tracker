@@ -31,8 +31,11 @@ const watchTabs = {
   async all() { return (await chrome.storage.session.get({ watchTabs: {} })).watchTabs; },
   async put(tabId, url) { const t = await this.all(); if (url) t[tabId] = url; else delete t[tabId]; await chrome.storage.session.set({ watchTabs: t }); }
 };
+// One tab event at a time: each reads and rewrites the stored list, so two at once could lose one.
+let tabQueue = Promise.resolve();
+const inTurn = (fn) => (...args) => { tabQueue = tabQueue.then(() => fn(...args)).catch(() => {}); };
 function leftWatchPage() { chrome.alarms.create('after-watch', { delayInMinutes: 2 }); }
-chrome.tabs.onUpdated.addListener(async (tabId, info) => {
+chrome.tabs.onUpdated.addListener(inTurn(async (tabId, info) => {
   if (!info.url && info.status !== 'loading') return;
   const was = (await watchTabs.all())[tabId];
   // Navigating to a site we have no permission for reports no URL at all; a watch tab that starts
@@ -40,8 +43,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, info) => {
   if (!info.url) { if (was) { await watchTabs.put(tabId, null); leftWatchPage(); } return; }
   if (WATCH_RE.test(info.url)) { if (was && was !== info.url) leftWatchPage(); await watchTabs.put(tabId, info.url); }
   else if (was) { await watchTabs.put(tabId, null); leftWatchPage(); }
-});
-chrome.tabs.onRemoved.addListener(async (tabId) => { if ((await watchTabs.all())[tabId]) { await watchTabs.put(tabId, null); leftWatchPage(); } });
+}));
+chrome.tabs.onRemoved.addListener(inTurn(async (tabId) => { if ((await watchTabs.all())[tabId]) { await watchTabs.put(tabId, null); leftWatchPage(); } }));
 
 // The hosted tracker (Cloudflare) needs the passphrase as a bearer key; the local one ignores it.
 const VERSION = chrome.runtime.getManifest().version;
@@ -213,7 +216,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     } else if (msg.type === 'page-data') {
       reply(await syncNow({ data: msg.data, reason: 'page' }));
     } else if (msg.type === 'bridge-hello' || msg.type === 'page-sync') {
-      // Only the tracker this extension syncs to may ask (page-sync-bridge.js runs on every tracker address it knows).
+      // Only the tracker this extension syncs to may ask (page-sync-bridge.js runs on any workers.dev page).
       const cfg = await get();
       let mine = false;
       try { mine = Boolean(sender.origin) && new URL(cfg.trackerUrl).origin === sender.origin; } catch {}
