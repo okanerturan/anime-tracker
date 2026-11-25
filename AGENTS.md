@@ -27,6 +27,12 @@
   (~03:00 Europe/Tirane, 14 days kept); hub-backup's restic run ships it and `images/` to the Storage Box. Restore:
   stop the container (`bin/kamal app stop`), gunzip a copy over `/srv/anime-tracker/anime-tracker.db`
   (delete its `-wal`/`-shm`), `bin/kamal app boot`.
+- **Wrong-passphrase limit** (`server/guesses.js`, since 2026-11-25): ten different wrong passphrases, keys
+  or session cookies from one address within 15 minutes, and that address's passphrase and key attempts get
+  429 until its oldest guess is 15 minutes old (the right one included; a valid session cookie always gets
+  through). Addresses that have never signed in share 60 between them. The same wrong value repeated counts
+  once. The caller's address is kamal-proxy's `X-Forwarded-For` (it replaces whatever the caller sent). All
+  of it is in memory: any deploy, or `bin/kamal app boot`, clears every count and lock.
 - **Watching:** hub-check alerts if `anime-tracker-web` is down or `backups/last-backup.json` is older than 26 h.
 - AniList answers the hub directly (Cloudflare's addresses are blocked), so the browser relay stays idle.
 - Episode data: the weekly ID map (Fribb's anime-lists, `catalog_idmap`, state key `idmap`) loads from

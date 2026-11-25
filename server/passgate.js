@@ -5,6 +5,7 @@
 // extension and scripts, the calendar feed by its secret path. Same cookie name and token, so a
 // browser signed in on the Cloudflare build stays signed in when its requests move to the hub.
 const crypto = require('crypto');
+const guesses = require('./guesses');
 
 const COOKIE = 'at_session';
 const enabled = () => Boolean(process.env.APP_PASSPHRASE);
@@ -22,7 +23,7 @@ function cookie(req, name) {
 }
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-function loginPage(res, error = '', next = '') {
+function loginPage(res, error = '', next = '', status = error ? 401 : 200, headers = {}) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light"><title>Anime Tracker</title>
 <style>
@@ -45,7 +46,7 @@ button:active { transform: scale(0.97); }
   ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
   <button type="submit">Unlock</button>
 </form></body></html>`;
-  res.writeHead(error ? 401 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...headers });
   res.end(html);
 }
 
@@ -70,39 +71,63 @@ function cors(req, res) {
   return true;
 }
 
+const CLEAR_COOKIE = `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+const tooMany = (seconds) => `Too many wrong passphrases from your network. ${guesses.retryText(seconds)}`;
+
 /** Answers the request itself (login, logout, refusal) and returns true, or returns false to let it through. */
 async function handle(req, res, url) {
   const p = passphrase();
   if (cors(req, res) && req.method === 'OPTIONS') { res.writeHead(204); res.end(); return true; }
+  const who = guesses.clientIp(req);
   if (url.pathname === '/login') {
+    const next = url.searchParams.get('next') || '';
     if (req.method === 'POST') {
+      // Past the limit, a passphrase isn't even looked at (server/guesses.js).
+      const wait = guesses.blocked(who);
+      if (wait) { loginPage(res, tooMany(wait), next, 429, { 'Retry-After': String(wait) }); return true; }
       const form = await readForm(req);
-      if (safeEqual(form.get('key') || '', p)) {
-        const next = String(url.searchParams.get('next') || '');
+      const key = form.get('key') || '';
+      if (safeEqual(key, p)) {
+        guesses.right(who);
         res.writeHead(303, {
           Location: `/${/^#\/[a-z-]+(\?[\w=&-]*)?$/.test(next) ? next : ''}`,
           'Set-Cookie': `${COOKIE}=${sessionToken(p)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`
         });
         res.end(); return true;
       }
+      guesses.wrong(who, key);
       await new Promise((r) => setTimeout(r, 1500)); // slow down guessing
-      loginPage(res, 'That passphrase is not right.', url.searchParams.get('next') || ''); return true;
+      loginPage(res, 'That passphrase is not right.', next); return true;
     }
-    loginPage(res, '', url.searchParams.get('next') || ''); return true;
+    loginPage(res, '', next); return true;
   }
   if (url.pathname === '/logout') {
-    res.writeHead(303, { Location: '/login', 'Set-Cookie': `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0` });
+    res.writeHead(303, { Location: '/login', 'Set-Cookie': CLEAR_COOKIE });
     res.end(); return true;
   }
   // The calendar feed: calendar apps can't send the cookie; the tracker checks the secret path.
   if (req.method === 'GET' && /^\/calendar\/[a-f0-9]{48}\.ics$/.test(url.pathname)) return false;
+  const api = url.pathname.startsWith('/api/') || url.pathname.startsWith('/img/');
   const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  const authed = (bearer && safeEqual(bearer, p)) || safeEqual(cookie(req, COOKIE) || '', sessionToken(p));
-  if (authed) return false;
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/img/')) {
-    res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'unauthorized' })); return true;
+  const session = cookie(req, COOKIE) || '';
+  // A signed-in browser always gets through: its cookie can't be made without the passphrase, and no
+  // limit on guesses may shut out someone who is already in.
+  if (session && safeEqual(session, sessionToken(p))) { guesses.right(who); return false; }
+  // An old or made-up cookie is dropped by the browser from here on, so it isn't sent (and counted) again.
+  const dropCookie = session ? { 'Set-Cookie': CLEAR_COOKIE } : {};
+  if (bearer || session) {
+    const wait = guesses.blocked(who);
+    if (wait) {
+      if (api) { res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': String(wait), ...dropCookie }); res.end(JSON.stringify({ error: tooMany(wait) })); }
+      else { res.writeHead(303, { Location: '/login', ...dropCookie }); res.end(); }
+      return true;
+    }
+    if (bearer && safeEqual(bearer, p)) { guesses.right(who); return false; }
+    if (bearer) guesses.wrong(who, bearer);
+    if (session) guesses.wrong(who, session);
   }
-  res.writeHead(303, { Location: '/login' }); res.end(); return true;
+  if (api) { res.writeHead(401, { 'Content-Type': 'application/json', ...dropCookie }); res.end(JSON.stringify({ error: 'unauthorized' })); return true; }
+  res.writeHead(303, { Location: '/login', ...dropCookie }); res.end(); return true;
 }
 
 module.exports = { enabled, handle, sessionToken };
