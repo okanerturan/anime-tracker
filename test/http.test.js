@@ -125,3 +125,20 @@ test('the airing calendar is served only for the right token', async () => {
   assert.notEqual(reset.path, path);
   assert.equal((await get(path)).status, 404, 'the old link stops working');
 });
+
+test('the sync status the website asks for leaves out what only the extension fetches next', async () => {
+  const { db } = require('../server/db');
+  db.prepare("INSERT OR REPLACE INTO media (mal_id, title, episodes, status, format, is_full) VALUES (9911, 'Airing Show', 12, 'RELEASING', 'TV', 1)").run();
+  db.prepare(`INSERT OR REPLACE INTO cr_season_map (season_id, ep_from, ep_to, mal_id, ep_offset, source, series_title, season_title, needs_review)
+    VALUES ('GSWANT1', 1, 999, 9911, 0, 'auto', 'Airing Show', 'Season 1', 0)`).run();
+  db.prepare(`INSERT OR REPLACE INTO cr_history (episode_id, series_id, series_title, season_id, season_title, season_number, episode_number,
+      episode_title, duration_s, playhead, fully_watched, date_played, applied)
+    VALUES ('GEWANT1', 'GSER1', 'Airing Show', 'GSWANT1', 'Season 1', 1, 1, 'One', 1440, 1440, 1, '2026-11-20T10:00:00Z', 1)`).run();
+  const full = await (await get('/api/crunchyroll/status')).json();
+  const page = await (await get('/api/crunchyroll/status?for=page')).json();
+  assert.ok(full.wantSeasons.includes('GSWANT1'), 'the extension is told which season lists to fetch');
+  assert.deepEqual([page.wantSeasons, page.wantSeriesSeasons, page.wantSeries], [[], [], []]);
+  for (const k of ['rows', 'latestPlayed', 'unapplied']) assert.equal(page[k], full[k], k);
+  assert.deepEqual(page.lastSync, full.lastSync);
+  assert.deepEqual(page.needsReview, full.needsReview);
+});

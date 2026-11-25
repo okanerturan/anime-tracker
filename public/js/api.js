@@ -66,7 +66,7 @@ export const api = {
   pushTest: (endpoint) => post('/api/push/test', { endpoint }),
   resetCalendar: () => post('/api/calendar/reset'),
   history: (before) => request(`/api/history${before ? `?before=${encodeURIComponent(before)}` : ''}`),
-  crStatus: () => request('/api/crunchyroll/status'),
+  crStatus: () => request('/api/crunchyroll/status?for=page'),
   crDismissPlay: (episodeId, undo = false) => post('/api/crunchyroll/dismiss-play', { episodeId, undo }),
   importMal: (entries) => post('/api/import/mal', { entries }),
   suspicious: () => request('/api/library/suspicious'),

@@ -484,7 +484,12 @@ async function applySeasonEpisodes(seasons) {
   return summary;
 }
 
-function status() {
+/**
+ * Sync state for the extension and for the website. `wants: false` leaves out the lists of what the
+ * extension should fetch next (the season query is most of this function's time, and only the
+ * extension uses them); the website asks that way.
+ */
+function status({ wants = true } = {}) {
   const last = db.prepare(`SELECT at, source, summary FROM sync_log WHERE source IN ('extension','manual','seed') ORDER BY id DESC LIMIT 1`).get();
   const counts = db.prepare('SELECT COUNT(*) AS rows, MAX(date_played) AS latestPlayed, SUM(applied = 0) AS unapplied FROM cr_history').get();
   const review = db.prepare(`SELECT r.season_id AS seasonId, r.series_title AS seriesTitle, r.season_title AS seasonTitle, r.mal_id AS malId,
@@ -512,7 +517,7 @@ function status() {
   for (const s of sampled) s.thumb = imagesMod.localUrl(s.thumb);
   const seen = require('./state').get('extension');
   const extension = { seen: seen?.version || null, seenAt: seen?.at || null, latest: require('../extension/manifest.json').version };
-  return { sampled, extension, wantSeasons: wantedSeasons(), wantSeriesSeasons: wantedSeriesSeasons(), wantSeries: require('./crlinks').wanted(), lastSync: last ? { at: last.at.replace(' ', 'T') + 'Z', source: last.source, summary: JSON.parse(last.summary) } : null, ...counts, needsReview: review, inProgress };
+  return { sampled, extension, wantSeasons: wants ? wantedSeasons() : [], wantSeriesSeasons: wants ? wantedSeriesSeasons() : [], wantSeries: wants ? require('./crlinks').wanted() : [], lastSync: last ? { at: last.at.replace(' ', 'T') + 'Z', source: last.source, summary: JSON.parse(last.summary) } : null, ...counts, needsReview: review, inProgress };
 }
 
 /** Manually fix a season mapping and re-apply its rows. */

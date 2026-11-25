@@ -222,7 +222,9 @@ const routes = {
     db.prepare("DELETE FROM app_state WHERE key = 'crAccount'").run();
     return sendJSON(res, 200, { ok: true });
   },
-  'GET /api/crunchyroll/status': (req, res) => sendJSON(res, 200, crunchyroll.status()),
+  // The website adds ?for=page: it shows the sync state and never fetches anything from Crunchyroll,
+  // so it is spared the "what to fetch next" lists (most of the work). The extension gets everything.
+  'GET /api/crunchyroll/status': (req, res, url) => sendJSON(res, 200, crunchyroll.status({ wants: url.searchParams.get('for') !== 'page' })),
   'POST /api/crunchyroll/ingest': async (req, res) => {
     requireClientHeader(req);
     if (req.headers['x-extension-version']) { try { require('./state').set('extension', { version: String(req.headers['x-extension-version']).slice(0, 20) }); } catch {} }
