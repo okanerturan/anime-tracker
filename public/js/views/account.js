@@ -13,8 +13,15 @@ function codesBlock(codes) {
     h('div', { class: 'hero-actions' }, copy, h('a', { class: 'btn small', href: codesFile(codes), download: 'anime-tracker-recovery-codes.txt' }, 'Download')));
 }
 
-/** The single-passphrase tracker (no accounts yet): the passphrase, the extension, the Crunchyroll account. */
-async function renderPassphrase(view, me) {
+/** The single-passphrase tracker (no accounts yet): GET /api/me, or null on a tracker with accounts. */
+export const loadMe = () => fetch('/api/me').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+
+/**
+ * The sections that fix a sync connection on the single-passphrase tracker: the extension (one-click
+ * setup), the Crunchyroll account it follows, the passphrase, signing out. On the Account page and on
+ * the Sync page, where people look when syncing stops.
+ */
+export function connectionSections(me) {
   const post = (path) => fetch(path, { method: 'POST', headers: { 'X-Tracker-Client': 'app' } }).then(async (r) => { if (!r.ok) throw new Error(`tracker ${r.status}`); return r.json(); });
   const getPassphrase = async () => (await post('/api/me/passphrase')).passphrase;
 
@@ -73,7 +80,7 @@ async function renderPassphrase(view, me) {
   };
   drawCr(me.crunchyroll);
 
-  fill(view,
+  return [
     me.mode === 'passphrase' ? section('Account', 'One passphrase, no accounts yet',
       h('div', { class: 'panel' }, h('div', { class: 'hero-actions' }, h('a', { class: 'btn small', href: '/logout' }, 'Sign out of this browser')))) : null,
     me.mode === 'passphrase' ? section('Passphrase', 'Signs you in here and is the extension\'s Tracker key', h('div', { class: 'panel' },
@@ -81,12 +88,13 @@ async function renderPassphrase(view, me) {
     section('Extension', extLine, h('div', { class: 'panel' },
       h('p', { class: 'muted' }, 'One click gives the extension in this browser this address and the passphrase, so you don\'t have to type either.'),
       h('div', { class: 'hero-actions' }, setUp), out)),
-    section('Crunchyroll account', 'Whose watch history comes in', h('div', { class: 'panel account-list' }, crOut)));
+    section('Crunchyroll account', 'Whose watch history comes in', h('div', { class: 'panel account-list' }, crOut))
+  ].filter(Boolean);
 }
 
 export async function render(view) {
-  const me = await fetch('/api/me').then((r) => (r.ok ? r.json() : null)).catch(() => null);
-  if (me) return renderPassphrase(view, me);
+  const me = await loadMe();
+  if (me) { fill(view, ...connectionSections(me)); return; }
   const state = await fetch('/auth/state').then((r) => r.json()).catch(() => ({}));
   if (!state.signedIn) { location.href = `/signin.html?next=${encodeURIComponent('#/account')}`; return; }
   const draw = async () => {

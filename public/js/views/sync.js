@@ -1,3 +1,4 @@
+import { loadMe, connectionSections } from './account.js';
 import { api } from '../api.js';
 import { bus } from '../bus.js';
 import { showRow } from '../components.js';
@@ -159,7 +160,7 @@ function malInput() {
 
 export async function render(view) {
   view.replaceChildren(h('div', { class: 'skeleton' }));
-  const [cr, bg, stats, odd] = await Promise.all([api.crStatus(), api.syncStatus(), api.stats(), api.suspicious().catch(() => [])]);
+  const [cr, bg, stats, odd, me] = await Promise.all([api.crStatus(), api.syncStatus(), api.stats(), api.suspicious().catch(() => []), loadMe()]);
   const last = cr.lastSync;
   const stale = !last || Date.now() - new Date(last.at).getTime() > 2 * 86400000;
 
@@ -230,7 +231,9 @@ export async function render(view) {
         'Open ', h('span', { class: 'mono' }, 'chrome://extensions'), ' and click the reload icon on Tsuzuku. Syncing keeps working on the old version; new features don’t.') : null,
       stale ? h('div', { class: 'panel warn' },
         h('b', {}, 'Automatic sync is not running. '),
-        'Install the browser extension below; it syncs every 30 minutes, whenever you open Crunchyroll, and a couple of minutes after you finish an episode.') : null),
+        me ? 'Press “Set up the extension in this browser” below (install the extension first if it isn’t). It then syncs every 30 minutes, whenever you open Crunchyroll, and a couple of minutes after you finish an episode.' : 'Install the browser extension below; it syncs every 30 minutes, whenever you open Crunchyroll, and a couple of minutes after you finish an episode.') : null),
+    // The extension, the passphrase and the Crunchyroll account: where to fix a sync that stopped.
+    ...(me ? connectionSections(me) : []),
     h('details', { class: 'collapse section', open: stale ? '' : null },
       h('summary', {}, h('div', { class: 'section-head' },
         h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Set up automatic sync'),
@@ -239,7 +242,7 @@ export async function render(view) {
         h('li', {}, 'Open ', h('span', { class: 'mono' }, 'chrome://extensions'), ' and turn on Developer mode (top right).'),
         h('li', {}, 'Click “Load unpacked” and choose the ', h('span', { class: 'mono' }, 'extension'), ' folder inside this project.'),
         h('li', {}, 'Open crunchyroll.com once while logged in. The extension syncs right away, then every 30 minutes while Chrome is open and a couple of minutes after you finish an episode.'),
-        h('li', {}, 'In the extension’s popup, set the Tracker URL to this page’s address (and the passphrase as Tracker key when it’s hosted). The popup shows the last sync and has a “Sync now” button.')),
+        h('li', {}, me ? 'Back on this page, press “Set up the extension in this browser” above. It gives the extension this address and the passphrase.' : 'In the extension’s popup, set the Tracker URL to this page’s address. The popup shows the last sync and has a “Sync now” button.')),
         h('p', { class: 'muted' }, 'The extension uses your existing Crunchyroll login inside your own browser. It never stores your password or tokens, and only talks to crunchyroll.com and your tracker.'))),
     // Nothing to review (the usual case): one quiet line instead of an empty section.
     cr.rows ? (cr.needsReview.length
