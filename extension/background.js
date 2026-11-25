@@ -203,7 +203,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     } else if (msg.type === 'connect-tracker') {
       // From tracker-bridge.js on the tracker's own page: the address must be the page's own origin.
       const origin = sender.url ? new URL(sender.url).origin : null;
-      if (!origin || origin !== msg.url || !/^trk_/.test(String(msg.token || ''))) { reply({ ok: false, error: 'not from the tracker page' }); return; }
+      if (!origin || origin !== msg.url || !msg.token || typeof msg.token !== 'string' || msg.token.length > 200) { reply({ ok: false, error: 'not from the tracker page' }); return; }
       await set({ trackerUrl: origin, trackerKey: msg.token, lastError: null });
       trackerKey = msg.token;
       reply({ ok: true });

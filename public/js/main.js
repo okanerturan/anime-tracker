@@ -91,8 +91,13 @@ findBtn?.append(icon('search'));
 findBtn?.addEventListener('click', () => openQuickSwitcher());
 // Hosted tracker with accounts: an account button in the header (the local and Cloudflare
 // single-user builds have no /auth/state, so nothing shows there).
-fetch('/auth/state').then((r) => (r.ok ? r.json() : null)).then((st) => {
-  if (!st?.signedIn) return;
+fetch('/auth/state').then((r) => (r.ok ? r.json() : null)).catch(() => null).then(async (st) => {
+  // The single-passphrase tracker has no /auth/state; its Account page is the passphrase and the extension.
+  if (!st?.signedIn) {
+    if (!(await fetch('/api/me').then((r) => r.ok).catch(() => false))) return;
+    document.getElementById('find-btn')?.before(h('a', { class: 'icon-btn account-btn', href: '#/account', 'aria-label': 'Account', title: 'Account' }, 'O'));
+    return;
+  }
   const a = h('a', { class: 'icon-btn account-btn', href: '#/account', 'aria-label': 'Account', title: st.account?.name ? `Account (${st.account.name})` : 'Account' },
     (st.account?.name || '?').trim().charAt(0).toUpperCase() || '?');
   document.getElementById('find-btn')?.before(a);

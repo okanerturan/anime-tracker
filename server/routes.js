@@ -195,6 +195,33 @@ const routes = {
   'GET /api/seasonal': async (req, res, url) => sendJSON(res, 200, await insights.seasonal({ refresh: url.searchParams.get('refresh') === '1' })),
   'GET /api/history': (req, res, url) => sendJSON(res, 200, insights.history({ before: url.searchParams.get('before') || null, limit: Math.min(200, Number(url.searchParams.get('limit')) || 60) })),
 
+  // Account page of the single-passphrase tracker (the hub before accounts are on): the passphrase,
+  // the extension and the Crunchyroll account the sync follows. Hosted accounts mode uses /auth/*.
+  'GET /api/me': (req, res) => {
+    if (require('./db').MULTI) return sendJSON(res, 404, { error: 'not found' });
+    const st = require('./state');
+    const cr = st.get('crAccount');
+    const seen = st.get('extension');
+    const last = db.prepare("SELECT at FROM sync_log WHERE source = 'extension' ORDER BY id DESC LIMIT 1").get();
+    return sendJSON(res, 200, {
+      mode: require('./passgate').enabled() ? 'passphrase' : 'open',
+      crunchyroll: cr && cr.id ? { since: cr.at || null, profile: Boolean(cr.profile), ending: String(cr.id).slice(-4) } : null,
+      extension: { seen: seen?.version || null, seenAt: seen?.at || null, latest: require('../extension/manifest.json').version, lastSyncAt: last ? `${last.at.replace(' ', 'T')}Z` : null }
+    });
+  },
+  // Only the signed-in page asks (custom header, never set cross-site); the extension already has it.
+  'POST /api/me/passphrase': (req, res) => {
+    requireClientHeader(req);
+    if (require('./db').MULTI || !require('./passgate').enabled()) return sendJSON(res, 404, { error: 'not found' });
+    res.setHeader('Cache-Control', 'no-store');
+    return sendJSON(res, 200, { passphrase: process.env.APP_PASSPHRASE });
+  },
+  // Forget the Crunchyroll account the sync follows: the next sync ties it to whoever is signed in then.
+  'POST /api/crunchyroll/forget-account': (req, res) => {
+    requireClientHeader(req);
+    db.prepare("DELETE FROM app_state WHERE key = 'crAccount'").run();
+    return sendJSON(res, 200, { ok: true });
+  },
   'GET /api/crunchyroll/status': (req, res) => sendJSON(res, 200, crunchyroll.status()),
   'POST /api/crunchyroll/ingest': async (req, res) => {
     requireClientHeader(req);

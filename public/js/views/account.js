@@ -13,7 +13,81 @@ function codesBlock(codes) {
     h('div', { class: 'hero-actions' }, copy, h('a', { class: 'btn small', href: codesFile(codes), download: 'anime-tracker-recovery-codes.txt' }, 'Download')));
 }
 
+/** The single-passphrase tracker (no accounts yet): the passphrase, the extension, the Crunchyroll account. */
+async function renderPassphrase(view, me) {
+  const post = (path) => fetch(path, { method: 'POST', headers: { 'X-Tracker-Client': 'app' } }).then(async (r) => { if (!r.ok) throw new Error(`tracker ${r.status}`); return r.json(); });
+  const getPassphrase = async () => (await post('/api/me/passphrase')).passphrase;
+
+  // Passphrase: hidden until asked for, then copy.
+  const shown = h('code', { class: 'account-secret' }, '••••••');
+  const show = h('button', { type: 'button', class: 'btn small' }, 'Show');
+  const copy = h('button', { type: 'button', class: 'btn small ghost' }, 'Copy');
+  show.addEventListener('click', async () => {
+    if (show.dataset.on) { shown.textContent = '••••••'; show.textContent = 'Show'; delete show.dataset.on; return; }
+    try { shown.textContent = await getPassphrase(); show.textContent = 'Hide'; show.dataset.on = '1'; } catch (err) { toast(err.message); }
+  });
+  copy.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(await getPassphrase()); toast('Passphrase copied'); } catch (err) { toast(`Couldn't copy: ${err.message}`); }
+  });
+
+  // Extension: hand it this address and the passphrase through its bridge on this page (1.16.0+).
+  const version = document.documentElement.dataset.trackerExtension || null;
+  const ext = me.extension || {};
+  const out = h('div', { role: 'status' });
+  const setUp = h('button', { type: 'button', class: 'btn primary' }, 'Set up the extension in this browser');
+  setUp.addEventListener('click', async () => {
+    setUp.disabled = true;
+    try {
+      const token = await getPassphrase();
+      const answer = new Promise((resolve) => {
+        const on = (e) => { if (e.source === window && e.data?.source === 'anime-tracker-extension') { window.removeEventListener('message', on); resolve(e.data); } };
+        window.addEventListener('message', on);
+        setTimeout(() => resolve({ connected: false, error: 'the extension didn\'t answer' }), 4000);
+      });
+      window.postMessage({ source: 'anime-tracker-connect', token }, location.origin);
+      const r = await answer;
+      fill(out, r.connected
+        ? h('p', { class: 'signin-note' }, 'Done. The extension now syncs to this address with your passphrase, and a sync has started.')
+        : h('p', { class: 'signin-note bad' }, `Couldn't hand it over (${r.error}). Reload the extension in chrome://extensions, refresh this page and try again, or paste the passphrase into its Tracker key.`));
+    } catch (err) { toast(err.message); }
+    setUp.disabled = false;
+  });
+  const extLine = [
+    version ? `Installed here: ${version}` : 'Not found in this browser',
+    ext.seen ? `last seen ${ext.seen}` : '',
+    ext.lastSyncAt ? `last sync ${when(ext.lastSyncAt)}` : 'no sync yet',
+    ext.latest && version && version !== ext.latest ? `newest is ${ext.latest}, reload it in chrome://extensions` : ''
+  ].filter(Boolean).join(' · ');
+
+  // Crunchyroll: the account the sync follows, and forgetting it.
+  const crOut = h('div');
+  const drawCr = (cr) => {
+    const forget = h('button', { type: 'button', class: 'btn small ghost btn-danger-quiet' }, 'Forget it');
+    forget.addEventListener('click', async () => {
+      try { await post('/api/crunchyroll/forget-account'); toast('Forgotten. The next sync follows whoever is signed in to Crunchyroll then.'); drawCr(null); } catch (err) { toast(err.message); }
+    });
+    fill(crOut, cr
+      ? h('div', { class: 'account-row' }, h('span', {}, `Account ending …${cr.ending}${cr.profile ? ' (one profile)' : ''}`),
+        h('span', { class: 'muted' }, `followed since ${when(cr.since)}. History from any other Crunchyroll account is skipped.`), forget)
+      : h('p', { class: 'muted' }, 'Not tied to an account yet. The next sync ties it to whoever is signed in to Crunchyroll in that browser.'));
+  };
+  drawCr(me.crunchyroll);
+
+  fill(view,
+    section('Account', me.mode === 'passphrase' ? 'One passphrase, no accounts yet' : 'Open on this computer',
+      h('div', { class: 'panel' }, h('div', { class: 'hero-actions' },
+        me.mode === 'passphrase' ? h('a', { class: 'btn small', href: '/logout' }, 'Sign out of this browser') : null))),
+    me.mode === 'passphrase' ? section('Passphrase', 'Signs you in here and is the extension\'s Tracker key', h('div', { class: 'panel' },
+      h('div', { class: 'account-row' }, shown, h('span', { class: 'muted' }, 'Keep it in your password manager.'), h('span', { class: 'hero-actions' }, show, copy)))) : null,
+    section('Extension', extLine, h('div', { class: 'panel' },
+      h('p', { class: 'muted' }, 'One click gives the extension in this browser this address and the passphrase, so you don\'t have to type either.'),
+      h('div', { class: 'hero-actions' }, setUp), out)),
+    section('Crunchyroll account', 'Whose watch history comes in', h('div', { class: 'panel account-list' }, crOut)));
+}
+
 export async function render(view) {
+  const me = await fetch('/api/me').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  if (me) return renderPassphrase(view, me);
   const state = await fetch('/auth/state').then((r) => r.json()).catch(() => ({}));
   if (!state.signedIn) { location.href = `/signin.html?next=${encodeURIComponent('#/account')}`; return; }
   const draw = async () => {

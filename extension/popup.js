@@ -14,6 +14,8 @@ function render(s) {
   $('error').textContent = s.lastError || (s.lastSync ? '' : 'Not synced yet. Press the sync button above.');
   $('url').value = s.trackerUrl;
   $('key').value = s.trackerKey || '';
+  // Pairing codes are for a tracker with accounts (keys start trk_); a passphrase tracker never has a Connect page.
+  $('pairBox').hidden = Boolean(s.trackerKey) && !/^trk_/.test(s.trackerKey);
   $('notify').checked = s.notifyNew !== false;
   $('overlay').checked = s.overlay !== false;
   $('open').href = `${s.trackerUrl}/#/up-next`;
