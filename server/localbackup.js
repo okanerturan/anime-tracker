@@ -59,4 +59,15 @@ function start() {
   setInterval(tick, 15 * 60e3).unref?.();
 }
 
-module.exports = { run, start, KEEP };
+/** The last good run, for the Sync page: { at, files, bytes, days, keep }, or null (no BACKUP_DIR, or no run yet). */
+function status() {
+  const root = dir();
+  if (!root) return null;
+  try {
+    const last = JSON.parse(fs.readFileSync(path.join(root, 'last-backup.json'), 'utf8'));
+    const days = fs.readdirSync(root).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x)).length;
+    return { at: last.lastSuccessAt, files: last.files, bytes: last.bytes, days, keep: KEEP };
+  } catch { return null; }
+}
+
+module.exports = { run, start, status, KEEP };

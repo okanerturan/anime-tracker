@@ -158,6 +158,19 @@ function malInput() {
   return [input, status];
 }
 
+/** The server's nightly database copies: when the last one ran, its size, how many days are kept. */
+function backupSection(b) {
+  if (!b || !b.at) return null;
+  const size = b.bytes >= 1048576 ? `${(b.bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b.bytes / 1024))} KB`;
+  // The same limit the server's own watchdog uses: a nightly copy older than 26 hours means one was missed.
+  const late = Date.now() - new Date(b.at).getTime() > 26 * 3600e3;
+  return section('Backups', `Nightly, last ${ago(b.at)} · ${b.days} day${b.days === 1 ? '' : 's'} kept`,
+    late ? h('div', { class: 'panel warn' }, h('b', {}, 'No backup in the last 26 hours. '), 'The nightly copy may have stopped: check the server.') : null,
+    h('div', { class: 'panel' },
+      h('p', {}, `Each night the server saves a compressed copy of the whole database (${size}) in its backup folder and keeps the last ${b.keep} days. `,
+        'Have the server copy that folder somewhere else too, so a lost disk doesn’t take the backups with it.')));
+}
+
 export async function render(view) {
   view.replaceChildren(h('div', { class: 'skeleton' }));
   const [cr, bg, stats, odd, me] = await Promise.all([api.crStatus(), api.syncStatus(), api.stats(), api.suspicious().catch(() => []), loadMe()]);
@@ -346,13 +359,7 @@ export async function render(view) {
         row.title = x.reason;
         return row;
       }))) : null,
-    bg.lastBackup ? section('Backups', `Nightly, last ${ago(bg.lastBackup.at)} · ${bg.lastBackup.kept} kept`,
-      h('div', { class: 'panel' },
-        h('p', {}, `Every table except episode thumbnails (the sync re-fetches those), gzipped: ${Math.round(bg.lastBackup.bytes / 1024).toLocaleString()} KB, ${bg.lastBackup.rows.toLocaleString()} rows. `,
-          'Restore with ', h('span', { class: 'mono' }, 'node scripts/backup.js restore'), '.'),
-        h('div', { class: 'hero-actions' },
-          h('a', { class: 'btn', href: '/api/backup', download: '' }, 'Download latest'),
-          h('a', { class: 'btn ghost', href: '/api/backup?fresh=1', download: '' }, 'Back up now and download')))) : null].filter(Boolean));
+    backupSection(bg.lastBackup)].filter(Boolean));
   if (/[?&]import=1/.test(location.hash)) view.querySelector('#import')?.scrollIntoView({ block: 'start' });
   if (/[?&]calendar=1/.test(location.hash)) view.querySelector('#calendar')?.scrollIntoView({ block: 'start' });
   // Sections above load their data after this, so scroll again once they've settled.

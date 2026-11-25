@@ -215,6 +215,12 @@ function episodeSourcesStatus() {
   } catch { return null; }
 }
 
+// The server's own nightly database copies (server/localbackup.js, BACKUP_DIR); null when it keeps none.
+// (The 'backup' row some databases still hold is the retired Cloudflare build's last R2 backup.)
+function localBackup() {
+  try { return process.env.BACKUP_DIR ? require('./localbackup').status() : null; } catch { return null; }
+}
+
 function status() {
   // In-memory counters reset whenever the process (or Durable Object) restarts; fall back to the saved run.
   const savedRun = appState.get('episodeRun');
@@ -224,7 +230,7 @@ function status() {
     completed: state.completed, failed: state.failed,
     lastRunAt: state.lastRunAt || savedRun?.at || null,
     lastError: state.lastError || savedRun?.lastError || null,
-    lastCycle: cycle, lastBackup: appState.get('backup'),
+    lastCycle: cycle, lastBackup: localBackup(),
     jikanAvailable: jikan.isAvailable(),
     episodeSources: episodeSourcesStatus()
   };

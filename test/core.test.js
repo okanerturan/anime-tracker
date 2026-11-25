@@ -543,6 +543,15 @@ test('local backups: one gzipped copy per day, a re-run replaces the day, old da
     fs.writeFileSync(copy, zlib.gunzipSync(fs.readFileSync(path.join(process.env.BACKUP_DIR, days.at(-1), 'anime-tracker.db.gz'))));
     const r = new Database(copy, { readonly: true }); assert.equal(r.prepare('SELECT x FROM t').get().x, 42); r.close();
     assert.ok(JSON.parse(fs.readFileSync(path.join(process.env.BACKUP_DIR, 'last-backup.json'))).lastSuccessAt);
+    // What the Sync page shows: the last good run, how many days are on disk, how many are kept.
+    const st = lb.status();
+    assert.equal(st.at, new Date(t0 + (lb.KEEP + 2) * 86400e3).toISOString());
+    assert.equal(st.days, lb.KEEP); assert.equal(st.keep, lb.KEEP); assert.equal(st.files, 1); assert.ok(st.bytes > 0);
+    assert.deepEqual(require('../server/sync').status().lastBackup, st, 'the sync status carries it');
+    process.env.BACKUP_DIR = path.join(tmp, 'never-ran');
+    assert.equal(lb.status(), null, 'no run yet: nothing to show');
+    delete process.env.BACKUP_DIR;
+    assert.equal(require('../server/sync').status().lastBackup, null, 'a tracker that keeps no backups says nothing (not an old Cloudflare one)');
   } finally {
     for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     fs.rmSync(tmp, { recursive: true, force: true });
