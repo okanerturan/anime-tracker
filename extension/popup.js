@@ -12,7 +12,9 @@ function render(s) {
   $('result').textContent = news.length ? `Last sync: ${news.join(' · ')}` : '';
   $('status').title = r ? `Last sync read ${r.fetched} plays from Crunchyroll` : '';
   $('error').textContent = s.lastError || (s.lastSync ? '' : 'Not synced yet. Press the sync button above.');
-  chrome.permissions.contains({ origins: ['https://www.crunchyroll.com/*'] }).then((ok) => { $('allowCr').hidden = ok; });
+  showAlert();
+  chrome.permissions.contains({ origins: ['https://www.crunchyroll.com/*'] }).then((ok) => { $('allowCr').hidden = ok; showAlert(); });
+  $('version').textContent = `Extension ${chrome.runtime.getManifest().version}`;
   $('url').value = s.trackerUrl;
   $('key').value = s.trackerKey || '';
   // Pairing codes are for a tracker with accounts (keys start trk_); a passphrase tracker never has a Connect page.
@@ -20,9 +22,23 @@ function render(s) {
   $('notify').checked = s.notifyNew !== false;
   $('overlay').checked = s.overlay !== false;
   $('open').href = `${s.trackerUrl}/#/up-next`;
-  $('all').href = `${s.trackerUrl}/#/up-next`;
   loadUpNext(s);
 }
+
+/** The alert under the header shows only when there is an error or Chrome blocks Crunchyroll. */
+function showAlert() {
+  if (!$('allowCr').hidden && !$('error').textContent) $('error').textContent = 'Chrome is blocking this extension from crunchyroll.com, so it can\'t read your history.';
+  $('alert').hidden = !$('error').textContent && $('allowCr').hidden;
+}
+
+/** Settings swap in for the list (the gear in the header), so they never sit below a scroll. */
+function showSettings(on) {
+  $('gear').setAttribute('aria-pressed', String(on));
+  $('settings').hidden = !on;
+  $('upnextView').hidden = on;
+  document.querySelector('main').scrollTop = 0;
+}
+$('gear').onclick = () => showSettings($('gear').getAttribute('aria-pressed') !== 'true');
 
 function relTime(d) {
   const m = Math.round((Date.now() - d.getTime()) / 60000);
@@ -61,7 +77,6 @@ async function loadUpNext(s) {
     const isNew = (x) => x.latestAiredAt && Date.now() - new Date(x.latestAiredAt).getTime() < 7 * 86400000;
     const fresh = all.filter(isNew).length;
     $('count').textContent = [all.length ? `${all.length} show${all.length === 1 ? '' : 's'}` : '', fresh ? `${fresh} new this week` : ''].filter(Boolean).join(' · ');
-    $('all').hidden = all.length <= SHOWN;
     box.replaceChildren();
     if (!items.length) { box.append(empty("You're all caught up.")); return; }
     for (const x of items) {
@@ -106,7 +121,7 @@ async function loadUpNext(s) {
       box.append(item);
     }
   } catch (err) {
-    box.replaceChildren(empty(/key/.test(err.message) ? 'Set the tracker key under Settings.' : `Can't reach the tracker (${err.message}).`));
+    box.replaceChildren(empty(/key/.test(err.message) ? 'Set the tracker key in Settings (the gear at the top).' : `Can't reach the tracker (${err.message}).`));
   }
 }
 
@@ -143,7 +158,8 @@ async function sync(full) {
 // The background syncs as soon as access is granted (permissions.onAdded), even if this popup closes.
 $('allowCr').onclick = async () => {
   const ok = await chrome.permissions.request({ origins: ['https://www.crunchyroll.com/*', 'https://graphql.anilist.co/*'] }).catch(() => false);
-  if (ok) { $('allowCr').hidden = true; $('error').textContent = ''; $('last').textContent = 'syncing…'; setTimeout(refresh, 4000); return; }
+  if (ok) { $('allowCr').hidden = true; $('error').textContent = ''; showAlert(); $('last').textContent = 'syncing…'; setTimeout(refresh, 4000); return; }
+  $('alert').hidden = false;
   $('error').textContent = 'Chrome didn\'t give access. In chrome://extensions, open Tsuzuku\'s Details and set Site access to "On all sites".';
 };
 $('sync').onclick = () => sync(false);
