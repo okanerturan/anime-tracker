@@ -74,9 +74,8 @@ async function renderPassphrase(view, me) {
   drawCr(me.crunchyroll);
 
   fill(view,
-    section('Account', me.mode === 'passphrase' ? 'One passphrase, no accounts yet' : 'Open on this computer',
-      h('div', { class: 'panel' }, h('div', { class: 'hero-actions' },
-        me.mode === 'passphrase' ? h('a', { class: 'btn small', href: '/logout' }, 'Sign out of this browser') : null))),
+    me.mode === 'passphrase' ? section('Account', 'One passphrase, no accounts yet',
+      h('div', { class: 'panel' }, h('div', { class: 'hero-actions' }, h('a', { class: 'btn small', href: '/logout' }, 'Sign out of this browser')))) : null,
     me.mode === 'passphrase' ? section('Passphrase', 'Signs you in here and is the extension\'s Tracker key', h('div', { class: 'panel' },
       h('div', { class: 'account-row' }, shown, h('span', { class: 'muted' }, 'Keep it in your password manager.'), h('span', { class: 'hero-actions' }, show, copy)))) : null,
     section('Extension', extLine, h('div', { class: 'panel' },
