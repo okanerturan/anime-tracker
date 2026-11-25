@@ -10,16 +10,11 @@
     "prefetch-images": "node scripts/prefetch_images.js",
     "optimize-images": "node scripts/optimize_images.js && node scripts/optimize_episode_thumbs.js",
     "repair-split-cours": "node scripts/repair_split_cours.js",
-    "dev:cloudflare": "env -u CLOUDFLARE_API_TOKEN wrangler dev",
-    "deploy": "env -u CLOUDFLARE_API_TOKEN wrangler deploy",
     "cf:login": "env -u CLOUDFLARE_API_TOKEN wrangler login",
-    "migrate:cloudflare": "node scripts/migrate_to_cloudflare.js",
-    "backup": "node scripts/backup.js download",
     "ext:package": "node scripts/package-extension.mjs",
     "cws:status": "node scripts/cws.mjs fetch-status",
     "cws:publish": "node scripts/cws.mjs upload-and-publish",
     "ext:assets": "node scripts/store-assets.mjs",
-    "deploy:gate": "env -u CLOUDFLARE_API_TOKEN wrangler deploy -c wrangler.gate.jsonc",
     "deploy:redirect": "env -u CLOUDFLARE_API_TOKEN wrangler deploy -c wrangler.redirect.jsonc"
   },
   "dependencies": {
@@ -31,7 +26,6 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2",
     "wrangler": "^4.149.0"
   },
   "license": "MIT",

@@ -170,8 +170,8 @@ server/
   sources/idmap.js     weekly MAL to AniList/Kitsu/TMDB/TVDB id map (Fribb's anime-lists)
 public/                web app: vanilla JS modules, no build step
 extension/             Chrome extension
-worker/                the redirect at the tracker's old workers.dev address, the front Worker for hosted
-                       mode, and the retired Cloudflare build (Durable Object, R2), no longer supported
+worker/                the redirect at the tracker's old workers.dev address, and the front Worker
+                       written for hosted mode
 scripts/               maintenance, backups and restore, extension packaging and store publishing,
                        store images and README screenshots (store-assets.mjs, readme-shots.mjs)
 Dockerfile, config/    container image and Kamal deploy config

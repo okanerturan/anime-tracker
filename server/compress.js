@@ -1,7 +1,6 @@
 'use strict';
-// Compressed text responses for the Node server: JSON (through res.sendText, which server.js sets and
-// sendJSON uses when it is there) and static files. Node only: the Cloudflare bundle never loads this
-// file (Cloudflare compresses at its edge), so zlib stays out of http.js and routes.js.
+// Compressed text responses: JSON (through res.sendText, which server.js sets and sendJSON uses when
+// it is there) and static files.
 const zlib = require('zlib');
 
 const MIN_BYTES = 1024; // below this the headers cost more than compression saves

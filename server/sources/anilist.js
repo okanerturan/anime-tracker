@@ -4,7 +4,7 @@
 const { db, catalog, hasAccount, MULTI } = require('../db');
 const { sleep, dateFromParts } = require('../util');
 const appState = require('../state');
-const sha1 = require('../../worker/sha1');
+const sha1 = require('../sha1');
 
 const ENDPOINT = 'https://graphql.anilist.co';
 const MIN_INTERVAL_MS = 2100;

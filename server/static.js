@@ -1,5 +1,5 @@
 'use strict';
-// Static file serving for the local Node server (on Cloudflare, Workers Static Assets serves public/).
+// Static file serving (public/).
 // Each file is read once and kept with its compressed forms; a browser that already has it gets a
 // 304 (the files are served "no-cache", so every load asks, and the ETag answers without the body).
 const fs = require('fs');

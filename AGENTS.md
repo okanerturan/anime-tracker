@@ -9,12 +9,12 @@
   checks the passphrase itself (`server/passgate.js`, `APP_PASSPHRASE`); there is no front Worker and no
   origin lock any more (`ORIGIN_SECRET` unset, so `server/accounts/origin.js` lets everything through).
 - **Old address:** the Worker `anime-tracker` (anime-tracker.okan.workers.dev) only answers 308 to the same path
-  on the new address (`wrangler.redirect.jsonc`, `worker/redirect.mjs`, `npm run deploy:redirect`; never
-  `npm run deploy`, that is the self-hosted Durable Object build). Extension 1.15.0 rewrites a saved
+  on the new address (`wrangler.redirect.jsonc`, `worker/redirect.mjs`, `npm run deploy:redirect`).
+  Extension 1.15.0 rewrites a saved
   workers.dev address to the new one. Delete the Worker once nothing uses the old address. The self-hosted
-  Cloudflare build is retired (2026-11-25): it is out of the README, CI no longer builds it
-  (`node worker/build.mjs`), and the extension has no `*.workers.dev` access since 1.16.5; its code and npm
-  scripts are still in the repo, and `test/db-facade.test.js` still covers its SQLite facade. Nothing else is
+  Cloudflare build (Durable Object, R2, `npm run deploy`) was retired and removed on 2026-11-25; git history
+  has it (last commit with it: `d6178a8`), and the extension has no `*.workers.dev` access since 1.16.5.
+  `scripts/backup.js restore <file> --local <db>` still reads that build's archived JSON backups. Nothing else is
   on Cloudflare: the Durable Object (migration v2, 2026-10-27) and the R2 images bucket are deleted; the
   images are in the hub's image cache. The Durable Object's daily backups (2026-10-13 to -22, everything in
   them is also on the hub) are in `/srv/anime-tracker/backups/archive/` (see its README.txt).

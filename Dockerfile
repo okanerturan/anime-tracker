@@ -20,8 +20,6 @@ COPY server ./server
 COPY public ./public
 COPY scripts/switch.js scripts/restore.js scripts/split-backup.js ./scripts/
 COPY extension ./extension
-# A pure-JS sha1 shared with the Cloudflare build.
-COPY worker/sha1.js ./worker/sha1.js
 # The volume is owned by the image's node user (uid 1000): chown 1000:1000 /srv/anime-tracker once.
 RUN mkdir -p /data && chown node:node /data
 USER node

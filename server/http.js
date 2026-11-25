@@ -5,8 +5,8 @@ const MAX_BODY = 25 * 1024 * 1024;
 function sendJSON(res, status, payload) {
   const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };
   const body = JSON.stringify(payload);
-  // The Node server compresses (server.js sets res.sendText from server/compress.js); on Cloudflare
-  // and in handler tests there is none, and the body goes out as it is.
+  // The server compresses (server.js sets res.sendText from server/compress.js); a handler called
+  // without it, as some tests do, sends the body as it is.
   if (typeof res.sendText === 'function') return res.sendText(status, headers, body);
   res.writeHead(status, headers);
   res.end(body);

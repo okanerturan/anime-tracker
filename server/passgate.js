@@ -1,9 +1,9 @@
 'use strict';
 // Passphrase gate for the Node server when it is reachable from outside (the hub, migration steps
-// 3 and 4, AUTH_MODE=passphrase with APP_PASSPHRASE set). The same rules as the Cloudflare entry
-// (worker/index.js): a session cookie for the browser, "Authorization: Bearer <passphrase>" for the
-// extension and scripts, the calendar feed by its secret path. Same cookie name and token, so a
-// browser signed in on the Cloudflare build stays signed in when its requests move to the hub.
+// 3 and 4, AUTH_MODE=passphrase with APP_PASSPHRASE set): a session cookie for the browser,
+// "Authorization: Bearer <passphrase>" for the extension and scripts, the calendar feed by its secret
+// path. The cookie name and token are the ones the retired Cloudflare build used, so browsers signed
+// in there stayed signed in when the tracker moved to the hub.
 const crypto = require('crypto');
 const guesses = require('./guesses');
 
