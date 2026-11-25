@@ -60,11 +60,16 @@ async function serverMessage(res, fallback) {
 }
 
 async function postTracker(trackerUrl, path, payload) {
-  const res = await fetch(`${trackerUrl}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'extension', ...authHeaders(trackerKey) },
-    body: JSON.stringify(payload)
-  });
+  let res;
+  try {
+    res = await fetch(`${trackerUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Tracker-Client': 'extension', ...authHeaders(trackerKey) },
+      body: JSON.stringify(payload)
+    });
+  } catch {
+    throw new Error(`Can't reach the tracker at ${trackerUrl}. Is it running, and is the Tracker URL right?`);
+  }
   if (!res.ok) throw new Error(await serverMessage(res, `tracker ${path} ${res.status}`));
   return res.json();
 }
@@ -79,7 +84,20 @@ async function ensureClientId(cfg) {
   return m[1];
 }
 
+const CR_ORIGIN = 'https://www.crunchyroll.com/*';
+// Site access given back (the popup's Allow button, or Site access in chrome://extensions): sync now
+// rather than leave the old error up until the next 30-minute alarm.
+chrome.permissions.onAdded.addListener((p) => {
+  if ((p.origins || []).some((o) => o.includes('crunchyroll.com'))) set({ lastError: null }).then(() => syncNow({ reason: 'access' })).catch(() => {});
+});
+const NO_CR_ACCESS = 'Chrome is blocking this extension from crunchyroll.com, so it can\'t read your history. Press "Allow Crunchyroll" below, or in chrome://extensions open Tsuzuku\'s Details and set Site access to "On all sites".';
 let running = null;
+/** crunchyrollSync, with a network failure named as Crunchyroll's (the tracker's has its own message). */
+async function crunchyrollSyncNamed(opts) {
+  try { return await crunchyrollSync(opts); }
+  catch (err) { if (err instanceof TypeError && /fetch/i.test(err.message)) throw new Error(`Couldn't reach crunchyroll.com (${err.message}). Check you're online and signed in there.`); throw err; }
+}
+
 async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
   if (running) return running;
   running = (async () => {
@@ -87,8 +105,11 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
     trackerKey = cfg.trackerKey || '';
     try {
       const status = await trackerStatus(cfg.trackerUrl);
+      // Chrome can withhold site access ("On click" / specific sites in the extension's details):
+      // every Crunchyroll request then fails as a bare "Failed to fetch". Say so instead.
+      if (!data && !(await chrome.permissions.contains({ origins: [CR_ORIGIN] }))) throw new Error(NO_CR_ACCESS);
       const clientId = data ? cfg.clientId : await ensureClientId(cfg);
-      const got = data || await crunchyrollSync({ clientId, since: status.latestPlayed, full, wantSeasons: status.wantSeasons, wantSeries: status.wantSeries || [],
+      const got = data || await crunchyrollSyncNamed({ clientId, since: status.latestPlayed, full, wantSeasons: status.wantSeasons, wantSeries: status.wantSeries || [],
         // Library shows not played yet: the tracker picks their season from the series' list.
         wantSeriesSeasons: status.wantSeriesSeasons || [],
         chooseSeasons: async (items) => (await postTracker(cfg.trackerUrl, '/api/crunchyroll/series-seasons', { items })).seasonIds });

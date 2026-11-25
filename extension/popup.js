@@ -12,6 +12,7 @@ function render(s) {
   $('result').textContent = news.length ? `Last sync: ${news.join(' · ')}` : '';
   $('status').title = r ? `Last sync read ${r.fetched} plays from Crunchyroll` : '';
   $('error').textContent = s.lastError || (s.lastSync ? '' : 'Not synced yet. Press the sync button above.');
+  chrome.permissions.contains({ origins: ['https://www.crunchyroll.com/*'] }).then((ok) => { $('allowCr').hidden = ok; });
   $('url').value = s.trackerUrl;
   $('key').value = s.trackerKey || '';
   // Pairing codes are for a tracker with accounts (keys start trk_); a passphrase tracker never has a Connect page.
@@ -138,6 +139,13 @@ async function sync(full) {
   $('last').textContent = 'syncing…';
   chrome.runtime.sendMessage({ type: 'sync-now', full }, () => { $('sync').disabled = $('full').disabled = false; $('sync').classList.remove('busy'); refresh(); });
 }
+// Chrome withholding site access: ask for crunchyroll.com (needs this click), then sync.
+// The background syncs as soon as access is granted (permissions.onAdded), even if this popup closes.
+$('allowCr').onclick = async () => {
+  const ok = await chrome.permissions.request({ origins: ['https://www.crunchyroll.com/*', 'https://graphql.anilist.co/*'] }).catch(() => false);
+  if (ok) { $('allowCr').hidden = true; $('error').textContent = ''; $('last').textContent = 'syncing…'; setTimeout(refresh, 4000); return; }
+  $('error').textContent = 'Chrome didn\'t give access. In chrome://extensions, open Tsuzuku\'s Details and set Site access to "On all sites".';
+};
 $('sync').onclick = () => sync(false);
 $('full').onclick = () => sync(true);
 $('url').onchange = (e) => chrome.runtime.sendMessage({ type: 'set-tracker-url', url: e.target.value }, refresh);

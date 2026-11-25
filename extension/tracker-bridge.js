@@ -8,8 +8,14 @@
     const d = e.data;
     // A device token (accounts mode), or the passphrase from the single-user tracker's Account page.
     if (!d || d.source !== 'anime-tracker-connect' || typeof d.token !== 'string' || !d.token || d.token.length > 200) return;
-    chrome.runtime.sendMessage({ type: 'connect-tracker', url: location.origin, token: d.token }, (r) => {
-      window.postMessage({ source: 'anime-tracker-extension', connected: Boolean(r?.ok), error: r?.error || null }, location.origin);
-    });
+    const reply = (connected, error) => window.postMessage({ source: 'anime-tracker-extension', connected, error }, location.origin);
+    // After the extension is reloaded, this copy of the script is cut off from it: say so at once.
+    const reloaded = 'the extension was reloaded since this page opened; refresh the page and try again';
+    try {
+      chrome.runtime.sendMessage({ type: 'connect-tracker', url: location.origin, token: d.token }, (r) => {
+        if (chrome.runtime.lastError) reply(false, reloaded);
+        else reply(Boolean(r?.ok), r?.error || null);
+      });
+    } catch { reply(false, reloaded); }
   });
 })();
