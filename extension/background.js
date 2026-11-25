@@ -25,17 +25,23 @@ chrome.alarms.onAlarm.addListener((a) => {
 // probably just finished. Sync two minutes later so the dashboard rolls over while it still matters;
 // repeated navigations push the alarm out, so a binge syncs once at the end of each episode gap.
 const WATCH_RE = /^https:\/\/www\.crunchyroll\.com\/(?:[a-z-]+\/)?watch\//;
-const watchTabs = new Map(); // tabId -> last watch URL
+// Open watch tabs live in session storage, not in a variable: Chrome stops this service worker after
+// about 30 seconds idle, mid-episode, and a variable would forget the tab before you leave it.
+const watchTabs = {
+  async all() { return (await chrome.storage.session.get({ watchTabs: {} })).watchTabs; },
+  async put(tabId, url) { const t = await this.all(); if (url) t[tabId] = url; else delete t[tabId]; await chrome.storage.session.set({ watchTabs: t }); }
+};
 function leftWatchPage() { chrome.alarms.create('after-watch', { delayInMinutes: 2 }); }
-chrome.tabs.onUpdated.addListener((tabId, info) => {
-  const was = watchTabs.get(tabId);
+chrome.tabs.onUpdated.addListener(async (tabId, info) => {
+  if (!info.url && info.status !== 'loading') return;
+  const was = (await watchTabs.all())[tabId];
   // Navigating to a site we have no permission for reports no URL at all; a watch tab that starts
   // loading something unknown has left the episode.
-  if (!info.url) { if (was && info.status === 'loading') { watchTabs.delete(tabId); leftWatchPage(); } return; }
-  if (WATCH_RE.test(info.url)) { if (was && was !== info.url) leftWatchPage(); watchTabs.set(tabId, info.url); }
-  else if (was) { watchTabs.delete(tabId); leftWatchPage(); }
+  if (!info.url) { if (was) { await watchTabs.put(tabId, null); leftWatchPage(); } return; }
+  if (WATCH_RE.test(info.url)) { if (was && was !== info.url) leftWatchPage(); await watchTabs.put(tabId, info.url); }
+  else if (was) { await watchTabs.put(tabId, null); leftWatchPage(); }
 });
-chrome.tabs.onRemoved.addListener((tabId) => { if (watchTabs.has(tabId)) { watchTabs.delete(tabId); leftWatchPage(); } });
+chrome.tabs.onRemoved.addListener(async (tabId) => { if ((await watchTabs.all())[tabId]) { await watchTabs.put(tabId, null); leftWatchPage(); } });
 
 // The hosted tracker (Cloudflare) needs the passphrase as a bearer key; the local one ignores it.
 const VERSION = chrome.runtime.getManifest().version;
@@ -207,7 +213,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     } else if (msg.type === 'page-data') {
       reply(await syncNow({ data: msg.data, reason: 'page' }));
     } else if (msg.type === 'bridge-hello' || msg.type === 'page-sync') {
-      // Only the tracker this extension syncs to may ask (page-sync-bridge.js runs on any workers.dev page).
+      // Only the tracker this extension syncs to may ask (page-sync-bridge.js runs on every tracker address it knows).
       const cfg = await get();
       let mine = false;
       try { mine = Boolean(sender.origin) && new URL(cfg.trackerUrl).origin === sender.origin; } catch {}

@@ -1,6 +1,6 @@
 // Runs on tracker pages. Lets the tracker's own page ask for a sync ("Sync now" in its header).
 // The background only answers when this page's origin is the tracker URL set in the extension, so
-// another workers.dev site gets nothing; the tracker key never reaches the page.
+// any other page gets nothing; the tracker key never reaches the page.
 (() => {
   const FROM_PAGE = 'anime-tracker-page';
   const FROM_EXT = 'anime-tracker-ext';
