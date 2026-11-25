@@ -6,8 +6,9 @@ window.addEventListener('message', (e) => {
       if (!resp || !resp.shouldSync) return;
       chrome.runtime.sendMessage({ type: 'sync-now' }, (result) => {
         // Background fetch failed (e.g. cookies not available to the worker): fetch from the page instead.
+        // The failed sync's answer carries what to fetch (it got that from the tracker before failing).
         if (result && !result.ok && !/tracker/.test(result.error || '')) {
-          window.postMessage({ source: 'anime-tracker-bridge', type: 'fetch-history', since: resp.since || null, wantSeasons: resp.wantSeasons || [], wantSeries: resp.wantSeries || [] }, location.origin);
+          window.postMessage({ source: 'anime-tracker-bridge', type: 'fetch-history', since: result.since || null, wantSeasons: result.wantSeasons || [], wantSeries: result.wantSeries || [] }, location.origin);
         }
       });
     });

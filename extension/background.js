@@ -1,7 +1,9 @@
 // Service worker: syncs every 30 minutes (and whenever you open Crunchyroll).
-importScripts('crunchyroll-api.js', 'anilist-relay.js'); /* global crunchyrollSync, runAniListRelay */
+importScripts('crunchyroll-api.js', 'anilist-relay.js', 'upnext-view.js'); /* global crunchyrollSync, runAniListRelay, upNextView, isNewEpisode */
 
-const DEFAULTS = { trackerUrl: 'http://localhost:8080', trackerKey: '', clientId: null, lastSync: null, lastResult: null, lastError: null, notifyNew: true, notified: null, overlay: true };
+const DEFAULTS = { trackerUrl: 'http://localhost:8080', trackerKey: '', clientId: null, lastSync: null, lastResult: null, lastError: null, notifyNew: true, notified: null, overlay: true,
+  // The popup's list as of the last sync ({ url, at, view }), so it can draw before asking the tracker.
+  upNextCache: null };
 // Every read maps an old tracker address to its new one (see MOVED below), so a copy saved or typed
 // back in later can't send syncs to an address that only redirects.
 const get = async () => { const c = await chrome.storage.local.get(DEFAULTS); const to = MOVED[String(c.trackerUrl).replace(/\/+$/, '')]; if (to) { c.trackerUrl = to; chrome.storage.local.set({ trackerUrl: to }); } return c; };
@@ -112,8 +114,9 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
   running = (async () => {
     const cfg = await get();
     trackerKey = cfg.trackerKey || '';
+    let status = null;
     try {
-      const status = await trackerStatus(cfg.trackerUrl);
+      status = await trackerStatus(cfg.trackerUrl);
       // Chrome can withhold site access ("On click" / specific sites in the extension's details):
       // every Crunchyroll request then fails as a bare "Failed to fetch". Say so instead.
       if (!data && !(await chrome.permissions.contains({ origins: [CR_ORIGIN] }))) throw new Error(NO_CR_ACCESS);
@@ -136,7 +139,8 @@ async function syncNow({ full = false, data = null, reason = 'manual' } = {}) {
       return { ok: true, result };
     } catch (err) {
       await set({ lastError: `${new Date().toLocaleString()}: ${err.message}` });
-      return { ok: false, error: err.message };
+      // With the tracker's answer in hand, the Crunchyroll page can fetch the history itself (page-bridge.js).
+      return { ok: false, error: err.message, ...(status ? { since: status.latestPlayed || null, wantSeasons: status.wantSeasons || [], wantSeries: status.wantSeries || [] } : {}) };
     } finally {
       running = null;
     }
@@ -173,9 +177,9 @@ async function notifyNewEpisodes(cfg) {
     if (seen && !seen[key]) premieres.push(x);
     next[key] = at;
   }
-  await set({ notified: next });
+  await set({ notified: next, upNextCache: { url: cfg.trackerUrl, at: new Date().toISOString(), view: upNextView(data) } });
   // Icon badge: shows with an episode out in the last 7 days that you haven't watched yet.
-  const week = (data.continueWatching || []).filter((x) => x.latestAiredAt && Date.now() - new Date(x.latestAiredAt).getTime() < 7 * 86400000).length;
+  const week = (data.continueWatching || []).filter((x) => isNewEpisode(x)).length;
   try {
     await chrome.action.setBadgeBackgroundColor({ color: '#f47521' });
     await chrome.action.setBadgeText({ text: week ? String(week) : '' });
@@ -206,13 +210,13 @@ chrome.notifications?.onClicked.addListener((id) => {
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     if (msg.type === 'cr-config' && msg.clientId) {
-      await set({ clientId: msg.clientId });
-      const { lastSync } = await get();
-      // Opening Crunchyroll triggers a sync if the last one is older than 10 minutes.
+      const { lastSync, clientId } = await get();
+      if (clientId !== msg.clientId) await set({ clientId: msg.clientId });
+      // Opening Crunchyroll triggers a sync if the last one is older than 10 minutes. Nothing is asked
+      // of the tracker here: this runs on every Crunchyroll page load (twice), and the sync itself
+      // fetches what it needs.
       const stale = !lastSync || Date.now() - new Date(lastSync).getTime() > 10 * 60 * 1000;
-      let since = null; let wantSeasons = []; let wantSeries = [];
-      try { const c = await get(); trackerKey = c.trackerKey || ''; const st = await trackerStatus(c.trackerUrl); since = st.latestPlayed; wantSeasons = st.wantSeasons || []; wantSeries = st.wantSeries || []; } catch {}
-      reply({ shouldSync: stale, since, wantSeasons, wantSeries });
+      reply({ shouldSync: stale && !running });
     } else if (msg.type === 'page-data') {
       reply(await syncNow({ data: msg.data, reason: 'page' }));
     } else if (msg.type === 'bridge-hello' || msg.type === 'page-sync') {
@@ -234,7 +238,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       // From tracker-bridge.js on the tracker's own page: the address must be the page's own origin.
       const origin = sender.url ? new URL(sender.url).origin : null;
       if (!origin || origin !== msg.url || !msg.token || typeof msg.token !== 'string' || msg.token.length > 200) { reply({ ok: false, error: 'not from the tracker page' }); return; }
-      await set({ trackerUrl: origin, trackerKey: msg.token, lastError: null });
+      await set({ trackerUrl: origin, trackerKey: msg.token, lastError: null, upNextCache: null });
       trackerKey = msg.token;
       reply({ ok: true });
       syncNow().catch(() => {});
@@ -243,7 +247,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       // "tsuzuku.okanerturan.com" typed without https:// would make every request a relative path that fails.
       let url = String(msg.url || DEFAULTS.trackerUrl).trim().replace(/\/+$/, '');
       if (!/^https?:\/\//i.test(url)) url = `${/^(localhost|127\.|\[::1\])/.test(url) ? 'http' : 'https'}://${url}`;
-      await set({ trackerUrl: MOVED[url] || url, lastError: null });
+      await set({ trackerUrl: MOVED[url] || url, lastError: null, upNextCache: null });
       reply({ ok: true });
     } else if (msg.type === 'series-info') {
       // For the card on crunchyroll.com: which of your shows belong to this series, and your progress.
@@ -278,7 +282,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       await set({ notifyNew: Boolean(msg.on) });
       reply({ ok: true });
     } else if (msg.type === 'set-tracker-key') {
-      await set({ trackerKey: String(msg.key || '') });
+      await set({ trackerKey: String(msg.key || ''), upNextCache: null });
       reply({ ok: true });
     }
   })();

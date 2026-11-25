@@ -49,7 +49,6 @@ function relTime(d) {
   return `${Math.round(h / 24)} d ago`;
 }
 
-const SHOWN = 6;
 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 /** "E6 18:30" (today), "E6 tomorrow", "E6 Sat", "E6 Oct 24": when the next episode airs. */
 function airs(ep, at) {
@@ -63,65 +62,100 @@ function airs(ep, at) {
 const timeLeft = (eps, min) => { const m = eps * (min || 24); return m >= 90 ? `~${Math.round(m / 60)} h` : `~${m} min`; };
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
-/** The dashboard's "continue watching" shows: episode still, progress, and Play straight to Crunchyroll. */
+/** What is on screen: the tracker it came from and the list itself, so an unchanged refresh redraws nothing. */
+let drawn = { from: null, key: null };
+const sourceOf = (s) => `${s.trackerUrl}\n${s.trackerKey || ''}`;
+
+/**
+ * The dashboard's "continue watching" shows. The copy kept from the last sync (or the last time the
+ * popup was open) is drawn at once; the tracker is then asked, and the list redrawn only if it changed.
+ * When the tracker can't be reached the kept list stays, with a line saying so.
+ */
 async function loadUpNext(s) {
   const box = $('upnext');
-  const auth = s.trackerKey ? { Authorization: `Bearer ${s.trackerKey}` } : {};
+  const from = sourceOf(s);
+  const kept = s.upNextCache && s.upNextCache.url === s.trackerUrl ? s.upNextCache : null;
+  if (drawn.from !== from) {
+    // Another tracker's list (the address or key just changed) must not stay up while this one loads.
+    const other = drawn.from !== null;
+    drawn = { from: null, key: null };
+    $('stale').textContent = '';
+    if (kept) drawList(s, kept.view);
+    else if (other) { $('count').textContent = ''; box.replaceChildren(empty('Loading…')); }
+  }
   try {
-    const res = await fetch(`${s.trackerUrl}/api/up-next`, { headers: auth });
-    if (!res.ok) throw new Error(res.status === 401 ? 'tracker key rejected' : `tracker ${res.status}`);
-    const data = await res.json();
-    const all = data.continueWatching;
-    const items = all.slice(0, SHOWN);
-    // The same rule as the icon's badge (background.js): an episode out in the last 7 days you haven't watched.
-    const isNew = (x) => x.latestAiredAt && Date.now() - new Date(x.latestAiredAt).getTime() < 7 * 86400000;
-    const fresh = all.filter(isNew).length;
-    $('count').textContent = [all.length ? `${all.length} show${all.length === 1 ? '' : 's'}` : '', fresh ? `${fresh} new this week` : ''].filter(Boolean).join(' · ');
-    box.replaceChildren();
-    if (!items.length) { box.append(empty("You're all caught up.")); return; }
-    for (const x of items) {
-      const name = clean(x.nextEpisodeTitle);
-      const url = x.nextEpisodeUrl || `${s.trackerUrl}/#/library?anime=${x.malId}`;
-      const item = el('div', 'item');
-      // Episode still with its number. No bar along the bottom: there it reads as how far into this
-      // episode you got (Crunchyroll's playhead), and the show's progress is in the details line.
-      const thumb = el('div', 'thumb');
-      const img = el('img'); img.alt = '';
-      // Image routes need the key too, and an <img> can't send a header: fetch, then show the blob.
-      const src = (x.nextEpisodeImage || x.image || '').replace(/^\//, `${s.trackerUrl}/`);
-      if (src) fetch(src, { headers: auth }).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
-      thumb.append(img, el('span', 'ep', `E${x.nextEpisode}`));
-      // Title (stretched link over the card), episode name, then the details line.
-      const text = el('div', 'text');
-      const t = el('a', 't'); t.href = url; t.target = '_blank'; t.rel = 'noopener';
-      t.title = x.title;
-      if (isNew(x)) t.append(el('span', 'new', 'New'));
-      t.append(x.title);
-      const sub = el('div', 's', name ? `E${x.nextEpisode} · ${name}` : `Episode ${x.nextEpisode}`);
-      sub.title = sub.textContent;
-      const facts = [
-        `${x.watched}/${x.totalEpisodes || x.aired || '?'}`,
-        `${x.remaining} left`,
-        timeLeft(x.remaining, x.episodeMinutes),
-        x.status === 'RELEASING' && x.nextAiringEpisode && x.nextAiringAt ? airs(x.nextAiringEpisode, x.nextAiringAt) : ''
-      ].filter(Boolean);
-      const meta = el('div', 'm', facts.join(' · '));
-      text.append(t, sub, meta);
-      // Play goes straight to the episode on Crunchyroll; ✓ ticks it off when you watched it elsewhere.
-      const acts = el('div', 'acts');
-      const play = el('a', `play${x.nextEpisodeUrlIsExact ? '' : ' quiet'}`, x.nextEpisodeUrlIsExact ? '▶ Play' : 'Open');
-      play.href = url; play.target = '_blank'; play.rel = 'noopener';
-      if (!x.nextEpisodeUrlIsExact) play.title = `Opens the show on ${x.nextEpisodeSite || 'Crunchyroll'}`;
-      const tick = el('button', 'tick', '✓'); tick.type = 'button';
-      tick.title = `Mark E${x.nextEpisode} watched`; tick.setAttribute('aria-label', `Mark episode ${x.nextEpisode} of ${x.title} watched`);
-      tick.onclick = () => markWatched(s, x, sub, tick);
-      acts.append(play, tick);
-      text.append(acts);
-      item.append(thumb, text);
-      box.append(item);
-    }
+    const res = await fetch(`${s.trackerUrl}/api/up-next`, { headers: s.trackerKey ? { Authorization: `Bearer ${s.trackerKey}` } : {} });
+    if (!res.ok) throw Object.assign(new Error(res.status === 401 ? 'tracker key rejected' : `tracker ${res.status}`), { status: res.status });
+    const view = upNextView(await res.json());
+    $('stale').textContent = '';
+    drawList(s, view);
+    chrome.storage.local.set({ upNextCache: { url: s.trackerUrl, at: new Date().toISOString(), view } });
   } catch (err) {
+    // A rejected key means the kept list may not be this tracker's to show: drop it.
+    if (err.status === 401) chrome.storage.local.set({ upNextCache: null });
+    if (drawn.from === from && err.status !== 401) {
+      $('stale').textContent = `Couldn't refresh (${err.message}). This is the list from ${kept ? relTime(new Date(kept.at)) : 'earlier'}.`;
+      return;
+    }
+    drawn = { from: null, key: null };
+    $('stale').textContent = '';
+    $('count').textContent = '';
     box.replaceChildren(empty(/key/.test(err.message) ? 'Set the tracker key in Settings (the gear at the top).' : `Can't reach the tracker (${err.message}).`));
+  }
+}
+
+/** Draw a list (see upnext-view.js) unless the same one from the same tracker is already showing. */
+function drawList(s, view) {
+  const box = $('upnext');
+  const from = sourceOf(s);
+  const key = JSON.stringify(view);
+  if (drawn.from === from && drawn.key === key) return;
+  drawn = { from, key };
+  const auth = s.trackerKey ? { Authorization: `Bearer ${s.trackerKey}` } : {};
+  $('count').textContent = [view.total ? `${view.total} show${view.total === 1 ? '' : 's'}` : '', view.fresh ? `${view.fresh} new this week` : ''].filter(Boolean).join(' · ');
+  box.replaceChildren();
+  if (!view.items.length) { box.append(empty("You're all caught up.")); return; }
+  for (const x of view.items) {
+    const name = clean(x.nextEpisodeTitle);
+    const url = x.nextEpisodeUrl || `${s.trackerUrl}/#/library?anime=${x.malId}`;
+    const item = el('div', 'item');
+    // Episode still with its number. No bar along the bottom: there it reads as how far into this
+    // episode you got (Crunchyroll's playhead), and the show's progress is in the details line.
+    const thumb = el('div', 'thumb');
+    const img = el('img'); img.alt = '';
+    // Image routes need the key too, and an <img> can't send a header: fetch, then show the blob.
+    const src = (x.nextEpisodeImage || x.image || '').replace(/^\//, `${s.trackerUrl}/`);
+    if (src) fetch(src, { headers: auth }).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
+    thumb.append(img, el('span', 'ep', `E${x.nextEpisode}`));
+    // Title (stretched link over the card), episode name, then the details line.
+    const text = el('div', 'text');
+    const t = el('a', 't'); t.href = url; t.target = '_blank'; t.rel = 'noopener';
+    t.title = x.title;
+    // The same rule as the icon's badge (background.js).
+    if (isNewEpisode(x)) t.append(el('span', 'new', 'New'));
+    t.append(x.title);
+    const sub = el('div', 's', name ? `E${x.nextEpisode} · ${name}` : `Episode ${x.nextEpisode}`);
+    sub.title = sub.textContent;
+    const facts = [
+      `${x.watched}/${x.totalEpisodes || x.aired || '?'}`,
+      `${x.remaining} left`,
+      timeLeft(x.remaining, x.episodeMinutes),
+      x.status === 'RELEASING' && x.nextAiringEpisode && x.nextAiringAt ? airs(x.nextAiringEpisode, x.nextAiringAt) : ''
+    ].filter(Boolean);
+    const meta = el('div', 'm', facts.join(' · '));
+    text.append(t, sub, meta);
+    // Play goes straight to the episode on Crunchyroll; ✓ ticks it off when you watched it elsewhere.
+    const acts = el('div', 'acts');
+    const play = el('a', `play${x.nextEpisodeUrlIsExact ? '' : ' quiet'}`, x.nextEpisodeUrlIsExact ? '▶ Play' : 'Open');
+    play.href = url; play.target = '_blank'; play.rel = 'noopener';
+    if (!x.nextEpisodeUrlIsExact) play.title = `Opens the show on ${x.nextEpisodeSite || 'Crunchyroll'}`;
+    const tick = el('button', 'tick', '✓'); tick.type = 'button';
+    tick.title = `Mark E${x.nextEpisode} watched`; tick.setAttribute('aria-label', `Mark episode ${x.nextEpisode} of ${x.title} watched`);
+    tick.onclick = () => markWatched(s, x, sub, tick);
+    acts.append(play, tick);
+    text.append(acts);
+    item.append(thumb, text);
+    box.append(item);
   }
 }
 
@@ -133,6 +167,10 @@ async function markWatched(s, x, sub, tick) {
   tick.disabled = true;
   try {
     const r = await post('/api/episode/watched-through', { malId: x.malId, episodeNumber: x.nextEpisode });
+    // The list on screen and the kept copy are out of date from here: the next load redraws, and a
+    // popup closed before then opens on a fresh list, not on the episode just ticked.
+    drawn.key = null;
+    chrome.storage.local.set({ upNextCache: null });
     sub.textContent = `E${x.nextEpisode} marked watched · `;
     const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'linkish'; undo.textContent = 'Undo';
     undo.onclick = async () => {

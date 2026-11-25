@@ -52,6 +52,9 @@
   h2 { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin: 0; }
   .head .count { color: var(--faint); font-size: 12px; }
   .list { display: flex; flex-direction: column; gap: 8px; }
+  /* The kept list is showing because the tracker couldn't be reached: say so above it. */
+  .stale { margin: 0 0 8px; color: color-mix(in oklch, var(--bad) 70%, var(--text)); font-size: 12px; }
+  .stale:empty { display: none; }
 
   /* One card per show. The title link stretches over the whole card; Play and ✓ sit above it. */
   .item { position: relative; display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; align-items: start; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); }
@@ -131,6 +134,7 @@
   <main>
     <section class="view" id="upnextView" aria-labelledby="upnextTitle">
       <div class="head"><h2 id="upnextTitle">Up next</h2><span class="count" id="count"></span></div>
+      <p class="stale" id="stale" role="status"></p>
       <div class="list" id="upnext"><div class="empty">Loading…</div></div>
     </section>
 
@@ -160,6 +164,7 @@
   <footer class="foot">
     <a class="btn" id="open" href="#" target="_blank">Open Tsuzuku</a>
   </footer>
+  <script src="upnext-view.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
