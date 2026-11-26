@@ -54,13 +54,14 @@ function upNext() {
   // Library shows with nothing watched yet still belong in Continue once you've begun them: opened on
   // Crunchyroll (even a few seconds), or the next season of one you finished, out now. Value: when.
   const begun = new Map();
+  const bySequel = new Set(); // begun only because the season before it was finished: never actually played
   for (const x of db.prepare(`SELECT h.mal_id, MAX(h.date_played) AS at FROM cr_history h JOIN media m ON m.mal_id = h.mal_id
     WHERE h.mal_id > 0 AND h.date_played IS NOT NULL AND COALESCE(h.dismissed, 0) = 0 AND m.start_date IS NOT NULL AND h.date_played >= m.start_date GROUP BY h.mal_id`).all()) begun.set(x.mal_id, x.at);
   for (const x of db.prepare(`SELECT r.related_mal_id AS id, r.mal_id AS src FROM media_relation r WHERE r.relation_type = 'SEQUEL'`).all()) {
     const seq = byId.get(x.id); const src = byId.get(x.src);
     if (!seq || seq.watched || !src || !src.watched || !seq.start_date || begun.has(x.id)) continue;
     const srcAired = library.airedCount({ status: src.status, next_airing_episode: src.next_airing_episode, episodes: src.episodes }) ?? src.ep_rows;
-    if (srcAired && src.watched / srcAired >= 0.75) begun.set(x.id, [seq.start_date, src.last_watched].filter(Boolean).sort().at(-1));
+    if (srcAired && src.watched / srcAired >= 0.75) { begun.set(x.id, [seq.start_date, src.last_watched].filter(Boolean).sort().at(-1)); bySequel.add(x.id); }
   }
 
   for (const r of rows) {
@@ -105,7 +106,8 @@ function upNext() {
       const progress = furthest / Math.max(aired || 1, 1);
       // Recently active or well underway → continue; otherwise it's stalled.
       if (lastAgeDays <= 120 || (progress >= 0.5 && lastAgeDays <= 365)) continueWatching.push({ ...info, score: remaining <= 3 ? 2 : 1, lastAgeDays });
-      else stalled.push({ ...info, lastAgeDays: Math.round(lastAgeDays) });
+      // A sequel you never played isn't something you paused: an old one stays on New seasons instead.
+      else if (!(furthest === 0 && bySequel.has(r.mal_id))) stalled.push({ ...info, lastAgeDays: Math.round(lastAgeDays) });
     }
   }
   continueWatching.sort((a, b) => (a.lastAgeDays - b.lastAgeDays));

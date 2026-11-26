@@ -40,7 +40,10 @@ export async function openAnime(partial) {
 
   const epContainer = h('div', { class: 'ep-grid' }, h('div', { class: 'skeleton' }));
   const summary = h('span', { class: 'sub num' });
-  const synopsis = item.synopsis ? h('p', { class: 'synopsis', 'data-expanded': 'false' }, item.synopsis) : null;
+  // AniList descriptions sometimes carry runs of blank lines; with white-space: pre-line they became a
+  // gap and a lone "…" in the four clamped lines. One blank line between paragraphs is enough.
+  const synopsisText = String(item.synopsis || '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  const synopsis = synopsisText ? h('p', { class: 'synopsis', 'data-expanded': 'false' }, synopsisText) : null;
   const more = synopsis ? h('button', { type: 'button', class: 'link-btn', 'aria-expanded': 'false' }, 'Show more') : null;
   if (more) {
     more.addEventListener('click', () => {

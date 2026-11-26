@@ -143,7 +143,11 @@ function card(x, inSeries = 1, eager = false) {
         : st.key !== 'upcoming' && statusPill(x.status) ? null
           : h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
       x.rating ? h('span', { class: 'num rating', title: `Your rating: ${x.rating}/5` }, `★${x.rating}`) : null,
-      st.key === 'upcoming' && !(x.progress ?? x.watchedCount) ? null : h('span', { class: 'num push-end' }, `${(x.progress ?? x.watchedCount)}/${aired ?? '?'}`)),
+      // Out of the season's length, as on Up Next ("8/12" while airing, not "8/8" of what has aired so far).
+      st.key === 'upcoming' && !(x.progress ?? x.watchedCount) ? null : h('span', {
+        class: 'num push-end',
+        title: x.totalEpisodes && aired != null && aired < x.totalEpisodes ? `${aired} of ${x.totalEpisodes} episodes out so far` : null
+      }, `${(x.progress ?? x.watchedCount)}/${x.totalEpisodes || aired || '?'}`)),
     actions: state.filter === 'unfinished' ? triage(x, title) : null });
   // In select mode a click anywhere on the card toggles it (capture phase, before links and buttons).
   el.addEventListener('click', (e) => {

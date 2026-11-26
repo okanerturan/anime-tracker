@@ -488,6 +488,13 @@ test('Up Next: a season in your library with nothing watched yet is in Continue 
   assert.equal(item.nextEpisode, 1);
   assert.ok(!u.newSeasons.some((x) => x.malId === 9202), 'and not also under New seasons');
   assert.ok(!u.continueWatching.some((x) => x.malId === 9203), 'a library show never begun stays out');
+  // An old movie after a show you finished: never played, so not "paused" and not "almost done".
+  addShow(9204, 'Begun Show The Movie', { start_date: '2024-09-01', status: 'FINISHED', episodes: 1 });
+  relate(9201, 9204, 'SEQUEL');
+  ep.run(9204, 1, 0, null, null);
+  const u2 = await insights.upNext();
+  assert.ok(![...u2.continueWatching, ...u2.stalled].some((x) => x.malId === 9204), 'not in Continue or Paused a while ago');
+  assert.ok(u2.newSeasons.some((x) => x.malId === 9204), 'it is offered as a new season instead');
 });
 
 test('audio versions: a link picked for the audio you watch replaces another language\'s; the season is asked for again until then', async () => {

@@ -251,8 +251,10 @@ function continueSection(view, items, onBudget = null) {
 
 /** The one episode to put on tonight: a paused episode first, else the most recently active show with episodes waiting. */
 function tonight(items, inProgress, forced = null) {
-  // Priority: an episode you're mid-way through, then a show with a new episode since your last visit, then most recent activity.
-  const pick = forced || items.find((x) => x.resume) || items.find((x) => isNewSinceVisit(x.latestAiredAt)) || items[0];
+  // Priority: an episode you paused in the last week, then a show with a new episode since your last
+  // visit, then most recent activity. (A pause from a month ago lost to what you watched yesterday.)
+  const recentPause = (x) => x.resume && Date.now() - new Date(x.resume.datePlayed).getTime() < 7 * 86400e3;
+  const pick = forced || items.find(recentPause) || items.find((x) => isNewSinceVisit(x.latestAiredAt)) || items[0];
   if (!pick) return null;
   // Can't decide: swap in another show with episodes waiting (never the same one twice in a row).
   const surprise = items.length > 1 ? h('button', { type: 'button', class: 'btn ghost' }, 'Surprise me') : null;
