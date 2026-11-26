@@ -495,9 +495,7 @@ html:has(dialog:modal) { overflow: hidden; }
 /* A blurred, faded layer paints above plain ones, so lift the poster and badges over it explicitly. */
 .media.is-portrait > :not(.media-backdrop) { z-index: 1; }
 
-.media > .badge-row { place-self: start stretch; margin: var(--space-xs); display: flex; justify-content: space-between; align-items: start; gap: var(--space-2xs); min-inline-size: 0; }
-.badge-row > .stack-count { flex: none; }
-.badge-row > .pill:last-child { min-inline-size: 0; overflow: clip; text-overflow: ellipsis; white-space: nowrap; }
+.media > .badge-start { place-self: start start; margin: var(--space-xs); }
 .media > .badge-end { place-self: start end; margin: var(--space-xs); display: flex; gap: var(--space-2xs); }
 .media > .badge-bottom { place-self: end start; margin: var(--space-xs); }
 
@@ -1125,8 +1123,8 @@ code, .mono {
 .card.is-completed .progress > span { background: var(--good); }
 .card.is-caught-up .progress > span { background: color-mix(in oklch, var(--good), var(--accent) 35%); }
 .card.is-almost .progress > span { background: var(--almost); }
-.card.is-completed { border-color: color-mix(in oklch, var(--line), var(--good) 35%); }
-.card.is-almost { border-color: color-mix(in oklch, var(--line), var(--almost) 45%); }
+.card.is-completed { --edge: color-mix(in oklch, var(--line), var(--good) 35%); border-color: var(--edge); }
+.card.is-almost { --edge: color-mix(in oklch, var(--line), var(--almost) 45%); border-color: var(--edge); }
 .card.is-not-started .media > img { filter: saturate(0.75); }
 
 /* Drawer: franchise row (sidebar-that-wraps media object per card) */
@@ -1736,9 +1734,47 @@ table.simple .num-col { text-align: end; }
 .ep-credit { grid-column: 1 / -1; font-size: var(--step--2); }
 .ep-credit a { color: inherit; }
 
-/* Library stacks: a card standing for several entries gets two more cards' edges behind it, drawn
-   into the grid gap so the card itself keeps its place in the grid, and a count on its poster. */
-.card.is-stack { box-shadow: 0.35rem -0.35rem 0 -1px var(--surface-2), 0.35rem -0.35rem 0 0 var(--line), 0.7rem -0.7rem 0 -2px var(--surface-2), 0.7rem -0.7rem 0 -1px var(--line); }
+/* Library stacks: a card standing for several entries has the other entries' posters behind it, as
+   cards fanned from the bottom edge, and a count on its poster. A card is its own stacking context,
+   so its face (background and border) is a layer of its own, above the fan and below its content.
+   The fan opens further on hover or keyboard focus. Angles are small on purpose: a card this tall
+   swings its top corner about 9px per degree. */
+.card.is-stack,
+.card.is-stack:hover { border-color: transparent; background: none; }
+.stack-face,
+.stack-deck { position: absolute; inset: -1px; pointer-events: none; }
+.stack-face { z-index: -2; border: 1px solid var(--edge, var(--line)); border-radius: inherit; background: var(--surface-opaque, var(--surface)); }
+.stack-deck { z-index: -3; }
+.stack-deck > span {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  border-radius: var(--radius-outer);
+  background: var(--surface-2);
+  outline: 1px solid light-dark(oklch(0 0 none / 0.12), oklch(1 0 none / 0.14));
+  outline-offset: -1px;
+  transform-origin: 50% 100%;
+  rotate: var(--fan);
+  translate: 0 var(--rise);
+}
+.stack-deck > span > img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; filter: brightness(0.62) saturate(0.9); }
+/* The last layer in the fan is the nearest one (the furthest is first, so it paints underneath). */
+.stack-deck > span:last-child { --fan: 1.6deg; --rise: -0.3rem; }
+.stack-deck > span:first-child:not(:last-child) { --fan: 3.2deg; --rise: -0.55rem; }
+.stack-deck > span:first-child:not(:last-child) > img { filter: brightness(0.45) saturate(0.85); }
+.card.is-stack:has(.card-link:focus-visible) { z-index: 2; }
+.card.is-stack:has(.card-link:focus-visible) .stack-deck > span:last-child { --fan: 3.4deg; --rise: -0.45rem; }
+.card.is-stack:has(.card-link:focus-visible) .stack-deck > span:first-child:not(:last-child) { --fan: 6.8deg; --rise: -0.8rem; }
+@media (hover: hover) and (pointer: fine) {
+  .card.is-stack:hover { z-index: 2; }
+  .card.is-stack:hover > .stack-face { border-color: color-mix(in oklch, var(--line), var(--accent) 45%); }
+  .card.is-stack:hover .stack-deck > span:last-child { --fan: 3.4deg; --rise: -0.45rem; }
+  .card.is-stack:hover .stack-deck > span:first-child:not(:last-child) { --fan: 6.8deg; --rise: -0.8rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stack-deck > span { transition: rotate 200ms var(--ease-out), translate 200ms var(--ease-out); }
+  .stack-deck > span:first-child:not(:last-child) { transition-delay: 40ms; }
+}
 .media > .badge-row { place-self: start stretch; margin: var(--space-xs); display: flex; justify-content: space-between; align-items: start; gap: var(--space-2xs); min-inline-size: 0; }
 .badge-row > .stack-count { flex: none; }
 .badge-row > .pill:last-child { min-inline-size: 0; overflow: clip; text-overflow: ellipsis; white-space: nowrap; }

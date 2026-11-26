@@ -102,7 +102,7 @@ function progressState(x) {
 }
 
 /** `inSeries`: with "Group seasons" on, how many library entries share this card's series. */
-function card(x, inSeries = 1, eager = false) {
+function card(x, inSeries = 1, eager = false, behind = []) {
   const aired = x.airedEpisodes ?? x.episodesCount;
   const title = x.titleEnglish || x.title;
   const st = progressState(x);
@@ -157,6 +157,13 @@ function card(x, inSeries = 1, eager = false) {
         title: x.totalEpisodes && aired != null && aired < x.totalEpisodes ? `${aired} of ${x.totalEpisodes} episodes out so far` : null
       }, `${(x.progress ?? x.watchedCount)}/${x.totalEpisodes || aired || '?'}`)),
     actions: state.filter === 'unfinished' ? triage(x, title) : null });
+  // A stack: the other entries' posters fanned behind the card, and the card's own face drawn above them
+  // (styles.css, "Library stacks"). The furthest poster comes first so the nearer one paints over it.
+  if (inSeries > 1) {
+    el.prepend(
+      h('div', { class: 'stack-deck', 'aria-hidden': 'true' }, [...behind].reverse().map((src) => h('span', {}, h('img', { src, alt: '', loading: 'lazy', decoding: 'async' })))),
+      h('div', { class: 'stack-face', 'aria-hidden': 'true' }));
+  }
   // In select mode a click anywhere on the card toggles it (capture phase, before links and buttons).
   el.addEventListener('click', (e) => {
     if (!select.on) return;
@@ -252,9 +259,15 @@ export async function render(view) {
     // Select mode works on what you can see: grouping is paused while selecting, and the selection
     // is trimmed to the shows on screen (a filter, search or fresh data never leaves hidden picks).
     let sizes = null;
+    let members = null; // series -> every entry of it in the library, for the posters behind a stack
     if (state.group && !select.on) {
-      sizes = new Map();
-      for (const x of state.items) sizes.set(x.series ?? x.malId, (sizes.get(x.series ?? x.malId) || 0) + 1);
+      sizes = new Map(); members = new Map();
+      for (const x of state.items) {
+        const k = x.series ?? x.malId;
+        sizes.set(k, (sizes.get(k) || 0) + 1);
+        if (!members.has(k)) members.set(k, []);
+        members.get(k).push(x);
+      }
       const seen = new Set();
       list = list.filter((x) => { const k = x.series ?? x.malId; if (seen.has(k)) return false; seen.add(k); return true; });
     }
@@ -263,7 +276,9 @@ export async function render(view) {
     count.textContent = `${list.length}${grouped ? ' series' : ''} of ${state.items.length}${grouped ? ' shows' : ''}${tail}`;
     // Draw what fills the screen now and the rest in batches right after, so a filter tap or a
     // keystroke never waits on 400 cards; a newer draw cancels the batches still queued.
-    const make = (x, i) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1, i < 6);
+    // Up to two other entries' posters sit behind a stack's card.
+    const behind = (x) => (members ? members.get(x.series ?? x.malId).filter((y) => y.malId !== x.malId && y.imageUrl).slice(0, 2).map((y) => y.imageUrl) : []);
+    const make = (x, i) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1, i < 6, behind(x));
     const myDraw = ++drawSeq;
     if (list.length > 48) {
       const rest = list.slice(48);
