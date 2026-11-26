@@ -495,7 +495,9 @@ html:has(dialog:modal) { overflow: hidden; }
 /* A blurred, faded layer paints above plain ones, so lift the poster and badges over it explicitly. */
 .media.is-portrait > :not(.media-backdrop) { z-index: 1; }
 
-.media > .badge-start { place-self: start start; margin: var(--space-xs); }
+.media > .badge-row { place-self: start stretch; margin: var(--space-xs); display: flex; justify-content: space-between; align-items: start; gap: var(--space-2xs); min-inline-size: 0; }
+.badge-row > .stack-count { flex: none; }
+.badge-row > .pill:last-child { min-inline-size: 0; overflow: clip; text-overflow: ellipsis; white-space: nowrap; }
 .media > .badge-end { place-self: start end; margin: var(--space-xs); display: flex; gap: var(--space-2xs); }
 .media > .badge-bottom { place-self: end start; margin: var(--space-xs); }
 
@@ -1734,9 +1736,14 @@ table.simple .num-col { text-align: end; }
 .ep-credit { grid-column: 1 / -1; font-size: var(--step--2); }
 .ep-credit a { color: inherit; }
 
-/* Library "Group seasons": a card standing for several entries gets a stacked edge behind it,
-   drawn into the grid gap so the card itself keeps its place in the grid. */
-.card.is-stack { box-shadow: 0.3rem -0.3rem 0 -1px var(--surface), 0.3rem -0.3rem 0 0 var(--line), 0.6rem -0.6rem 0 -2px var(--surface), 0.6rem -0.6rem 0 -1px var(--line); }
+/* Library stacks: a card standing for several entries gets two more cards' edges behind it, drawn
+   into the grid gap so the card itself keeps its place in the grid, and a count on its poster. */
+.card.is-stack { box-shadow: 0.35rem -0.35rem 0 -1px var(--surface-2), 0.35rem -0.35rem 0 0 var(--line), 0.7rem -0.7rem 0 -2px var(--surface-2), 0.7rem -0.7rem 0 -1px var(--line); }
+.media > .badge-row { place-self: start stretch; margin: var(--space-xs); display: flex; justify-content: space-between; align-items: start; gap: var(--space-2xs); min-inline-size: 0; }
+.badge-row > .stack-count { flex: none; }
+.badge-row > .pill:last-child { min-inline-size: 0; overflow: clip; text-overflow: ellipsis; white-space: nowrap; }
+.stack-count { display: inline-flex; align-items: center; gap: 0.35em; }
+.stack-count svg { inline-size: 1.15em; block-size: auto; }
 .group-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 /* "Since Tuesday: new episodes of …" under tonight's pick. */

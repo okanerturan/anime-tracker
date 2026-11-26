@@ -109,11 +109,15 @@ function getWatchlist(sort = 'release_desc', { withSynopsis = false } = {}) {
     sequels.set(r.id, { malId: r.sid, title: r.title, airing: r.status === 'RELEASING' });
   }
   for (const id of movedOn) sequels.delete(id);
-  // Series grouping: seasons in your library linked as sequel/prequel share one id (the lowest MAL id).
-  const parent = new Map(rows.map((r) => [r.malId, r.malId]));
-  const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
-  for (const e of db.prepare(`SELECT mal_id AS a, related_mal_id AS b FROM media_relation WHERE relation_type IN ('SEQUEL','PREQUEL','PARENT')`).all()) {
-    if (!parent.has(e.a) || !parent.has(e.b)) continue;
+  // Series grouping: every entry of one series shares an id (the lowest MAL id in the series). Seasons
+  // link as sequel and prequel; a movie, OVA or recap links to its show as a side story, summary or
+  // alternative version. The chain may run through entries that aren't in your library (Dr. STONE's
+  // seasons are joined by a special), so every relation counts, not only those between your shows.
+  // Spin-offs stay their own series.
+  const parent = new Map();
+  const find = (x) => { if (!parent.has(x)) parent.set(x, x); while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+  for (const e of db.prepare(`SELECT mal_id AS a, related_mal_id AS b FROM media_relation
+      WHERE relation_type IN ('SEQUEL','PREQUEL','PARENT','SIDE_STORY','SUMMARY','COMPILATION','CONTAINS','ALTERNATIVE')`).all()) {
     const ra = find(e.a); const rb = find(e.b);
     if (ra !== rb) parent.set(Math.max(ra, rb), Math.min(ra, rb));
   }

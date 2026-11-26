@@ -25,7 +25,8 @@ const EMPTY = {
   rated: 'No ratings yet. Open a show from the library and tap a star; ratings steer your recommendations.'
 };
 const DAY = 86400000;
-const state = { filter: 'all', query: '', sort: 'activity_desc', group: false, items: null, part: 'all' };
+// Seasons of one series are stacked into one card unless you split them (the "Stack seasons" chip).
+const state = { filter: 'all', query: '', sort: 'activity_desc', group: true, items: null, part: 'all' };
 // Inside Unfinished: the ones a sitting away from done, and the ones you only sampled.
 const PARTS = [['all', 'All'], ['near', '1–2 left'], ['barely', 'Barely started']];
 function partOf(x) {
@@ -37,8 +38,10 @@ function partOf(x) {
 // Select mode: tap cards to pick them, then Hold / Drop / Back to active for all of them at once.
 const select = { on: false, ids: new Set(), onChange: () => {} };
 // Remember the last filter and sort per browser.
-try { const saved = JSON.parse(localStorage.getItem('library:view') || 'null'); if (saved) { state.filter = saved.filter || state.filter; state.sort = saved.sort || state.sort; state.group = Boolean(saved.group); } } catch {}
-const remember = () => { try { localStorage.setItem('library:view', JSON.stringify({ filter: state.filter, sort: state.sort, group: state.group })); } catch {} };
+try { const saved = JSON.parse(localStorage.getItem('library:view') || 'null'); if (saved) { state.filter = saved.filter || state.filter; state.sort = saved.sort || state.sort; state.group = saved.split !== true; } } catch {}
+// "split" (not "group"): stacking is the default, so only a choice to split is worth remembering, and
+// a view saved when stacking was opt-in doesn't keep it off.
+const remember = () => { try { localStorage.setItem('library:view', JSON.stringify({ filter: state.filter, sort: state.sort, split: !state.group })); } catch {} };
 // Something changed (a tick, a rating, a removal, relayed metadata). If the Library is on screen,
 // fetch the fresh list quietly and redraw just the cards, so the search box keeps focus and text;
 // otherwise drop the list so the next visit fetches it.
@@ -133,15 +136,20 @@ function card(x, inSeries = 1, eager = false) {
     }
     catch (err) { tick.disabled = false; toast(err.message); }
   });
+  // A stack says how many entries it stands for, on the poster where it can't be cut short.
+  const stackCount = inSeries > 1
+    ? h('span', { class: 'pill dark stack-count num', role: 'img', 'aria-label': `${inSeries} in this series`, title: `${inSeries} in this series in your library (seasons, movies, specials). Open it to see them all.` }, icon('stack'), String(inSeries))
+    : null;
   const el = showCard({ show: { ...x, title, image: x.imageUrl }, eager, cls: `is-${st.key} ${inSeries > 1 ? 'is-stack' : ''} ${select.on && select.ids.has(x.malId) ? 'is-selected' : ''}`,
-    badges: [h('div', { class: 'badge-end' }, badge), play || sequel, tick],
+    // A stack's count and the state share one row, so a long state ("Almost done · 1 left") shortens
+    // instead of running under the count on a narrow card.
+    badges: [stackCount ? h('div', { class: 'badge-row' }, stackCount, badge) : h('div', { class: 'badge-end' }, badge), play || sequel, tick],
     progress: aired ? Math.min((x.progress ?? x.watchedCount), aired) / aired : 0,
     // One short line: an airing tag says enough on its own, so the year and format only show without it.
     meta: h('div', { class: 'card-meta' },
       st.key === 'upcoming' ? null : statusPill(x.status),
-      inSeries > 1 ? h('span', { title: 'Seasons, movies and OVAs of this series in your library. Open it to see them all.' }, `${inSeries} in series`)
-        : st.key !== 'upcoming' && statusPill(x.status) ? null
-          : h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
+      st.key !== 'upcoming' && statusPill(x.status) ? null
+        : h('span', {}, [x.releaseDate?.slice(0, 4), FORMAT_LABEL[x.format] || x.format].filter(Boolean).join(' · ')),
       x.rating ? h('span', { class: 'num rating', title: `Your rating: ${x.rating}/5` }, `★${x.rating}`) : null,
       // Out of the season's length, as on Up Next ("8/12" while airing, not "8/8" of what has aired so far).
       st.key === 'upcoming' && !(x.progress ?? x.watchedCount) ? null : h('span', {
@@ -326,7 +334,7 @@ export async function render(view) {
     selectBtn.setAttribute('aria-pressed', String(select.on)); select.onChange(); draw();
   });
   select.onChange();
-  const groupBtn = h('button', { type: 'button', class: 'chip-toggle group-toggle', 'aria-pressed': String(state.group), title: 'Show one card per series instead of one per season' }, 'Group seasons');
+  const groupBtn = h('button', { type: 'button', class: 'chip-toggle group-toggle', 'aria-pressed': String(state.group), title: 'One card per series (its seasons, movies and specials stacked) instead of one per season' }, 'Stack seasons');
   groupBtn.addEventListener('click', () => { state.group = !state.group; groupBtn.setAttribute('aria-pressed', String(state.group)); remember(); draw(); });
   sort.addEventListener('change', async () => {
     state.sort = sort.value;
