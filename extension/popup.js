@@ -119,18 +119,23 @@ function drawList(s, view) {
     const name = clean(x.nextEpisodeTitle);
     const url = x.nextEpisodeUrl || `${s.trackerUrl}/#/library?anime=${x.malId}`;
     const item = el('div', 'item');
-    // Episode still with its number. No bar along the bottom: there it reads as how far into this
-    // episode you got (Crunchyroll's playhead), and the show's progress is in the details line.
+    item.style.setProperty('--i', String(view.items.indexOf(x)));
+    // The episode's still, as tall as the card, with Play on it. No bar along the bottom: there it
+    // reads as how far into this episode you got (Crunchyroll's playhead); the show's progress is in
+    // the details line.
     const thumb = el('div', 'thumb');
     const img = el('img'); img.alt = '';
     // Image routes need the key too, and an <img> can't send a header: fetch, then show the blob.
     const src = (x.nextEpisodeImage || x.image || '').replace(/^\//, `${s.trackerUrl}/`);
     if (src) fetch(src, { headers: auth }).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
-    thumb.append(img, el('span', 'ep', `E${x.nextEpisode}`));
-    // Title (stretched link over the card), episode name, then the details line.
+    // Decoration: the card's link (the title, stretched over the card) is what plays.
+    const play = el('span', `play${x.nextEpisodeUrlIsExact ? '' : ' quiet'}`, x.nextEpisodeUrlIsExact ? `▶ Play E${x.nextEpisode}` : `Open E${x.nextEpisode}`);
+    play.setAttribute('aria-hidden', 'true');
+    thumb.append(img, play);
+    // Title (the link), episode name, then the details line.
     const text = el('div', 'text');
     const t = el('a', 't'); t.href = url; t.target = '_blank'; t.rel = 'noopener';
-    t.title = x.title;
+    t.title = x.nextEpisodeUrlIsExact ? `Play episode ${x.nextEpisode} of ${x.title} on Crunchyroll` : `Open ${x.title} on ${x.nextEpisodeSite || 'Crunchyroll'}`;
     // The same rule as the icon's badge (background.js).
     if (isNewEpisode(x)) t.append(el('span', 'new', 'New'));
     t.append(x.title);
@@ -144,17 +149,11 @@ function drawList(s, view) {
     ].filter(Boolean);
     const meta = el('div', 'm', facts.join(' · '));
     text.append(t, sub, meta);
-    // Play goes straight to the episode on Crunchyroll; ✓ ticks it off when you watched it elsewhere.
-    const acts = el('div', 'acts');
-    const play = el('a', `play${x.nextEpisodeUrlIsExact ? '' : ' quiet'}`, x.nextEpisodeUrlIsExact ? '▶ Play' : 'Open');
-    play.href = url; play.target = '_blank'; play.rel = 'noopener';
-    if (!x.nextEpisodeUrlIsExact) play.title = `Opens the show on ${x.nextEpisodeSite || 'Crunchyroll'}`;
+    // ✓ ticks the episode off when you watched it elsewhere.
     const tick = el('button', 'tick', '✓'); tick.type = 'button';
     tick.title = `Mark E${x.nextEpisode} watched`; tick.setAttribute('aria-label', `Mark episode ${x.nextEpisode} of ${x.title} watched`);
     tick.onclick = () => markWatched(s, x, sub, tick);
-    acts.append(play, tick);
-    text.append(acts);
-    item.append(thumb, text);
+    item.append(thumb, text, tick);
     box.append(item);
   }
 }
