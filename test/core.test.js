@@ -950,3 +950,39 @@ test('episode sources: shorts bundled per TMDB episode get their bundle\'s still
   assert.equal(db.prepare('SELECT title FROM catalog_episodes WHERE mal_id = 9803 AND episode_number = 1').get().title, 'Show 9803');
   assert.ok(!fillMod.skipped().some((x) => x.malId === 9803), 'gone once nothing is missing');
 });
+
+test('another audio version of a season you track is not "sampled", and its stray play is not "paused" once the episode is watched', async () => {
+  const recent = (daysAgo, hour = 20) => new Date(Date.now() - daysAgo * 86400e3).toISOString().slice(0, 11) + `${hour}:00:00Z`;
+  addShow(9601, 'Two Versions', { episodes: 24 });
+  rule('GSJP9601', 9601);
+  // Opened in the wrong audio for 38 seconds (its own season id, no rule), then watched in the right one.
+  await crunchyroll.ingest([
+    play({ id: 'E3-EN', series: 'GSER9601', seriesTitle: 'Two Versions', season: 'GSEN9601', seasonTitle: 'Two Versions', ep: 3, playhead: 38, full: false, at: recent(4, 19) }),
+    play({ id: 'E3-JP', series: 'GSER9601', seriesTitle: 'Two Versions', season: 'GSJP9601', seasonTitle: 'Two Versions', ep: 3, at: recent(4, 20) }),
+    // The same, but the right version isn't finished yet: still a paused episode, shown once.
+    play({ id: 'E4-EN', series: 'GSER9601', seriesTitle: 'Two Versions', season: 'GSEN9601', seasonTitle: 'Two Versions', ep: 4, playhead: 45, full: false, at: recent(3, 19) }),
+    play({ id: 'E4-JP', series: 'GSER9601', seriesTitle: 'Two Versions', season: 'GSJP9601', seasonTitle: 'Two Versions', ep: 4, playhead: 600, full: false, at: recent(3, 20) }),
+    // A show really only tried: six minutes of episode 1.
+    play({ id: 'T1', series: 'GSERTRY', seriesTitle: 'Only Tried', season: 'GSTRY1', ep: 1, playhead: 385, full: false, at: recent(2) }),
+    // Crunchyroll counts on from earlier seasons: its episode 54 is this season's episode 7.
+    play({ id: 'C54', series: 'GSERCONT', seriesTitle: 'Counts On', season: 'GSCONT3', ep: 54, playhead: 800, full: false, at: recent(1) })
+  ]);
+  assert.deepEqual(watched(9601), [3]);
+  const st = crunchyroll.status({ wants: false });
+  const sampled = st.sampled.map((s) => s.seasonId);
+  assert.ok(!sampled.includes('GSEN9601'), 'the other version of a tracked season is not a sampled show');
+  assert.ok(sampled.includes('GSTRY1'), 'a show you only tried still is');
+  const paused = st.inProgress.map((p) => p.episodeId);
+  assert.ok(!paused.includes('E3-EN'), 'a stray play of an episode finished in the other version is not paused');
+  assert.ok(paused.includes('E4-JP'), 'an episode really left half-way is');
+  assert.ok(paused.includes('T1'));
+  // A paused episode you then tick as watched on the show stops being "paused".
+  addShow(9602, 'Counts On Season 3', { episodes: 12 });
+  rule('GSCONT3', 9602, 47);
+  await crunchyroll.ingest([]);
+  const before = crunchyroll.status({ wants: false }).inProgress.find((p) => p.episodeId === 'C54');
+  assert.equal(before.malId, 9602);
+  assert.equal(before.malEpisode, 7, 'the show\'s own episode number, for matching its Up Next card');
+  db.prepare('INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, watched) VALUES (9602, 7, 1)').run();
+  assert.ok(!crunchyroll.status({ wants: false }).inProgress.some((p) => p.episodeId === 'C54'), 'watched since: no longer paused');
+});

@@ -496,11 +496,28 @@ function status({ wants = true } = {}) {
       r.ep_offset AS offset, r.source, COALESCE(m.title_english, m.title, a.title) AS mappedTitle
     FROM cr_season_map r LEFT JOIN media m ON m.mal_id = r.mal_id LEFT JOIN anime a ON a.mal_id = r.mal_id
     WHERE r.needs_review = 1 ORDER BY r.series_title`).all();
+  // Paused episodes. Not one you have watched since: marked on its show (malEpisode is the show's own
+  // episode number; Crunchyroll may count on from earlier seasons), or finished in another version of
+  // the same episode (opening it in the wrong audio for a minute leaves a "paused" play behind).
   const inProgress = db.prepare(`SELECT h.episode_id AS episodeId, h.series_title AS seriesTitle, h.season_title AS seasonTitle, h.episode_number AS episodeNumber,
-      h.episode_title AS episodeTitle, h.playhead, h.duration_s AS durationS, h.date_played AS datePlayed, h.mal_id AS malId, h.thumb_url AS thumb, h.season_id AS seasonId
+      h.episode_title AS episodeTitle, h.playhead, h.duration_s AS durationS, h.date_played AS datePlayed, h.mal_id AS malId, h.mal_episode AS malEpisode,
+      h.thumb_url AS thumb, h.season_id AS seasonId
     FROM cr_history h WHERE h.fully_watched = 0 AND h.duration_s > 0 AND h.playhead > 30 AND 1.0 * h.playhead / h.duration_s < 0.8 AND COALESCE(h.dismissed, 0) = 0
       AND h.date_played > datetime('now','-30 days')
+      AND NOT EXISTS (SELECT 1 FROM episode_watch w WHERE h.mal_id > 0 AND w.mal_id = h.mal_id AND w.episode_number = COALESCE(h.mal_episode, h.episode_number) AND w.watched = 1)
+      AND NOT EXISTS (SELECT 1 FROM cr_history b WHERE b.series_id = h.series_id AND b.episode_number = h.episode_number AND b.episode_id <> h.episode_id
+        AND lower(trim(b.episode_title)) = lower(trim(h.episode_title))
+        AND (b.fully_watched = 1 OR (b.duration_s > 0 AND 1.0 * b.playhead / b.duration_s >= 0.8)))
     ORDER BY h.date_played DESC LIMIT 12`).all();
+  // Seasons with no rule that are another version of a season you track (Crunchyroll gives every audio
+  // language its own season id): one of their episodes has the number and title of an episode in a
+  // mapped season of the same series. They are not shows you sampled; your watching is on the other id.
+  const otherVersions = db.prepare(`SELECT DISTINCT a.season_id AS id FROM cr_history a
+    JOIN cr_history b ON b.series_id = a.series_id AND b.episode_number = a.episode_number AND b.season_id <> a.season_id
+      AND lower(trim(b.episode_title)) = lower(trim(a.episode_title))
+    JOIN cr_season_map rb ON rb.season_id = b.season_id AND rb.mal_id > 0
+    LEFT JOIN cr_season_map ra ON ra.season_id = a.season_id
+    WHERE a.series_id IS NOT NULL AND a.season_id IS NOT NULL AND (ra.season_id IS NULL OR ra.mal_id = 0)`).all().map((r) => r.id);
   const images = require('./images');
   for (const p of inProgress) p.thumb = images.localUrl(p.thumb);
   // Seasons you sampled that aren't tracked: no rule yet, or a rule that says "skip" (mal_id 0).
@@ -512,7 +529,7 @@ function status({ wants = true } = {}) {
     WHERE h.season_id IS NOT NULL AND (r.season_id IS NULL OR r.mal_id = 0)
       AND h.season_title NOT LIKE '%Dub)%'
       AND h.season_id NOT IN (SELECT value FROM json_each(?))
-    GROUP BY h.season_id ORDER BY lastPlayed DESC LIMIT 60`).all(JSON.stringify(hiddenSampled()));
+    GROUP BY h.season_id ORDER BY lastPlayed DESC LIMIT 60`).all(JSON.stringify([...hiddenSampled(), ...otherVersions]));
   const imagesMod = require('./images');
   for (const s of sampled) s.thumb = imagesMod.localUrl(s.thumb);
   const seen = require('./state').get('extension');

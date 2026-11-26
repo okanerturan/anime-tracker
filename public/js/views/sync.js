@@ -158,6 +158,21 @@ function malInput() {
   return [input, status];
 }
 
+/** What you did with a season that isn't in your library: "3 episodes watched", or "1 episode opened, none finished". */
+function sampledPlays(s) {
+  const eps = (n) => `${n} episode${n === 1 ? '' : 's'}`;
+  return s.watchedPlays ? `${eps(s.watchedPlays)} watched` : `${eps(s.plays)} opened, none finished`;
+}
+/** The section's one line: mostly seasons you only tried, sometimes ones you watched that were left out. */
+function sampledSummary(list) {
+  const watched = list.filter((s) => s.watchedPlays).length;
+  const tried = list.length - watched;
+  return [
+    tried ? `${tried} Crunchyroll season${tried === 1 ? '' : 's'} you opened without finishing an episode` : '',
+    watched ? `${watched} you watched that ${watched === 1 ? 'was' : 'were'} left out (recaps, specials, alternate cuts)` : ''
+  ].filter(Boolean).join(', and ') + '. Track one to add it to your library.';
+}
+
 /** The server's nightly database copies: when the last one ran, its size, how many days are kept. */
 function backupSection(b) {
   if (!b || !b.at) return null;
@@ -297,7 +312,7 @@ export async function render(view) {
     // Settings people look for come before the long, low-priority list of sampled seasons.
     pushSection(),
     calendarSection(),
-    cr.sampled?.length ? section('Sampled, not tracked', `${cr.sampled.length} Crunchyroll seasons you tried but never finished an episode of. Track one to add it to your library.`,
+    cr.sampled?.length ? section('Sampled, not tracked', sampledSummary(cr.sampled),
       capList(h('div', { class: 'quiet-list' }, cr.sampled.map((s) => {
         const btn = h('button', { type: 'button', class: 'btn small' }, 'Track');
         const hide = h('button', { type: 'button', class: 'icon-btn', 'aria-label': `Not interested in ${s.seriesTitle}`, title: 'Not interested: hide from this list' }, icon('close'));
@@ -310,7 +325,7 @@ export async function render(view) {
         });
         // Not in the tracker yet: the show opens on Crunchyroll.
         const row = showRow({ href: s.seriesId ? `https://www.crunchyroll.com/series/${s.seriesId}` : null, image: s.thumb, title: s.seriesTitle,
-          sub: `${s.seasonTitle && s.seasonTitle !== s.seriesTitle ? `${s.seasonTitle} · ` : ''}${s.plays} play${s.plays === 1 ? '' : 's'} · ${ago(s.lastPlayed)}`, actions: [btn, hide] });
+          sub: `${s.seasonTitle && s.seasonTitle !== s.seriesTitle ? `${s.seasonTitle} · ` : ''}${sampledPlays(s)} · ${ago(s.lastPlayed)}`, actions: [btn, hide] });
         btn.addEventListener('click', async () => {
           btn.disabled = true; btn.textContent = 'Finding…';
           try { const r = await api.crTrack(s.seasonId); toast(r.needsReview ? `Added ${r.title}; check the match above` : `Added ${r.title}`); row.remove(); }

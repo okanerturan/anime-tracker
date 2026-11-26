@@ -444,7 +444,9 @@ async function refresh(view) {
 
 function draw(view, data, cr, { fresh = false } = {}) {
   // A paused Crunchyroll episode that is a show's next episode is shown on that show's card instead.
-  const paused = new Map((cr?.inProgress || []).filter((p) => p.malId).map((p) => [`${p.malId}:${p.episodeNumber}`, p]));
+  // Matched on the show's own episode number: Crunchyroll may count on from earlier seasons (its "E54"
+  // is season 3's episode 7).
+  const paused = new Map((cr?.inProgress || []).filter((p) => p.malId).map((p) => [`${p.malId}:${p.malEpisode ?? p.episodeNumber}`, p]));
   const used = new Set();
   for (const item of data.continueWatching) {
     const p = paused.get(`${item.malId}:${item.nextEpisode}`);

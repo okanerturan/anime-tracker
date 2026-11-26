@@ -142,6 +142,8 @@ CREATE INDEX IF NOT EXISTS idx_cr_history_season ON cr_history(season_id);
 CREATE INDEX IF NOT EXISTS idx_cr_history_played ON cr_history(date_played);
 -- Per-show lookups (Crunchyroll links, sampled shows) run hundreds of times per page.
 CREATE INDEX IF NOT EXISTS idx_cr_history_mal ON cr_history(mal_id);
+-- Finding the same episode in another version of a season (another audio language has its own season id).
+CREATE INDEX IF NOT EXISTS idx_cr_history_series_ep ON cr_history(series_id, episode_number);
 -- Rules mapping a Crunchyroll season (and episode range) to a MAL entry
 CREATE TABLE IF NOT EXISTS cr_season_map (
   season_id TEXT NOT NULL,
