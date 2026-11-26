@@ -80,6 +80,8 @@ button, [role="button"] {
   /* Motion tokens */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  /* A spring that settles with a small overshoot, for things that travel (cards dealt out, a fan opening). */
+  --spring: linear(0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%, 0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001 85.9%, 1);
 
   --header-h: 3.75rem;
 }
@@ -1763,17 +1765,79 @@ table.simple .num-col { text-align: end; }
 .stack-deck > span:first-child:not(:last-child) { --fan: 3.2deg; --rise: -0.55rem; }
 .stack-deck > span:first-child:not(:last-child) > img { filter: brightness(0.45) saturate(0.85); }
 .card.is-stack:has(.card-link:focus-visible) { z-index: 2; }
-.card.is-stack:has(.card-link:focus-visible) .stack-deck > span:last-child { --fan: 3.4deg; --rise: -0.45rem; }
-.card.is-stack:has(.card-link:focus-visible) .stack-deck > span:first-child:not(:last-child) { --fan: 6.8deg; --rise: -0.8rem; }
+.card.is-stack:has(.card-link:focus-visible) .stack-deck > span:last-child { --fan: 4.2deg; --rise: -0.6rem; }
+.card.is-stack:has(.card-link:focus-visible) .stack-deck > span:first-child:not(:last-child) { --fan: 8.4deg; --rise: -1.05rem; }
 @media (hover: hover) and (pointer: fine) {
   .card.is-stack:hover { z-index: 2; }
   .card.is-stack:hover > .stack-face { border-color: color-mix(in oklch, var(--line), var(--accent) 45%); }
-  .card.is-stack:hover .stack-deck > span:last-child { --fan: 3.4deg; --rise: -0.45rem; }
-  .card.is-stack:hover .stack-deck > span:first-child:not(:last-child) { --fan: 6.8deg; --rise: -0.8rem; }
+  .card.is-stack:hover .stack-deck > span:last-child { --fan: 4.2deg; --rise: -0.6rem; }
+  .card.is-stack:hover .stack-deck > span:first-child:not(:last-child) { --fan: 8.4deg; --rise: -1.05rem; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .stack-deck > span { transition: rotate 200ms var(--ease-out), translate 200ms var(--ease-out); }
-  .stack-deck > span:first-child:not(:last-child) { transition-delay: 40ms; }
+  .stack-deck > span { transition: rotate 420ms var(--spring), translate 420ms var(--spring); }
+  .stack-deck > span:first-child:not(:last-child) { transition-delay: 45ms; }
+}
+
+/* A stack opened (library.js openSeries): a sheet over the page with the series' entries dealt out
+   from a pile, one after another. */
+.series-sheet {
+  inline-size: min(74rem, calc(100vw - 2 * var(--space-s)));
+  max-block-size: calc(100dvh - 2 * var(--space-m));
+  padding: var(--space-m);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius-outer) + var(--space-xs));
+  background: var(--bg);
+  color: var(--text);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 0 30px 80px -20px oklch(0 0 none / 0.6);
+  opacity: 0;
+  transition:
+    opacity 200ms var(--ease-out),
+    scale 260ms var(--ease-out),
+    display 260ms allow-discrete,
+    overlay 260ms allow-discrete;
+}
+.series-sheet::backdrop {
+  background: var(--scrim);
+  opacity: 0;
+  transition:
+    opacity 200ms var(--ease-out),
+    display 260ms allow-discrete,
+    overlay 260ms allow-discrete;
+}
+.series-sheet[open],
+.series-sheet[open]::backdrop { opacity: 1; }
+@starting-style {
+  .series-sheet[open],
+  .series-sheet[open]::backdrop { opacity: 0; }
+}
+.series-head { display: flex; align-items: start; justify-content: space-between; gap: var(--space-s); margin-block-end: var(--space-m); }
+.series-head h2 { margin: 0; }
+.series-head .sub { margin: 0; color: var(--muted); font-size: var(--step--1); }
+.series-cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 13rem)); justify-content: center; }
+.series-cards > .card.is-current { outline: 2px solid color-mix(in oklch, var(--accent) 70%, transparent); outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) {
+  .series-sheet { scale: 0.97; }
+  .series-sheet[open] { scale: 1; }
+  @starting-style { .series-sheet[open] { scale: 0.97; } }
+  /* Each card leaves the pile a beat after the one before it. */
+  .series-cards > .card {
+    --wait: calc(var(--i, 0) * 60ms + 80ms);
+    transition:
+      translate 620ms var(--spring) var(--wait),
+      rotate 620ms var(--spring) var(--wait),
+      scale 620ms var(--spring) var(--wait),
+      opacity 200ms var(--ease-out) var(--wait);
+  }
+  @starting-style {
+    .series-sheet[open] .series-cards > .card {
+      opacity: 0;
+      translate: calc(var(--i, 0) * -86% - 12%) 3rem;
+      rotate: calc(var(--i, 0) * 3deg - 9deg);
+      scale: 0.8;
+    }
+  }
 }
 .media > .badge-row { place-self: start stretch; margin: var(--space-xs); display: flex; justify-content: space-between; align-items: start; gap: var(--space-2xs); min-inline-size: 0; }
 .badge-row > .stack-count { flex: none; }
@@ -2100,12 +2164,12 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 
 /* Blur where the page scrolls underneath. */
 :root[data-look="glass"] .topbar { background: color-mix(in oklch, var(--bg) 52%, transparent); backdrop-filter: var(--glass); }
-:root[data-look="glass"] :is(.drawer, .help, .quickopen, .toast, .card-menu, .appearance) {
+:root[data-look="glass"] :is(.drawer, .help, .quickopen, .toast, .card-menu, .appearance, .series-sheet) {
   background: var(--glass-dense);
   backdrop-filter: var(--glass);
   box-shadow: var(--sheen), 0 18px 48px -16px oklch(0 0 none / 0.55);
 }
-:root[data-look="glass"] :is(.drawer, .help, .quickopen)::backdrop { backdrop-filter: blur(6px); }
+:root[data-look="glass"] :is(.drawer, .help, .quickopen, .series-sheet)::backdrop { backdrop-filter: blur(6px); }
 
 /* Buttons: glass pills; the accent ones glow. */
 :root[data-look="glass"] :is(.btn, .icon-btn, .carousel-nav button) { box-shadow: var(--sheen); }

@@ -101,8 +101,51 @@ function progressState(x) {
   return { key: 'watching', label: `${left} new`, left };
 }
 
+/** What the entries of a series have in common at the start of their titles ("JUJUTSU KAISEN"), else the first one's title. */
+function seriesName(items) {
+  const titles = items.map((y) => (y.titleEnglish || y.title || '').trim()).filter(Boolean);
+  const words = titles.map((t) => t.split(/\s+/));
+  const shared = [];
+  // "KAISEN:" and "Kaisen" are the same word.
+  const bare = (w) => w.replace(/[:,\-–~!?.]+$/, '').toLowerCase();
+  for (let i = 0; words.length > 1 && words.every((w) => w[i] != null && bare(w[i]) === bare(words[0][i])); i += 1) shared.push(words[0][i]);
+  const name = shared.join(' ').replace(/[\s:,\-–~]+$/, '').replace(/\s+(season|part|cour|the|movie)$/i, '');
+  return name.length >= 4 ? name : titles[0] || 'Series';
+}
+
+/**
+ * A stack opened: every entry of the series in release order, dealt out as cards in a sheet over the
+ * page. Each card is the ordinary library card (progress, Play, ✓) and opens that entry's details;
+ * the sheet stays underneath, so closing the details brings you back to pick another season.
+ */
+let seriesSheet = null;
+function openSeries(top, members) {
+  seriesSheet?.remove();
+  const ordered = [...members].sort((a, b) => String(a.releaseDate || '9999').localeCompare(String(b.releaseDate || '9999')) || a.malId - b.malId);
+  const name = seriesName(ordered);
+  const close = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close', title: 'Close' }, icon('close'));
+  const sheet = h('dialog', { class: 'series-sheet', 'aria-label': `${name}: ${ordered.length} in your library` },
+    h('div', { class: 'series-head' },
+      h('div', {}, h('h2', {}, name), h('p', { class: 'sub' }, `${ordered.length} in your library, in release order`)),
+      close),
+    h('div', { class: 'cards series-cards', style: { '--rows': '4' } }, ordered.map((y, i) => {
+      const c = card(y, 1, true);
+      c.style.setProperty('--i', String(i));
+      if (y.malId === top.malId) c.classList.add('is-current');
+      return c;
+    })));
+  close.addEventListener('click', () => sheet.close());
+  // A click on the dimmed page around the sheet closes it (the dialog element itself is the only target there).
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });
+  // Removed once its closing transition has had time to run.
+  sheet.addEventListener('close', () => setTimeout(() => { sheet.remove(); if (seriesSheet === sheet) seriesSheet = null; }, 400));
+  seriesSheet = sheet;
+  document.body.append(sheet);
+  sheet.showModal();
+}
+
 /** `inSeries`: with "Group seasons" on, how many library entries share this card's series. */
-function card(x, inSeries = 1, eager = false, behind = []) {
+function card(x, inSeries = 1, eager = false, behind = [], openStack = null) {
   const aired = x.airedEpisodes ?? x.episodesCount;
   const title = x.titleEnglish || x.title;
   const st = progressState(x);
@@ -140,7 +183,9 @@ function card(x, inSeries = 1, eager = false, behind = []) {
   const stackCount = inSeries > 1
     ? h('span', { class: 'pill dark stack-count num', role: 'img', 'aria-label': `${inSeries} in this series`, title: `${inSeries} in this series in your library (seasons, movies, specials). Open it to see them all.` }, icon('stack'), String(inSeries))
     : null;
-  const el = showCard({ show: { ...x, title, image: x.imageUrl }, eager, cls: `is-${st.key} ${inSeries > 1 ? 'is-stack' : ''} ${select.on && select.ids.has(x.malId) ? 'is-selected' : ''}`,
+  const el = showCard({ show: { ...x, title, image: x.imageUrl }, eager,
+    // A stack stands for several entries: clicking it deals them out (openSeries) instead of opening one.
+    open: inSeries > 1 && openStack ? () => openStack(x) : null, cls: `is-${st.key} ${inSeries > 1 ? 'is-stack' : ''} ${select.on && select.ids.has(x.malId) ? 'is-selected' : ''}`,
     // A stack's count and the state share one row, so a long state ("Almost done · 1 left") shortens
     // instead of running under the count on a narrow card.
     badges: [stackCount ? h('div', { class: 'badge-row' }, stackCount, badge) : h('div', { class: 'badge-end' }, badge), play || sequel, tick],
@@ -278,7 +323,7 @@ export async function render(view) {
     // keystroke never waits on 400 cards; a newer draw cancels the batches still queued.
     // Up to two other entries' posters sit behind a stack's card.
     const behind = (x) => (members ? members.get(x.series ?? x.malId).filter((y) => y.malId !== x.malId && y.imageUrl).slice(0, 2).map((y) => y.imageUrl) : []);
-    const make = (x, i) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1, i < 6, behind(x));
+    const make = (x, i) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1, i < 6, behind(x), (top) => openSeries(top, members.get(top.series ?? top.malId)));
     const myDraw = ++drawSeq;
     if (list.length > 48) {
       const rest = list.slice(48);
