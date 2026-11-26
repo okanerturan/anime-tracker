@@ -519,14 +519,15 @@ function draw(view, data, cr, { fresh = false } = {}) {
     tonightEl,
     notifyNudge(),
     sinceLine(data),
-    finishable.length ? carousel('Finish what you started', `${plural(finishable.length, 'show')} one or two episodes from the end`,
-      finishable.map((x) => epCard(x, 'stalled', rerender)), '') : null,
     continueSection(view, data.continueWatching, (pool) => {
       if (pool === data.continueWatching && tonightEl.dataset.pool === 'all') return;
       const fresh = tonight(pool, inProgress) || h('div', { hidden: true });
       fresh.dataset.pool = pool === data.continueWatching ? 'all' : 'budget';
       tonightEl.replaceWith(fresh); tonightEl = fresh;
     }),
+    // Below Continue watching: that is where you usually go; these are a nudge, not the main list.
+    finishable.length ? carousel('Finish what you started', `${plural(finishable.length, 'show')} one or two episodes from the end`,
+      finishable.map((x) => epCard(x, 'stalled', rerender)), '') : null,
     rateSection,
     inProgress.length ? carousel('Started on Crunchyroll', 'Episodes you paused', inProgress.map((p) => pausedCard(p, () => refresh(view))), '') : null,
     weekStrip(airingWeek),
