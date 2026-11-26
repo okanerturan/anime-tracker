@@ -82,8 +82,10 @@ document.addEventListener('keydown', (e) => {
 });
 document.getElementById('help').addEventListener('click', (e) => { if (e.target.id === 'help') e.target.close(); });
 
-// Theme: dark (default) -> light -> system
+// Appearance: a theme (dark by default, light, or the system's) and a look (classic, or glass:
+// translucent surfaces over a soft colour field). Both are attributes on <html>, saved per browser.
 const THEMES = ['dark', 'light', 'system'];
+const LOOKS = ['classic', 'glass'];
 const THEME_GLYPH = { dark: '☾', light: '☀', system: '◐' };
 // The ⌘K switcher, for fingers too: a search button in the header (phones have no ⌘).
 const findBtn = document.getElementById('find-btn');
@@ -126,19 +128,30 @@ window.addEventListener('message', (e) => {
 });
 toBridge('ping');
 const themeBtn = document.getElementById('theme-btn');
-function paintThemeButton() {
-  const t = document.documentElement.dataset.theme || 'dark';
-  themeBtn.textContent = THEME_GLYPH[t];
-  themeBtn.setAttribute('aria-label', `Theme: ${t}`);
-  themeBtn.title = `Theme: ${t} (click to change)`;
+const root = document.documentElement;
+const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+/** One row of the Appearance menu: a label and its choices as a segmented control. */
+function choiceRow(label, values, current, choose) {
+  const buttons = values.map((v) => {
+    const b = h('button', { type: 'button', class: 'pill chip-toggle', 'aria-pressed': String(v === current()) }, cap(v));
+    b.addEventListener('click', () => { choose(v); for (const x of buttons) x.setAttribute('aria-pressed', String(x === b)); paintThemeButton(); });
+    return b;
+  });
+  return h('div', { class: 'appearance-row' }, h('span', { class: 'appearance-label' }, label), h('div', { class: 'chips segmented', role: 'group', 'aria-label': label }, buttons));
 }
-themeBtn.addEventListener('click', () => {
-  const cur = document.documentElement.dataset.theme || 'dark';
-  const next = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
-  document.documentElement.dataset.theme = next;
-  try { localStorage.setItem('theme', next); } catch {}
-  paintThemeButton();
-});
+const currentTheme = () => root.dataset.theme || 'dark';
+const currentLook = () => (root.dataset.look === 'glass' ? 'glass' : 'classic');
+const save = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
+const appearance = h('div', { id: 'appearance', class: 'appearance', popover: '', 'aria-label': 'Appearance' },
+  choiceRow('Theme', THEMES, currentTheme, (t) => { root.dataset.theme = t; save('theme', t); }),
+  choiceRow('Look', LOOKS, currentLook, (l) => { if (l === 'glass') root.dataset.look = 'glass'; else delete root.dataset.look; save('look', l); }));
+document.body.append(appearance);
+themeBtn.setAttribute('popovertarget', 'appearance');
+function paintThemeButton() {
+  themeBtn.textContent = THEME_GLYPH[currentTheme()];
+  themeBtn.setAttribute('aria-label', `Appearance: ${currentTheme()} theme, ${currentLook()} look`);
+  themeBtn.title = 'Appearance: theme and look';
+}
 paintThemeButton();
 
 window.addEventListener('hashchange', route);

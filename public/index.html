@@ -14,6 +14,8 @@
   <script>
     // Apply the saved theme before first paint. "system" follows the OS through color-scheme: light dark.
     try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+    // The same for the look ("glass": translucent surfaces; "classic" is the default and needs nothing).
+    try { if (localStorage.getItem('look') === 'glass') document.documentElement.dataset.look = 'glass'; } catch {}
   </script>
   <link rel="stylesheet" href="/styles.css" />
 </head>
@@ -32,7 +34,7 @@
       </nav>
       <a class="topbar-status" id="topbar-status" href="#/sync" title="Open the Sync page"></a>
       <button type="button" class="icon-btn find-btn" id="find-btn" aria-label="Find a show or command" title="Find a show or command (⌘K)"></button>
-      <button type="button" class="icon-btn theme-btn" id="theme-btn" aria-label="Theme: dark"></button>
+      <button type="button" class="icon-btn theme-btn" id="theme-btn" aria-label="Appearance"></button>
     </header>
     <div class="offline-note" role="status">Offline. Showing what was loaded last time; actions will fail until you are back online.</div>
     <main id="view" class="content-grid" aria-live="polite"></main>

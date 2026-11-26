@@ -2017,3 +2017,98 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 .connect-panel { display: grid; gap: var(--space-s); }
 .pair-code { font-size: var(--step-1); letter-spacing: 0.08em; }
 .account-secret { font-family: ui-monospace, monospace; letter-spacing: 0.05em; overflow-wrap: anywhere; }
+
+/* ---------- Appearance menu: a popover anchored to the header's theme button ---------- */
+.appearance {
+  margin: 0;
+  padding: var(--space-s);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-outer);
+  background: var(--surface-opaque, var(--surface));
+  color: var(--text);
+  box-shadow: 0 12px 32px oklch(0 0 none / 0.35);
+  opacity: 0;
+  transform-origin: top right;
+  transition:
+    opacity 180ms var(--ease-out),
+    scale 180ms var(--ease-out),
+    display 180ms allow-discrete,
+    overlay 180ms allow-discrete;
+}
+.appearance:popover-open { display: grid; gap: var(--space-xs); opacity: 1; }
+@starting-style { .appearance:popover-open { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .appearance { scale: 0.96; }
+  .appearance:popover-open { scale: 1; }
+  @starting-style { .appearance:popover-open { scale: 0.96; } }
+}
+@supports (position-area: block-end) {
+  .appearance {
+    margin-block-start: 0.5rem;
+    position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  }
+}
+.appearance-row { display: grid; grid-template-columns: 4rem auto; align-items: center; gap: var(--space-s); }
+.appearance-label { color: var(--muted); font-size: var(--step--1); }
+
+/* ---------- Look: glass (an option, Appearance menu). Translucent surfaces over a soft colour field.
+   Only the tokens change, plus blur where content scrolls underneath (header, drawer, dialogs,
+   toast, menus). Cards in the big grids stay unblurred: 400 backdrop filters would cost every
+   scroll frame, and what is behind them is a smooth gradient anyway. ---------- */
+:root[data-look="glass"] {
+  --bg: light-dark(oklch(0.955 0.022 280), oklch(0.15 0.035 280));
+  --surface: light-dark(oklch(1 0 none / 0.56), oklch(1 0 none / 0.055));
+  --surface-2: light-dark(oklch(1 0 none / 0.78), oklch(1 0 none / 0.1));
+  /* For the few layers that must hide what is behind them (a stack's face, the menus). */
+  --surface-opaque: light-dark(oklch(0.985 0.012 280), oklch(0.205 0.035 280));
+  --line: light-dark(oklch(0.4 0.08 280 / 0.16), oklch(1 0 none / 0.11));
+  --muted: light-dark(oklch(0.42 0.03 280), oklch(0.79 0.02 280));
+  --faint: light-dark(oklch(0.47 0.03 280), oklch(0.72 0.022 280));
+  --radius: 0.875rem;
+  --glass: blur(22px) saturate(170%);
+  --glass-dense: light-dark(oklch(0.975 0.014 280 / 0.74), oklch(0.17 0.035 280 / 0.74));
+  /* The light edge along the top of a pane of glass. */
+  --sheen: inset 0 1px 0 light-dark(oklch(1 0 none / 0.85), oklch(1 0 none / 0.12));
+}
+
+/* The colour field: four soft lights, fixed behind the page, drifting slowly. */
+:root[data-look="glass"] body::before {
+  content: "";
+  position: fixed;
+  inset: -12%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 46% at 10% 2%, light-dark(oklch(0.8 0.11 285 / 0.75), oklch(0.44 0.18 282 / 0.6)), transparent 70%),
+    radial-gradient(46% 38% at 96% 8%, light-dark(oklch(0.87 0.1 60 / 0.6), oklch(0.62 0.16 47 / 0.24)), transparent 70%),
+    radial-gradient(56% 44% at 72% 98%, light-dark(oklch(0.86 0.08 215 / 0.6), oklch(0.5 0.12 220 / 0.34)), transparent 70%),
+    radial-gradient(40% 34% at 2% 92%, light-dark(oklch(0.88 0.08 340 / 0.5), oklch(0.5 0.16 335 / 0.2)), transparent 70%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-look="glass"] body::before { animation: glass-drift 38s var(--ease-in-out) infinite alternate; }
+}
+@keyframes glass-drift {
+  from { translate: -2% -1%; rotate: -2deg; scale: 1; }
+  to { translate: 3% 2%; rotate: 3deg; scale: 1.08; }
+}
+
+/* Panes: a top sheen on every surface. */
+:root[data-look="glass"] :is(.card, .panel, .stat, .show-row, .week-day, .tonight, .chips.segmented, .stack-face, select, input, textarea) { box-shadow: var(--sheen); }
+:root[data-look="glass"] .card.is-stack { box-shadow: none; }
+:root[data-look="glass"] .chips.segmented { background: var(--surface); }
+
+/* Blur where the page scrolls underneath. */
+:root[data-look="glass"] .topbar { background: color-mix(in oklch, var(--bg) 52%, transparent); backdrop-filter: var(--glass); }
+:root[data-look="glass"] :is(.drawer, .help, .quickopen, .toast, .card-menu, .appearance) {
+  background: var(--glass-dense);
+  backdrop-filter: var(--glass);
+  box-shadow: var(--sheen), 0 18px 48px -16px oklch(0 0 none / 0.55);
+}
+:root[data-look="glass"] :is(.drawer, .help, .quickopen)::backdrop { backdrop-filter: blur(6px); }
+
+/* Buttons: glass pills; the accent ones glow. */
+:root[data-look="glass"] :is(.btn, .icon-btn, .carousel-nav button) { box-shadow: var(--sheen); }
+:root[data-look="glass"] :is(.btn.primary, .chip-toggle[aria-pressed="true"], .group-toggle[aria-pressed="true"]) {
+  box-shadow: inset 0 1px 0 oklch(1 0 none / 0.35), 0 8px 22px -10px color-mix(in oklch, var(--accent) 80%, transparent);
+}

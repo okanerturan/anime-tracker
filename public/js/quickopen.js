@@ -19,7 +19,7 @@ const COMMANDS = [
   { label: 'Phone notifications for new episodes', words: ['notifications', 'notify', 'push', 'alerts'], run: () => { location.hash = '#/sync?notify=1'; } },
   { label: 'Airing calendar link', words: ['calendar', 'schedule', 'ics'], run: () => { location.hash = '#/sync?calendar=1'; } },
   { label: 'Import from AniList or MyAnimeList', words: ['import', 'anilist', 'myanimelist', 'mal'], run: () => { location.hash = '#/sync?import=1'; } },
-  { label: 'Switch light / dark theme', words: ['theme', 'dark', 'light'], run: () => document.querySelector('.theme-btn')?.click() },
+  { label: 'Appearance: theme and look', words: ['theme', 'dark', 'light', 'glass', 'look', 'appearance'], run: () => document.querySelector('.theme-btn')?.click() },
   { label: 'Shortcuts and gestures', words: ['shortcuts', 'keys', 'help', 'gestures'], run: () => document.getElementById('help')?.showModal() }
 ];
 function matchCommands(q) {
