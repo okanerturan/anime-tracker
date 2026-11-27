@@ -101,16 +101,30 @@ function progressState(x) {
   return { key: 'watching', label: `${left} new`, left };
 }
 
-/** What the entries of a series have in common at the start of their titles ("JUJUTSU KAISEN"), else the first one's title. */
+/**
+ * What the entries of a series have in common at the start of their titles ("JUJUTSU KAISEN"), and
+ * how many words that is; else the first one's title and 0.
+ */
 function seriesName(items) {
   const titles = items.map((y) => (y.titleEnglish || y.title || '').trim()).filter(Boolean);
   const words = titles.map((t) => t.split(/\s+/));
-  const shared = [];
   // "KAISEN:" and "Kaisen" are the same word.
   const bare = (w) => w.replace(/[:,\-–~!?.]+$/, '').toLowerCase();
+  const shared = [];
   for (let i = 0; words.length > 1 && words.every((w) => w[i] != null && bare(w[i]) === bare(words[0][i])); i += 1) shared.push(words[0][i]);
-  const name = shared.join(' ').replace(/[\s:,\-–~]+$/, '').replace(/\s+(season|part|cour|the|movie)$/i, '');
-  return name.length >= 4 ? name : titles[0] || 'Series';
+  // "X Season" is "X": the season word belongs to each entry's own part of the name.
+  while (shared.length && /^(season|part|cour|the|movie)$/i.test(bare(shared.at(-1)))) shared.pop();
+  const name = shared.join(' ').replace(/[\s:,\-–~]+$/, '');
+  return name.length >= 4 ? { name, words: shared.length } : { name: titles[0] || 'Series', words: 0 };
+}
+
+/** An entry's own part of the name once the series name is said above it: "Season 2", "0", "The movie". */
+function partName(y, sharedWords) {
+  const full = (y.titleEnglish || y.title || '').trim();
+  if (!sharedWords) return full;
+  const rest = full.split(/\s+/).slice(sharedWords).join(' ').replace(/^[\s:,\-–~]+/, '').trim();
+  if (rest) return rest;
+  return y.format === 'MOVIE' ? 'The movie' : ['TV', 'TV_SHORT', 'ONA'].includes(y.format) ? 'Season 1' : (FORMAT_LABEL[y.format] || full);
 }
 
 /**
@@ -122,14 +136,15 @@ let seriesSheet = null;
 function openSeries(top, members) {
   seriesSheet?.remove();
   const ordered = [...members].sort((a, b) => String(a.releaseDate || '9999').localeCompare(String(b.releaseDate || '9999')) || a.malId - b.malId);
-  const name = seriesName(ordered);
+  const { name, words } = seriesName(ordered);
   const close = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close', title: 'Close' }, icon('close'));
   const sheet = h('dialog', { class: 'series-sheet', 'aria-label': `${name}: ${ordered.length} in your library` },
     h('div', { class: 'series-head' },
       h('div', {}, h('h2', {}, name), h('p', { class: 'sub' }, `${ordered.length} in your library, in release order`)),
       close),
     h('div', { class: 'cards series-cards', style: { '--rows': '4' } }, ordered.map((y, i) => {
-      const c = card(y, 1, true);
+      // The series name is the sheet's heading, so each card says only its own part of it.
+      const c = card(y, 1, true, [], null, partName(y, words));
       c.style.setProperty('--i', String(i));
       if (y.malId === top.malId) c.classList.add('is-current');
       return c;
@@ -145,7 +160,7 @@ function openSeries(top, members) {
 }
 
 /** `inSeries`: with "Group seasons" on, how many library entries share this card's series. */
-function card(x, inSeries = 1, eager = false, behind = [], openStack = null) {
+function card(x, inSeries = 1, eager = false, behind = [], openStack = null, shownTitle = null) {
   const aired = x.airedEpisodes ?? x.episodesCount;
   const title = x.titleEnglish || x.title;
   const st = progressState(x);
@@ -183,7 +198,7 @@ function card(x, inSeries = 1, eager = false, behind = [], openStack = null) {
   const stackCount = inSeries > 1
     ? h('span', { class: 'pill dark stack-count num', role: 'img', 'aria-label': `${inSeries} in this series`, title: `${inSeries} in this series in your library (seasons, movies, specials). Open it to see them all.` }, icon('stack'), String(inSeries))
     : null;
-  const el = showCard({ show: { ...x, title, image: x.imageUrl }, eager,
+  const el = showCard({ show: { ...x, title, image: x.imageUrl }, eager, title: shownTitle || '',
     // A stack stands for several entries: clicking it deals them out (openSeries) instead of opening one.
     open: inSeries > 1 && openStack ? () => openStack(x) : null, cls: `is-${st.key} ${inSeries > 1 ? 'is-stack' : ''} ${select.on && select.ids.has(x.malId) ? 'is-selected' : ''}`,
     // A stack's count and the state share one row, so a long state ("Almost done · 1 left") shortens
@@ -206,8 +221,14 @@ function card(x, inSeries = 1, eager = false, behind = [], openStack = null) {
   // (styles.css, "Library stacks"). The furthest poster comes first so the nearer one paints over it.
   if (inSeries > 1) {
     el.prepend(
-      h('div', { class: 'stack-deck', 'aria-hidden': 'true' }, [...behind].reverse().map((src) => h('span', {}, h('img', { src, alt: '', loading: 'lazy', decoding: 'async' })))),
+      // --k: how far back the layer sits (1 is the nearest); the furthest comes first in the page.
+      h('div', { class: 'stack-deck', 'aria-hidden': 'true' }, behind.map((src, i) => h('span', { style: { '--k': String(i + 1) } }, h('img', { src, alt: '', loading: 'lazy', decoding: 'async' }))).reverse()),
       h('div', { class: 'stack-face', 'aria-hidden': 'true' }));
+    // The fan opens away from the page's edge: to the left when there is no room on the right.
+    el.addEventListener('pointerenter', () => {
+      const r = el.getBoundingClientRect();
+      el.dataset.fan = r.right + r.width * 0.95 > document.documentElement.clientWidth - 8 ? 'left' : 'right';
+    });
   }
   // In select mode a click anywhere on the card toggles it (capture phase, before links and buttons).
   el.addEventListener('click', (e) => {
@@ -321,8 +342,8 @@ export async function render(view) {
     count.textContent = `${list.length}${grouped ? ' series' : ''} of ${state.items.length}${grouped ? ' shows' : ''}${tail}`;
     // Draw what fills the screen now and the rest in batches right after, so a filter tap or a
     // keystroke never waits on 400 cards; a newer draw cancels the batches still queued.
-    // Up to two other entries' posters sit behind a stack's card.
-    const behind = (x) => (members ? members.get(x.series ?? x.malId).filter((y) => y.malId !== x.malId && y.imageUrl).slice(0, 2).map((y) => y.imageUrl) : []);
+    // Up to three other entries' posters sit behind a stack's card.
+    const behind = (x) => (members ? members.get(x.series ?? x.malId).filter((y) => y.malId !== x.malId && y.imageUrl).slice(0, 3).map((y) => y.imageUrl) : []);
     const make = (x, i) => card(x, sizes ? sizes.get(x.series ?? x.malId) : 1, i < 6, behind(x), (top) => openSeries(top, members.get(top.series ?? top.malId)));
     const myDraw = ++drawSeq;
     if (list.length > 48) {

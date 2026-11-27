@@ -1,6 +1,6 @@
 // Shared building blocks for things that appear on several pages. A show shown anywhere opens
 // the same way: these components own that, so a list can't forget to make the show clickable.
-import { h, icon, media, progress, cardLink } from './ui.js';
+import { h, icon, media, progress, cardLink, titleSize } from './ui.js';
 import { openAnime } from './drawer.js';
 
 /**
@@ -50,7 +50,7 @@ export function showCard({ show = null, open = null, link = null, image = '', fa
   const name = title || show?.title || '';
   const go = open || (show ? () => openAnime(show) : null);
   const href = link || (show?.malId ? `https://myanimelist.net/anime/${show.malId}` : '#');
-  const titleEl = go ? cardLink(name, go, { lines, href }) : h('h3', { class: `card-title ${lines === 1 ? 'one-line' : 'clamp-2'}`, title: name }, name);
+  const titleEl = go ? cardLink(name, go, { lines, href }) : h('h3', { class: `card-title ${lines === 1 ? 'one-line' : 'clamp-2'}`, title: name, 'data-size': titleSize(name) }, name);
   const metaEl = meta == null ? null : meta instanceof Node ? meta : h('p', { class: 'card-meta' }, meta.filter(Boolean).join(' · '));
   // An empty sub ('') still renders: some card grids line their rows up across cards.
   const subEl = sub == null ? null : h('p', { class: `card-sub ${subClass}`.trim(), title: typeof sub === 'string' ? sub : null }, sub);

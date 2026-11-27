@@ -174,6 +174,9 @@ export const FORMAT_LABEL = { TV: 'TV', TV_SHORT: 'Short', MOVIE: 'Movie', OVA: 
  * Whole card clickable from one link: the title is a real link whose ::after covers the card.
  * A link (unlike a button) is inline, so the title can clamp and truncate with an ellipsis.
  */
+/** How long a show's name is, for the card title's size: names are shown whole, long ones a little smaller. */
+export const titleSize = (text) => { const n = String(text || '').length; return n > 85 ? 'xl' : n > 55 ? 'l' : n > 34 ? 'm' : null; };
+
 export function cardLink(text, onClick, { lines = 2, href = '#' } = {}) {
   const a = h('a', { class: 'card-link', href }, text);
   a.addEventListener('click', (e) => {
@@ -181,7 +184,7 @@ export function cardLink(text, onClick, { lines = 2, href = '#' } = {}) {
     e.preventDefault();
     onClick();
   });
-  return h('h3', { class: `card-title ${lines === 1 ? 'one-line' : 'clamp-2'}`, title: text }, a);
+  return h('h3', { class: `card-title ${lines === 1 ? 'one-line' : 'clamp-2'}`, title: text, 'data-size': titleSize(text) }, a);
 }
 
 /** Lowercase, accents and punctuation removed: "Re:ZERO" and "re zero" compare equal. */

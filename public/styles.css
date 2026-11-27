@@ -1747,35 +1747,50 @@ table.simple .num-col { text-align: end; }
 .stack-deck { position: absolute; inset: -1px; pointer-events: none; }
 .stack-face { z-index: -2; border: 1px solid var(--edge, var(--line)); border-radius: inherit; background: var(--surface-opaque, var(--surface)); }
 .stack-deck { z-index: -3; }
+/* Each layer is one more entry of the series; --k is how far back it sits (1 is the nearest). At rest
+   the layers peek out a little. Under the pointer they fan out like a hand of cards, each one a step
+   further round and along, away from the page's edge (--dir: library.js sets data-fan="left" near
+   the right edge). They are a preview only: the pointer goes through them, so the card next door is
+   still one move away, and a click on the stack opens the series. */
+.card.is-stack { --fan-angle: 1.4deg; --fan-shift: 0%; --fan-rise: -0.28rem; --fan-light: 0.8; --fan-dim: 0.17; --dir: 1; }
+/* A stack in the last column leans into the page's side gutter; what goes past it is cut, not scrolled to.
+   (clip, not hidden: the header stays sticky to the window.) */
+.app { overflow-x: clip; }
+.card.is-stack[data-fan="left"] { --dir: -1; }
 .stack-deck > span {
   position: absolute;
   inset: 0;
   overflow: clip;
   border-radius: var(--radius-outer);
   background: var(--surface-2);
-  outline: 1px solid light-dark(oklch(0 0 none / 0.12), oklch(1 0 none / 0.14));
+  outline: 1px solid light-dark(oklch(0 0 none / 0.12), oklch(1 0 none / 0.16));
   outline-offset: -1px;
+  box-shadow: 0 10px 26px -12px oklch(0 0 none / 0.7);
   transform-origin: 50% 100%;
-  rotate: var(--fan);
-  translate: 0 var(--rise);
+  rotate: calc(var(--k, 1) * var(--fan-angle) * var(--dir));
+  translate: calc(var(--k, 1) * var(--fan-shift) * var(--dir)) calc(var(--k, 1) * var(--fan-rise));
 }
-.stack-deck > span > img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; filter: brightness(0.62) saturate(0.9); }
-/* The last layer in the fan is the nearest one (the furthest is first, so it paints underneath). */
-.stack-deck > span:last-child { --fan: 1.6deg; --rise: -0.3rem; }
-.stack-deck > span:first-child:not(:last-child) { --fan: 3.2deg; --rise: -0.55rem; }
-.stack-deck > span:first-child:not(:last-child) > img { filter: brightness(0.45) saturate(0.85); }
-.card.is-stack:has(.card-link:focus-visible) { z-index: 2; }
-.card.is-stack:has(.card-link:focus-visible) .stack-deck > span:last-child { --fan: 4.2deg; --rise: -0.6rem; }
-.card.is-stack:has(.card-link:focus-visible) .stack-deck > span:first-child:not(:last-child) { --fan: 8.4deg; --rise: -1.05rem; }
+.stack-deck > span > img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  filter: brightness(calc(var(--fan-light) - var(--k, 1) * var(--fan-dim))) saturate(0.95);
+}
+.card.is-stack:has(.card-link:focus-visible) { z-index: 2; --fan-angle: 5.5deg; --fan-shift: 15%; --fan-rise: -0.12rem; --fan-light: 1.04; --fan-dim: 0.07; }
 @media (hover: hover) and (pointer: fine) {
-  .card.is-stack:hover { z-index: 2; }
+  .card.is-stack:hover { z-index: 2; --fan-angle: 5.5deg; --fan-shift: 15%; --fan-rise: -0.12rem; --fan-light: 1.04; --fan-dim: 0.07; }
   .card.is-stack:hover > .stack-face { border-color: color-mix(in oklch, var(--line), var(--accent) 45%); }
-  .card.is-stack:hover .stack-deck > span:last-child { --fan: 4.2deg; --rise: -0.6rem; }
-  .card.is-stack:hover .stack-deck > span:first-child:not(:last-child) { --fan: 8.4deg; --rise: -1.05rem; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .stack-deck > span { transition: rotate 420ms var(--spring), translate 420ms var(--spring); }
-  .stack-deck > span:first-child:not(:last-child) { transition-delay: 45ms; }
+  /* Closing is quick and all at once; opening waits a beat (so passing over a stack doesn't throw it
+     open) and then goes one card after another, nearest first. */
+  .stack-deck > span { transition: rotate 260ms var(--ease-out), translate 260ms var(--ease-out); }
+  .stack-deck > span > img { transition: filter 260ms var(--ease-out); }
+  .card.is-stack:is(:hover, :has(.card-link:focus-visible)) .stack-deck > span {
+    transition: rotate 560ms var(--spring), translate 560ms var(--spring);
+    transition-delay: calc(90ms + (var(--k, 1) - 1) * 45ms);
+  }
 }
 
 /* A stack opened (library.js openSeries): a sheet over the page with the series' entries dealt out
@@ -2210,10 +2225,13 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
   .card:hover > .media > img { scale: 1.045; }
   .card:hover > .media::after { translate: 115% 0; transition: translate 900ms var(--ease-out); }
 }
+/* The zooming poster is a layer of its own, which would paint over the badges beside it: they are
+   lifted above it, and the light sweeps between the two. */
+.card > .media > :not(img, .media-backdrop) { z-index: 1; }
 .card > .media::after {
   content: "";
   grid-area: 1 / 1;
-  z-index: 1;
+  z-index: 0;
   pointer-events: none;
   background: linear-gradient(105deg, transparent 36%, oklch(1 0 none / 0.17) 50%, transparent 64%);
   translate: -115% 0;
@@ -2257,3 +2275,25 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
     .carousel > * { animation: slide-in linear both; animation-timeline: view(inline); animation-range: entry 0% entry 85%; }
   }
 }
+
+/* ---------- Show names are never cut short: they wrap onto as many lines as they need.
+   Cards in a grid or a sideways row share their rows (subgrid), so a long name makes that row taller
+   for every card in it and the rows still line up. (Episode names under a title stay on one line.) ---------- */
+.card-title:is(.clamp-2, .one-line),
+.show-row-open,
+.week .week-item-title.one-line,
+.history-title > b,
+.hbar .name.one-line {
+  display: block;
+  -webkit-line-clamp: none;
+  line-clamp: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+/* A long name is set a little smaller, so it takes fewer lines (ui.js titleSize: by its length). */
+.card-title[data-size="m"] { font-size: 0.94em; }
+.card-title[data-size="l"] { font-size: 0.875em; line-height: 1.28; }
+.card-title[data-size="xl"] { font-size: 0.8125em; line-height: 1.26; }
