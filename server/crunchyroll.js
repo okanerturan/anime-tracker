@@ -347,6 +347,9 @@ function wantedSeasons(limit = 30) {
         m.status = 'RELEASING'
         OR EXISTS (SELECT 1 FROM episode_sync e WHERE e.mal_id = r.mal_id AND ((e.image_blob IS NULL AND e.image_url IS NULL) OR e.title IS NULL OR e.title GLOB 'Episode [0-9]*'
           OR COALESCE(e.url, '') NOT LIKE '%crunchyroll.com/watch/%'))
+        -- Every season you play is checked again every 60 days, so a link Crunchyroll changed later
+        -- (it renumbers episode ids now and then) is replaced before you hit the dead one.
+        OR f.fetched_at < datetime('now', '-60 days')
         -- A Crunchyroll link that didn't come from Crunchyroll itself (AniList's list, an old import):
         -- Crunchyroll renumbers episode ids, and those go dead (404). Ask for the season's real list.
         OR EXISTS (SELECT 1 FROM catalog_episodes c WHERE c.mal_id = r.mal_id AND c.url LIKE '%crunchyroll.com/watch/%'

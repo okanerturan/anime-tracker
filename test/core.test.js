@@ -1000,3 +1000,15 @@ test('a season whose Crunchyroll links came from AniList is asked for again (Cru
   put.run(1, 'One', 'https://www.crunchyroll.com/watch/GNEW1/one', 'crunchyroll');
   assert.ok(!crunchyroll.wantedSeasons(1000).includes('GSSTALE1'), 'every link from Crunchyroll itself: not asked again');
 });
+
+test('every played season is checked against Crunchyroll again after 60 days, even when nothing looks missing', () => {
+  addShow(9702, 'Old But Fine', { status: 'FINISHED', episodes: 1 });
+  rule('GSOLDOK', 9702);
+  db.prepare("INSERT INTO cr_history (episode_id, season_id, series_title, season_title, episode_number, date_played, mal_id, mal_episode, applied) VALUES ('GEOK1', 'GSOLDOK', 'Old But Fine', 'S1', 1, '2026-01-20T20:00:00Z', 9702, 1, 1)").run();
+  db.prepare("INSERT OR REPLACE INTO catalog_episodes (mal_id, episode_number, title, title_src, url, url_src, image_url, image_src) VALUES (9702, 1, 'One', 'crunchyroll', 'https://www.crunchyroll.com/watch/GEOK1/one', 'crunchyroll', 'https://x/y.jpg', 'crunchyroll')").run();
+  const fetched = (ago) => db.prepare("INSERT OR REPLACE INTO cr_season_fetch (season_id, fetched_at) VALUES ('GSOLDOK', datetime('now', ?))").run(ago);
+  fetched('-30 days');
+  assert.ok(!crunchyroll.wantedSeasons(1000).includes('GSOLDOK'), 'complete and checked a month ago: left alone');
+  fetched('-61 days');
+  assert.ok(crunchyroll.wantedSeasons(1000).includes('GSOLDOK'), 'two months on: checked again');
+});
