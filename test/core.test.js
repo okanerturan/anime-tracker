@@ -986,3 +986,17 @@ test('another audio version of a season you track is not "sampled", and its stra
   db.prepare('INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, watched) VALUES (9602, 7, 1)').run();
   assert.ok(!crunchyroll.status({ wants: false }).inProgress.some((p) => p.episodeId === 'C54'), 'watched since: no longer paused');
 });
+
+test('a season whose Crunchyroll links came from AniList is asked for again (Crunchyroll renumbers episode ids, old ones 404)', () => {
+  addShow(9701, 'Stale Links', { status: 'FINISHED', episodes: 2 });
+  rule('GSSTALE1', 9701);
+  db.prepare("INSERT INTO cr_history (episode_id, season_id, series_title, season_title, episode_number, date_played, mal_id, mal_episode, applied) VALUES ('GENEW1', 'GSSTALE1', 'Stale Links', 'S1', 1, '2026-11-20T20:00:00Z', 9701, 1, 1)").run();
+  db.prepare("INSERT OR REPLACE INTO cr_season_fetch (season_id, fetched_at) VALUES ('GSSTALE1', datetime('now'))").run();
+  const put = db.prepare("INSERT OR REPLACE INTO catalog_episodes (mal_id, episode_number, title, title_src, url, url_src, image_url, image_src) VALUES (9701, ?, ?, 'anilist', ?, ?, 'https://x/y.jpg', 'anilist')");
+  put.run(1, 'One', 'http://www.crunchyroll.com/watch/GOLD1/one', 'anilist');
+  put.run(2, 'Two', 'https://www.crunchyroll.com/watch/GNEW2/two', 'crunchyroll');
+  db.prepare("UPDATE cr_season_fetch SET fetched_at = datetime('now', '-30 days') WHERE season_id = 'GSSTALE1'").run();
+  assert.ok(crunchyroll.wantedSeasons(1000).includes('GSSTALE1'), 'an AniList-sourced link: the season list is fetched from Crunchyroll');
+  put.run(1, 'One', 'https://www.crunchyroll.com/watch/GNEW1/one', 'crunchyroll');
+  assert.ok(!crunchyroll.wantedSeasons(1000).includes('GSSTALE1'), 'every link from Crunchyroll itself: not asked again');
+});
