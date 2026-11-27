@@ -1012,3 +1012,21 @@ test('every played season is checked against Crunchyroll again after 60 days, ev
   fetched('-61 days');
   assert.ok(crunchyroll.wantedSeasons(1000).includes('GSOLDOK'), 'two months on: checked again');
 });
+
+test('episode links per audio: each language\'s link is kept, and you get the one in the audio you watch', async () => {
+  addShow(9801, 'Two Audios', { status: 'FINISHED', episodes: 2 });
+  rule('GS00098010JAJP', 9801); rule('GS00098010ENUS', 9801);
+  db.prepare("INSERT OR REPLACE INTO episode_sync (mal_id, episode_number, watched) VALUES (9801, 1, 0), (9801, 2, 0)").run();
+  const url = () => db.prepare('SELECT url FROM episode_sync WHERE mal_id = 9801 AND episode_number = 1').get().url;
+  const list = (season, suffix) => [{ seasonId: season, episodes: [1, 2].map((n) => ({ episodeNumber: n, episodeId: `GE0009801${n}${suffix}`, audioMatched: true, title: `E${n}` })) }];
+  // Someone watching the dub synced first, then someone watching the sub (in accounts mode: two people).
+  await crunchyroll.applySeasonEpisodes(list('GS00098010ENUS', 'ENUS'));
+  await crunchyroll.applySeasonEpisodes(list('GS00098010JAJP', 'JAJP'));
+  const links = db.prepare('SELECT audio, url FROM catalog_episode_links WHERE mal_id = 9801 AND episode_number = 1 ORDER BY audio').all();
+  assert.deepEqual(links.map((l) => l.audio), ['ENUS', 'JAJP'], 'both languages kept');
+  assert.match(url(), /JAJP$/, 'no plays of yours yet: the shared link (whoever synced last)');
+  db.prepare("INSERT INTO cr_history (episode_id, season_id, series_title, season_title, episode_number, date_played, mal_id, mal_episode, applied) VALUES ('GE00098011ENUS', 'GS00098010ENUS', 'Two Audios', 'S1', 1, '2026-11-20T20:00:00Z', 9801, 1, 1)").run();
+  assert.match(url(), /ENUS$/, 'you watch it dubbed: your Play opens the dub, though the sub synced last');
+  db.prepare("INSERT INTO cr_history (episode_id, season_id, series_title, season_title, episode_number, date_played, mal_id, mal_episode, applied) VALUES ('GE00098012JAJP', 'GS00098010JAJP', 'Two Audios', 'S1', 2, '2026-11-21T20:00:00Z', 9801, 2, 1)").run();
+  assert.match(url(), /JAJP$/, 'you switched to the sub: links follow your latest play');
+});

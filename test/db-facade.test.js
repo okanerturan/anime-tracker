@@ -135,3 +135,28 @@ test('one account\'s Crunchyroll season list gives another account titles and st
   assert.ok(!Object.values(row).some((v) => v === '93' || v === 93), 'no value names the sending account');
   assert.equal(withAccount('94', () => db.prepare('SELECT COUNT(*) n FROM cr_season_map').get().n), 0, 'the sender\'s mapping stays in its own file');
 });
+
+test('two accounts, sub and dub: each keeps its own Play link after the other syncs', async () => {
+  const crunchyroll = require('../server/crunchyroll');
+  const { catalogDb } = require('../server/db');
+  catalogDb.prepare("INSERT OR REPLACE INTO media (mal_id, title, status, episodes, format) VALUES (940, 'Two Audios Shared', 'FINISHED', 1, 'TV')").run();
+  const seasons = { 95: 'GS00009400JAJP', 96: 'GS00009400ENUS' };
+  for (const [id, season] of Object.entries(seasons)) {
+    withAccount(id, () => {
+      db.prepare("INSERT INTO anime (mal_id, title, total_episodes) VALUES (940, 'Two Audios Shared', 1)").run();
+      db.prepare('INSERT INTO watchlist (mal_id) VALUES (940)').run();
+      db.prepare('INSERT INTO episode_watch (mal_id, episode_number, watched) VALUES (940, 1, 0)').run();
+      db.prepare(`INSERT INTO cr_season_map (season_id, ep_from, ep_to, mal_id, ep_offset, source, series_title, season_title, needs_review)
+        VALUES (?, 0, 100000, 940, 0, 'test', 'S', 'S', 0)`).run(season);
+      db.prepare(`INSERT INTO cr_history (episode_id, season_id, series_title, season_title, episode_number, date_played, mal_id, mal_episode, applied)
+        VALUES (?, ?, 'S', 'S', 1, '2026-11-20T20:00:00Z', 940, 1, 1)`).run(`GE0009400${season.slice(-4)}`, season);
+    });
+  }
+  const sync = (id) => withAccount(id, () => crunchyroll.applySeasonEpisodes([{ seasonId: seasons[id], episodes: [{ episodeNumber: 1, episodeId: `GE0009401${seasons[id].slice(-4)}`, audioMatched: true, title: 'One' }] }]));
+  const link = (id) => withAccount(id, () => db.prepare('SELECT url FROM episode_sync WHERE mal_id = 940 AND episode_number = 1').get().url);
+  await sync('95'); await sync('96');
+  assert.match(link('95'), /JAJP$/, 'the sub watcher keeps the sub link after the dub watcher synced');
+  assert.match(link('96'), /ENUS$/);
+  await sync('95');
+  assert.match(link('96'), /ENUS$/, 'and the other way round');
+});

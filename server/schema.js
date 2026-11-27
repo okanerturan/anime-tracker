@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS catalog_episodes (
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(mal_id, episode_number)
 );
+-- Each episode's Crunchyroll link per audio version (shared). Crunchyroll gives every audio language
+-- its own episode ids; the language is the end of a season id (GS…JAJP, GS…ENUS). catalog_episodes.url
+-- is the one link everyone falls back on; each account gets the link in the audio it watches.
+CREATE TABLE IF NOT EXISTS catalog_episode_links (
+  mal_id INTEGER NOT NULL,
+  episode_number INTEGER NOT NULL,
+  audio TEXT NOT NULL,
+  url TEXT NOT NULL,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(mal_id, episode_number, audio)
+);
 -- Counting stored thumbnails without reading the rows that hold them.
 CREATE INDEX IF NOT EXISTS idx_catalog_episodes_has_blob ON catalog_episodes(mal_id) WHERE image_blob IS NOT NULL;
 -- When each episode source last answered for a show (shared, so one fetch serves every account), and
@@ -271,7 +282,7 @@ const LEGACY_EPISODE_COLUMNS = [['image_source', 'image_source TEXT'], ['image_u
 // recommendations, the image index, AniList job queues, Crunchyroll season fetch times) lives in
 // one catalog file; everything about a person lives in their account file. Single-user mode keeps
 // all of it in one file, as before.
-const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state', 'catalog_jobs', 'catalog_lease', 'catalog_waiters', 'cr_series_claims', 'cr_season_claims', 'catalog_episodes', 'catalog_idmap', 'catalog_episode_fetch']);
+const CATALOG_TABLES = new Set(['media', 'media_relation', 'media_rec', 'image_cache', 'cr_season_fetch', 'anilist_relay', 'anilist_pending_ids', 'catalog_state', 'catalog_jobs', 'catalog_lease', 'catalog_waiters', 'cr_series_claims', 'cr_season_claims', 'catalog_episodes', 'catalog_episode_links', 'catalog_idmap', 'catalog_episode_fetch']);
 
 /** The table a CREATE TABLE / CREATE INDEX statement is about. */
 function tableOf(statement) {
@@ -356,7 +367,11 @@ function dropLegacyEpisodes(db) {
 const EPISODE_VIEW = (temp) => `CREATE ${temp ? 'TEMP ' : ''}VIEW IF NOT EXISTS episode_sync AS
   SELECT w.mal_id, w.episode_number, w.season,
     COALESCE(c.title, 'Episode ' || w.episode_number) AS title,
-    c.url, c.aired, w.watched, w.watched_at, c.image_blob, c.image_mime,
+    -- The link in the audio you watch this show in (the language of your latest play's season), else the shared one.
+    COALESCE((SELECT l.url FROM catalog_episode_links l WHERE l.mal_id = w.mal_id AND l.episode_number = w.episode_number
+      AND l.audio = (SELECT substr(h.season_id, -4) FROM cr_history h WHERE h.mal_id = w.mal_id AND h.season_id GLOB 'GS[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][A-Z][A-Z][A-Z][A-Z]'
+        ORDER BY h.date_played DESC LIMIT 1)), c.url) AS url,
+    c.aired, w.watched, w.watched_at, c.image_blob, c.image_mime,
     COALESCE(c.updated_at, w.updated_at) AS updated_at, c.image_src AS image_source, c.image_url
   FROM episode_watch w LEFT JOIN catalog_episodes c ON c.mal_id = w.mal_id AND c.episode_number = w.episode_number`;
 
@@ -410,7 +425,8 @@ END;`;
  */
 function installEpisodeView(db, part = 'all') {
   const temp = part === 'account';
-  db.exec(`${EPISODE_VIEW(temp)};\n${WATCH_TRIGGERS(temp)}`);
+  // Recreated each start, so a changed definition reaches files made before it (its triggers go with it).
+  db.exec(`DROP VIEW IF EXISTS ${temp ? 'temp.' : ''}episode_sync;\n${EPISODE_VIEW(temp)};\n${WATCH_TRIGGERS(temp)}`);
 }
 
 /**

@@ -38,6 +38,8 @@ const episodeFacts = require('./episodes');
 const markEpStmt = db.prepare('UPDATE episode_watch SET watched = 1, watched_at = COALESCE(watched_at, ?), updated_at = CURRENT_TIMESTAMP WHERE mal_id = ? AND episode_number = ? AND watched = 0');
 const totalStmt = db.prepare('SELECT COALESCE(a.total_episodes, m.episodes) AS total FROM anime a LEFT JOIN media m USING(mal_id) WHERE a.mal_id = ?');
 const logStmt = db.prepare('INSERT INTO sync_log (source, summary) VALUES (?, ?)');
+const putLinkStmt = catalog.prepare(`INSERT INTO catalog_episode_links (mal_id, episode_number, audio, url, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+  ON CONFLICT(mal_id, episode_number, audio) DO UPDATE SET url = excluded.url, updated_at = excluded.updated_at`);
 
 /** Accepts either raw Crunchyroll watch-history items or the extension's compact rows. */
 function normalizeRow(x) {
@@ -484,6 +486,9 @@ async function applySeasonEpisodes(seasons) {
       }, 'crunchyroll', { sources: { url: ep.audioMatched ? 'crunchyroll' : 'crunchyroll-other', image: 'crunchyroll' } });
       if (changed.includes('title')) summary.titles += 1;
       if (changed.includes('image')) summary.images += 1;
+      // The link for this season's audio, kept beside the shared one (each account gets its own audio's).
+      const audio = /^GS\d{8}([A-Z]{4})$/.exec(season.seasonId)?.[1];
+      if (url && ep.audioMatched && audio) putLinkStmt.run(malId, episodeNumber, audio, url);
       } catch (err) { summary.errors = (summary.errors || 0) + 1; }
     }
   }
