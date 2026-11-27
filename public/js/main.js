@@ -26,11 +26,18 @@ async function route({ refresh = false } = {}) {
   closeDrawer();
   // Each navigation renders into its own container. A page whose data arrives after you've moved
   // on draws into a container that is no longer on screen, never over the page you're looking at.
-  const slot = h('div', { class: 'view-slot' });
+  // Arriving on a page (not a background refresh) plays its entrance once: "is-entering" comes off
+  // after it, so redrawing a list later (a filter, a tick) doesn't replay it.
+  const slot = h('div', { class: refresh ? 'view-slot' : 'view-slot is-entering' });
+  if (!refresh) setTimeout(() => slot.classList.remove('is-entering'), 2200);
   // The page's name for screen readers (a visually hidden h1) and for the browser tab and history.
   const pageName = VIEW_NAMES[name] || 'Up Next';
   document.title = `${pageName} · Tsuzuku`;
-  view.replaceChildren(h('h1', { class: 'sr-only' }, pageName), slot);
+  const swap = () => view.replaceChildren(h('h1', { class: 'sr-only' }, pageName), slot);
+  // A page change is a view transition where the browser has them (the old page eases back, the new
+  // one rises; styles.css "Motion"). The page draws into its slot meanwhile, on screen or not.
+  if (!refresh && document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.startViewTransition(swap);
+  else swap();
   try {
     await mod.render(slot);
     // Deep link: #/<view>?anime=<malId> opens that show's detail panel.

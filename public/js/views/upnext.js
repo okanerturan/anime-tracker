@@ -270,7 +270,8 @@ function tonight(items, inProgress, forced = null) {
   const minsLeft = pick.resume ? Math.round((pick.resume.durationS - pick.resume.playhead) / 60) : null;
   const still = pick.nextEpisodeImage || pick.resume?.thumb || pick.image;
   const open = () => openAnime(pick);
-  return h('section', { class: 'tonight' },
+  // The still's colours glow around the card (styles.css ".tonight::before").
+  return h('section', { class: 'tonight', style: still ? { '--still': `url("${String(still).replace(/["\\\n]/g, '')}")` } : null },
     h('a', { class: 'tonight-media', href: url || '#', target: url ? '_blank' : null, rel: 'noopener', 'aria-label': `Play ${pick.title} episode ${pick.nextEpisode}`, onclick: () => { if (url) playToast(pick.nextEpisode, pick); } },
       media({ src: still, fallback: pick.image, alt: '', eager: true }),
       url ? h('span', { class: 'play-overlay is-large' }, icon('play'), h('span', {}, minsLeft ? `Resume · ${minsLeft} min left` : `Play E${pick.nextEpisode}`)) : null,

@@ -2176,3 +2176,84 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 :root[data-look="glass"] :is(.btn.primary, .chip-toggle[aria-pressed="true"], .group-toggle[aria-pressed="true"]) {
   box-shadow: inset 0 1px 0 oklch(1 0 none / 0.35), 0 8px 22px -10px color-mix(in oklch, var(--accent) 80%, transparent);
 }
+
+/* ---------- Motion: arriving on a page, hovering a card, scrolling a row.
+   Everything here is under prefers-reduced-motion: no-preference; without it the page is simply there. ---------- */
+
+/* Page change (main.js route): the old page eases back and fades, the new one rises. Only the page
+   area is named, so the header stays put and its tab marker still slides. */
+#view { view-transition-name: page; }
+@keyframes page-out { to { opacity: 0; scale: 0.985; } }
+@keyframes page-in { from { opacity: 0; translate: 0 16px; } }
+@keyframes rise-in { from { opacity: 0; translate: 0 18px; filter: blur(6px); } }
+@keyframes bar-up { from { scale: 1 0; } }
+@keyframes hbar-in { from { scale: 0 1; } }
+@keyframes slow-zoom { to { scale: 1.07; } }
+@keyframes slide-in { from { opacity: 0.3; scale: 0.9; } }
+
+/* The top card on Up Next: the still's own colours glow around it. */
+.tonight { position: relative; }
+.tonight::before {
+  content: "";
+  position: absolute;
+  inset: -4% -2%;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--still, none) center / cover no-repeat;
+  filter: blur(64px) saturate(1.7);
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* A card under the pointer: its poster eases in and a light sweeps across it, once. */
+  .card:hover > .media > img { scale: 1.045; }
+  .card:hover > .media::after { translate: 115% 0; transition: translate 900ms var(--ease-out); }
+}
+.card > .media::after {
+  content: "";
+  grid-area: 1 / 1;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 36%, oklch(1 0 none / 0.17) 50%, transparent 64%);
+  translate: -115% 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(page) { animation: page-out 150ms var(--ease-out) both; }
+  ::view-transition-new(page) { animation: page-in 340ms var(--ease-out) both; }
+
+  .card > .media > img { transition: scale 420ms var(--ease-out); }
+  .tonight-media > .media > img { animation: slow-zoom 20s var(--ease-in-out) infinite alternate; }
+
+  /* Arriving on a page: its parts rise in one after another (the first few of each kind; a long grid
+     doesn't animate 400 cards). --n is the part's place among its siblings. */
+  .view-slot.is-entering :is(.tonight, .section-head, .carousel, .cards > .card:nth-child(-n+18), .stat, .panel, .show-row:nth-child(-n+12), .week-day, .chips) {
+    animation: rise-in 520ms var(--ease-out) backwards;
+    animation-delay: calc(var(--n, 0) * 40ms);
+  }
+  .view-slot.is-entering :nth-child(2) { --n: 1; }
+  .view-slot.is-entering :nth-child(3) { --n: 2; }
+  .view-slot.is-entering :nth-child(4) { --n: 3; }
+  .view-slot.is-entering :nth-child(5) { --n: 4; }
+  .view-slot.is-entering :nth-child(6) { --n: 5; }
+  .view-slot.is-entering :nth-child(7) { --n: 6; }
+  .view-slot.is-entering :nth-child(8) { --n: 7; }
+  .view-slot.is-entering :nth-child(9) { --n: 8; }
+  .view-slot.is-entering :nth-child(10) { --n: 9; }
+  .view-slot.is-entering :nth-child(11) { --n: 10; }
+  .view-slot.is-entering :nth-child(12) { --n: 11; }
+  .view-slot.is-entering :nth-child(n+13) { --n: 12; }
+  .view-slot.is-entering :nth-child(1) { --n: 0; }
+
+  /* Insights: bars grow from the baseline, one after another. */
+  .view-slot.is-entering .bars .bar { transform-origin: 50% 100%; animation: bar-up 700ms var(--spring) backwards; animation-delay: calc(var(--n, 0) * 22ms + 150ms); }
+  .view-slot.is-entering .hbar .track span { animation: hbar-in 800ms var(--ease-out) backwards; animation-delay: 250ms; }
+}
+
+/* A row you scroll sideways: cards grow into place as they come in from the edge. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .carousel > * { animation: slide-in linear both; animation-timeline: view(inline); animation-range: entry 0% entry 85%; }
+  }
+}
