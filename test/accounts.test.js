@@ -106,9 +106,8 @@ test('rate limits: past the limit an attempt is refused with a Retry-After', () 
   assert.ok(blocked.retryAfter > 3500 && blocked.retryAfter <= 3600);
   assert.ok(limits.hit('recover', '5.6.7.8', t0 + 20).ok, 'other addresses are not affected');
   assert.ok(limits.hit('recover', '1.2.3.4', t0 + 61 * 60e3).ok, 'the window slides');
-  // X-Client-IP counts only when the origin secret was checked.
-  assert.equal(limits.clientIp({ headers: { 'x-client-ip': '9.9.9.9' }, socket: { remoteAddress: '127.0.0.1' } }), '127.0.0.1');
-  assert.equal(limits.clientIp({ originTrusted: true, headers: { 'x-client-ip': '9.9.9.9' }, socket: { remoteAddress: '127.0.0.1' } }), '9.9.9.9');
+  // A header anyone can send is ignored when the caller reached the server directly.
+  assert.equal(limits.clientIp({ headers: { 'x-client-ip': '9.9.9.9', 'x-forwarded-for': '8.8.8.8' }, socket: { remoteAddress: '203.0.113.5' } }), '203.0.113.5');
 });
 
 test('log lines carry no tokens, cookies or codes', () => {
@@ -173,21 +172,6 @@ test('devices: hashed tokens, a 10-browser limit, pairing codes once within 10 m
   assert.throws(() => devices.redeem(code, 'Again'), /isn.t valid/, 'single use');
   const late = devices.pairingCode(id, { now: t0 - 11 * 60e3 });
   assert.throws(() => devices.redeem(late, 'Late'), /isn.t valid/, 'expires after 10 minutes');
-});
-
-test('origin lock: only the secret gets in (two values during rotation); /up is exempt; no secret, no lock', () => {
-  const origin = require('../server/accounts/origin');
-  const req = (h = {}, method = 'GET') => ({ method, headers: h });
-  delete process.env.ORIGIN_SECRET; delete process.env.ORIGIN_SECRET_PREVIOUS;
-  assert.deepEqual(origin.check(req(), '/api/up-next'), { ok: true, trusted: false }, 'local runs have no lock');
-  process.env.ORIGIN_SECRET = 'new-secret-value'; process.env.ORIGIN_SECRET_PREVIOUS = 'old-secret-value';
-  assert.equal(origin.check(req(), '/api/up-next').ok, false);
-  assert.equal(origin.check(req({ 'x-origin-auth': 'guess' }), '/api/up-next').ok, false);
-  assert.deepEqual(origin.check(req({ 'x-origin-auth': 'new-secret-value' }), '/api/up-next'), { ok: true, trusted: true });
-  assert.equal(origin.check(req({ 'x-origin-auth': 'old-secret-value' }), '/').ok, true, 'the previous value still works during rotation');
-  assert.equal(origin.check(req(), '/up').ok, true, 'health check exempt');
-  assert.equal(origin.check(req({}, 'POST'), '/up').ok, false, 'only GET /up');
-  delete process.env.ORIGIN_SECRET; delete process.env.ORIGIN_SECRET_PREVIOUS;
 });
 
 test('kill switches: read-only refuses writes but not reading or signing in; paused sync carries the message; thumbnails off hides stills', () => {

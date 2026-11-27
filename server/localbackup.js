@@ -7,14 +7,19 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const Database = require('better-sqlite3');
-const { MULTI, DATA_DIR } = require('./db');
+const { MULTI, DATA_DIR, ACCOUNTS_DIR, CATALOG_FILE } = require('./db');
 
 const KEEP = 14;
 const dir = () => process.env.BACKUP_DIR;
 const day = (t) => new Date(t).toISOString().slice(0, 10);
 
 function files() {
-  if (MULTI) return require('./catalog/snapshot').files();
+  // Accounts mode: sign-in data, the shared catalog and every account's own file.
+  if (MULTI) {
+    const out = [['accounts.db', process.env.ACCOUNTS_DB || path.join(DATA_DIR, 'accounts.db')], ['catalog.db', CATALOG_FILE]];
+    if (fs.existsSync(ACCOUNTS_DIR)) for (const f of fs.readdirSync(ACCOUNTS_DIR).sort()) if (/^[\w-]+\.db$/.test(f)) out.push([`accounts/${f}`, path.join(ACCOUNTS_DIR, f)]);
+    return out.filter(([, file]) => fs.existsSync(file));
+  }
   return [['anime-tracker.db', process.env.ANIME_DB || path.join(DATA_DIR, 'anime-tracker.db')]];
 }
 

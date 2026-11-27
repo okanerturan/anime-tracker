@@ -18,7 +18,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json server.js ./
 COPY server ./server
 COPY public ./public
-COPY scripts/switch.js scripts/restore.js scripts/split-backup.js ./scripts/
+COPY scripts/switch.js scripts/split-backup.js ./scripts/
 COPY extension ./extension
 # The volume is owned by the image's node user (uid 1000): chown 1000:1000 /srv/anime-tracker once.
 RUN mkdir -p /data && chown node:node /data

@@ -67,11 +67,9 @@ const PRIVATE = /^(::1$|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254
  * Who is asking. Reached directly, it is the connection's peer. Behind a proxy on a private address
  * (kamal-proxy on the hub) it is the last X-Forwarded-For entry, the one that proxy wrote: kamal-proxy
  * replaces whatever the caller sent with the caller's real address (checked on the hub, 2026-11-25).
- * Behind the front Worker with the origin lock, it is the address the Worker passes on.
  */
 function clientIp(req) {
   const plain = (a) => String(a || '').trim().replace(/^::ffff:/i, '');
-  if (req.originTrusted && req.headers['x-client-ip']) return plain(req.headers['x-client-ip']);
   const peer = plain(req.socket?.remoteAddress) || 'unknown';
   if (!PRIVATE.test(peer)) return peer;
   const forwarded = String(req.headers['x-forwarded-for'] || '').split(',').map(plain).filter(Boolean).pop();

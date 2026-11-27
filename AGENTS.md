@@ -7,7 +7,7 @@
   `https://tsuzuku.okanerturan.com`, a DNS-only A record in the okanerturan.com zone on Cloudflare (proxy
   off, like BoxitApp's hosts); kamal-proxy routes by hostname and gets the Let's Encrypt certificate. The app
   checks the passphrase itself (`server/passgate.js`, `APP_PASSPHRASE`); there is no front Worker and no
-  origin lock any more (`ORIGIN_SECRET` unset, so `server/accounts/origin.js` lets everything through).
+  origin lock (both removed from the code on 2026-11-25).
 - **Old address:** the Worker `anime-tracker` (anime-tracker.okan.workers.dev) only answers 308 to the same path
   on the new address (`wrangler.redirect.jsonc`, `worker/redirect.mjs`, `npm run deploy:redirect`).
   Extension 1.15.0 rewrites a saved
@@ -40,9 +40,7 @@
   episode sources and the ID map look hosts up there instead of the system resolver; needed on this Mac
   without the VPN (the ISP answers `api.themoviedb.org` itself), not on the hub.
 
-The sections below describe the accounts mode (`AUTH_MODE=accounts`), built but not switched on yet. They
-predate the move off Cloudflare: the front Worker, R2 images and R2 snapshots need redoing for a direct
-address, the hub's disk and restic before accounts are switched on.
+The sections below describe the accounts mode (`AUTH_MODE=accounts`), built but not switched on yet.
 
 # Operating the hosted tracker
 
@@ -70,55 +68,17 @@ bin/kamal app exec 'node scripts/switch.js READ_ONLY on'
 
 Environment variables with the same names only give the first value while the table has none.
 
-## Front Worker and origin lock
+## Images and backups (accounts mode)
 
-`worker/front.js` (config `wrangler.front.jsonc`) keeps the workers.dev address: signed `/img/<sha1>`
-links come straight from R2, everything else goes to the hub with `X-Origin-Auth`. The hub refuses any
-request without that secret, except kamal-proxy's `GET /up`.
+Accounts mode runs at the same direct address as today (no Worker in front, no R2; removed 2026-11-25).
 
-- Secrets on the Worker: `ORIGIN_URL`, `ORIGIN_SECRET`, `IMAGE_SIGNING_KEY`. On the hub: `ORIGIN_SECRET`
-  (plus `ORIGIN_SECRET_PREVIOUS` while rotating) and the same `IMAGE_SIGNING_KEY`.
-- Rotating the origin secret: set the new value as `ORIGIN_SECRET` and the old one as
-  `ORIGIN_SECRET_PREVIOUS` on the hub and deploy; update the Worker's `ORIGIN_SECRET`; then remove
-  `ORIGIN_SECRET_PREVIOUS` and deploy again.
-- Image links are valid for 7 to 14 days (the current 7-day period and the previous one). Changing
-  `IMAGE_SIGNING_KEY` breaks links in pages already open until they reload.
-- When the hub fails for a minute, page loads get a maintenance page. A deliberate 503 from the hub
-  (`X-Tracker-Maintenance: 1`, from the switches above) is passed through with its message.
-- Local run: `npx wrangler dev -c wrangler.front.jsonc --var ORIGIN_URL:http://127.0.0.1:8080 --var ORIGIN_SECRET:<test> --var IMAGE_SIGNING_KEY:<test>`
-  in front of `AUTH_MODE=accounts ORIGIN_SECRET=<test> IMAGE_SIGNING_KEY=<test> node server.js`.
-
-## Images in R2
-
-With `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_BUCKET` set, the hub puts each
-image into R2 once under `img/<sha1(url)>` (the key the front Worker serves) and remembers it in the
-catalog's `image_cache` as `r2:<key>`. The key needs write access to that one bucket only.
-
-## Backups and restore
-
-Nightly at about 03:00 (`TIMEZONE`), the app snapshots `accounts.db`, `catalog.db` and every account
-file that changed since its last upload (`VACUUM INTO`, gzip) to the `hub-backups` bucket under
-`anime-tracker/YYYY-MM-DD/`. Each day has a `manifest.json` naming the newest copy of every file, so one
-day's manifest restores everything. Days older than 30 are deleted; a copy still needed is copied
-forward first, so an account unchanged for months keeps a backup. Hetzner's daily server backups stay
-on as the second layer.
-
-- Settings: `R2_ACCOUNT_ID`, `R2_BACKUP_ACCESS_KEY_ID`, `R2_BACKUP_SECRET_ACCESS_KEY` (a key that can
-  only reach `hub-backups`), optional `R2_BACKUP_BUCKET`.
-- Last good run: `/data/last-snapshot.json` (`lastSuccessAt`); `hub-check` alerts past 26 hours.
-- A run in progress holds `/data/snapshot.lock`; a lock older than 2 hours is taken over.
-
-Restore (and the quarterly drill), always into a scratch directory first:
-
-```sh
-bin/kamal app exec 'node scripts/restore.js --to /data/restore-drill --day 2026-10-14 --account 12'
-# prints row counts for accounts.db, catalog.db and account 12: compare with the live files
-```
-
-To put one account back: `READ_ONLY on` (or stop the app), copy
-`/data/restore-drill/accounts/<id>.db` over `/data/accounts/<id>.db` and delete its `-wal`/`-shm`,
-then `READ_ONLY off`. No other account is touched. `--all` restores every account (whole-box rebuild:
-`kamal setup` on the new box, restore with `--all` into `/data`, start).
+- Images: the hub's image cache, shared by every account (`/srv/anime-tracker/images`, in restic).
+- Backups: `server/localbackup.js` copies `accounts.db`, `catalog.db` and every `accounts/<id>.db` into
+  `BACKUP_DIR` nightly (one gzipped file each per day, 14 days); hub-backup's restic ships them offsite.
+- Restore one account: `READ_ONLY on` (or stop the app), gunzip that day's `accounts__<id>.db.gz` over
+  `/data/accounts/<id>.db` and delete its `-wal`/`-shm`, then `READ_ONLY off`. No other account is
+  touched. Whole box: restore the folder from restic onto a new box, gunzip each file into `/data`, boot.
+- Sign-in limits key on the caller's address from kamal-proxy's `X-Forwarded-For` (`server/guesses.js`).
 
 ## Deploy (Kamal)
 
@@ -130,7 +90,7 @@ then `READ_ONLY off`. No other account is touched. `--all` restores every accoun
 - Once on the box: `mkdir -p /srv/anime-tracker && chown 1000:1000 /srv/anime-tracker`.
 - `AUTH_MODE=passphrase` with `APP_PASSPHRASE` gives the same passphrase gate and session cookie as the
   Cloudflare build (`server/passgate.js`), so signed-in browsers and the extension keep working when
-  the front Worker starts proxying. Switch to `AUTH_MODE=accounts` at migration step 5.
+  a deploy. Switch to `AUTH_MODE=accounts` at migration step 5.
 - Kamal isn't installed on this Mac yet: `gem install kamal` (or the official Docker image) before the
   first `kamal setup`.
 - Local check of the image: `docker build -t anime-tracker:local .` then

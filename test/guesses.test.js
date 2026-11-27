@@ -64,8 +64,7 @@ test('whose address: the proxy\'s X-Forwarded-For entry when the peer is a proxy
   assert.equal(guesses.clientIp(req('::ffff:172.19.0.3', { 'x-forwarded-for': '9.9.9.9, 81.2.3.4' })), '81.2.3.4', 'the last entry is the one our proxy wrote');
   assert.equal(guesses.clientIp(req('203.0.113.7', { 'x-forwarded-for': '1.2.3.4' })), '203.0.113.7', 'reached directly: a header anyone can send is ignored');
   assert.equal(guesses.clientIp(req('127.0.0.1')), '127.0.0.1');
-  assert.equal(guesses.clientIp(req('172.19.0.3', { 'x-client-ip': '8.8.8.8', 'x-forwarded-for': '81.2.3.4' })), '81.2.3.4', 'X-Client-IP means nothing without the origin lock');
-  assert.equal(guesses.clientIp(req('172.19.0.3', { 'x-client-ip': '8.8.8.8', 'x-forwarded-for': '104.16.0.1' }, true)), '8.8.8.8', 'with it, the front Worker\'s word is taken');
+  assert.equal(guesses.clientIp(req('172.19.0.3', { 'x-client-ip': '8.8.8.8', 'x-forwarded-for': '81.2.3.4' })), '81.2.3.4', 'X-Client-IP means nothing');
 });
 
 // ---- The real server, started the way the hub runs it. ----

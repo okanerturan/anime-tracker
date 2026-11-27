@@ -36,7 +36,7 @@ function reset() { windows.clear(); }
 
 /**
  * The client's address (server/guesses.js has the rule): the address kamal-proxy reports when the app is
- * reached through it, the front Worker's X-Client-IP only with the origin lock, else the socket's peer.
+ * reached through it, else the socket's peer.
  * Without this every caller behind the proxy would share one address, and one person's wrong tries
  * would use up everyone's allowance.
  */

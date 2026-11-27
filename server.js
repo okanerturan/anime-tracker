@@ -29,12 +29,6 @@ const server = http.createServer(async (req, res) => {
   // JSON answers go out compressed when the browser or the extension accepts it (sendJSON uses this).
   res.sendText = (status, headers, body) => compress.send(req, res, status, headers, body);
   if (auth) require('./server/accounts/log').attach(req, res);
-  // Origin lock (any mode, when ORIGIN_SECRET is set): only the front Worker, holding the secret,
-  // reaches the hub; then its X-Client-IP can be trusted for rate limits. GET /up is the proxy's
-  // health check.
-  const lock = require('./server/accounts/origin').check(req, url.pathname);
-  if (!lock.ok) return sendJSON(res, 403, { error: 'forbidden' });
-  req.originTrusted = lock.trusted;
   if (req.method === 'GET' && url.pathname === '/up') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('ok'); }
   // One account behind a passphrase (the hub before accounts are switched on): the same gate as the
   // Cloudflare build. Without APP_PASSPHRASE (a tracker at home on 127.0.0.1) there is no gate.
@@ -76,8 +70,6 @@ server.listen(PORT, HOST, () => {
   if (auth && process.env.NO_SYNC !== '1') require('./server/catalog/scheduler').start();
   // On the hub: nightly copies of the databases into BACKUP_DIR (restic ships them offsite).
   if (process.env.BACKUP_DIR && process.env.NO_SYNC !== '1') require('./server/localbackup').start();
-  // Hosted mode: nightly snapshots of every database to the backups bucket (one lease).
-  if (auth && process.env.NO_SYNC !== '1') require('./server/catalog/snapshot').start();
   // Hosted mode: daily account housekeeping (24-month inactivity, abandoned sign-ups).
   if (auth && process.env.NO_SYNC !== '1') {
     const sweep = () => { try { const r = require('./server/accounts/cleanup').sweep(); if (r.inactive || r.abandoned) console.log(`accounts cleanup: ${r.inactive} inactive, ${r.abandoned} abandoned`); } catch (err) { console.error('accounts cleanup failed', err.message); } };

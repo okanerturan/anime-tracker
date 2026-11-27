@@ -1,5 +1,5 @@
 'use strict';
-// The Node passphrase gate on a running server (the hub before accounts), with the origin lock.
+// The Node passphrase gate on a running server (the hub before accounts).
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -15,15 +15,14 @@ let child;
 
 test.before(async () => {
   child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), stdio: 'ignore',
-    env: { ...process.env, AUTH_MODE: 'passphrase', APP_PASSPHRASE: PASS, ORIGIN_SECRET: 'origin-s', NO_SYNC: '1', PORT: String(PORT), ANIME_DB: path.join(tmp, 'a.db'), DATA_DIR: tmp } });
+    env: { ...process.env, AUTH_MODE: 'passphrase', APP_PASSPHRASE: PASS, NO_SYNC: '1', PORT: String(PORT), ANIME_DB: path.join(tmp, 'a.db'), DATA_DIR: tmp } });
   for (let i = 0; i < 50; i += 1) { try { await fetch(`${BASE}/up`); return; } catch { await new Promise((r) => setTimeout(r, 100)); } }
 });
 test.after(() => { child?.kill(); fs.rmSync(tmp, { recursive: true, force: true }); });
 
-const go = (p, opts = {}) => fetch(`${BASE}${p}`, { redirect: 'manual', ...opts, headers: { 'X-Origin-Auth': 'origin-s', ...(opts.headers || {}) } });
+const go = (p, opts = {}) => fetch(`${BASE}${p}`, { redirect: 'manual', ...opts, headers: { ...(opts.headers || {}) } });
 
-test('passphrase gate: same rules and same cookie as the Cloudflare build, behind the origin lock', async () => {
-  assert.equal((await fetch(`${BASE}/api/up-next`)).status, 403, 'no origin secret: refused before anything else');
+test('passphrase gate: same rules and same cookie as the Cloudflare build', async () => {
   assert.equal((await fetch(`${BASE}/up`)).status, 200, 'the health check needs nothing');
   assert.equal((await go('/api/up-next')).status, 401, 'API without the passphrase');
   assert.equal((await go('/')).headers.get('location'), '/login', 'pages send you to the login');
@@ -48,7 +47,7 @@ test('passphrase gate: same rules and same cookie as the Cloudflare build, behin
 const http = require('http');
 const zlib = require('zlib');
 const raw = (p, headers = {}, method = 'GET', body = null) => new Promise((resolve, reject) => {
-  const req = http.request(`${BASE}${p}`, { method, headers: { 'X-Origin-Auth': 'origin-s', Authorization: `Bearer ${PASS}`, ...headers } }, (res) => {
+  const req = http.request(`${BASE}${p}`, { method, headers: { Authorization: `Bearer ${PASS}`, ...headers } }, (res) => {
     const chunks = [];
     res.on('data', (c) => chunks.push(c));
     res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
