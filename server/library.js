@@ -532,7 +532,31 @@ function importMalList(entries) {
   return summary;
 }
 
+/**
+ * Every entry of a show's series that has a catalog record, in your library or not: the series sheet
+ * shows the seasons you haven't added (a new season out, a movie) beside yours. Same joins as the
+ * Library's stacks. Spin-offs and music videos are left out.
+ */
+function seriesEntries(malId) {
+  const SERIES = "('SEQUEL','PREQUEL','PARENT','SIDE_STORY','SUMMARY','COMPILATION','CONTAINS','ALTERNATIVE')";
+  const seen = new Set([malId]); const queue = [malId];
+  const edges = db.prepare(`SELECT related_mal_id AS id FROM media_relation WHERE mal_id = ? AND relation_type IN ${SERIES}
+    UNION SELECT mal_id AS id FROM media_relation WHERE related_mal_id = ? AND relation_type IN ${SERIES}`);
+  while (queue.length && seen.size < 60) {
+    const id = queue.shift();
+    for (const e of edges.all(id, id)) if (!seen.has(e.id)) { seen.add(e.id); queue.push(e.id); }
+  }
+  const mine = new Set(db.prepare('SELECT mal_id FROM watchlist').all().map((r) => r.mal_id));
+  const get = db.prepare('SELECT mal_id, title, title_english, format, status, episodes, start_date, cover_url, next_airing_episode FROM media WHERE mal_id = ?');
+  return [...seen].map((id) => get.get(id)).filter((m) => m && m.format !== 'MUSIC').map((m) => ({
+    malId: m.mal_id, title: m.title, titleEnglish: m.title_english, format: m.format, status: m.status, totalEpisodes: m.episodes,
+    releaseDate: m.start_date, imageUrl: images.localUrl(m.cover_url), inLibrary: mine.has(m.mal_id),
+    aired: airedCount(m)
+  }));
+}
+
 module.exports = {
+  seriesEntries,
   unmarkEpisodes,
   repairUnreleasedWatches,
   acceptOddProgress,

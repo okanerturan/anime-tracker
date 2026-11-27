@@ -51,6 +51,7 @@ export const api = {
   unmark: (malId, episodes, removeFromLibrary = false) => post('/api/episode/unmark', { malId, episodes, removeFromLibrary }),
   syncAnime: (malId) => post('/api/sync-episodes', { malId }),
   add: (anime) => post('/api/watchlist/add', { anime }),
+  series: (malId) => request(`/api/series?malId=${malId}`),
   remove: (malId) => post('/api/watchlist/remove', { malId }),
   restore: (removed) => post('/api/watchlist/restore', { removed }),
   search: (q) => request(`/api/search?q=${encodeURIComponent(q)}`),

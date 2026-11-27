@@ -436,9 +436,47 @@ export async function render(view) {
   await refresh(view);
 }
 
+/**
+ * Recently watched: the last episode you played of each show, newest first, so you can pick up
+ * where you were even right after starting something. Its button continues: the rest of that
+ * episode if you stopped partway, else the next episode when it's out, else the show's details.
+ */
+function recentShelf(history, data) {
+  const next = new Map([...data.continueWatching, ...(data.stalled || []), ...(data.onHold || [])].map((x) => [x.malId, x]));
+  const seen = new Set(); const items = [];
+  for (const p of history) {
+    // An episode opened for a few seconds isn't where you are. One card per series (its latest season).
+    if (!p.full && p.durationS && p.playhead < 60) continue;
+    const key = `t${p.seriesTitle || p.malId}`;
+    if (seen.has(key)) continue;
+    seen.add(key); items.push(p);
+    if (items.length >= 10) break;
+  }
+  if (!items.length) return null;
+  const cards = items.map((p) => {
+    const title = p.title || p.seriesTitle;
+    const ep = p.malEpisode ?? p.episodeNumber;
+    const partway = p.percent != null && p.percent < 80;
+    const n = p.malId > 0 ? next.get(p.malId) : null;
+    const [url, label] = partway ? [watchUrl(p), `Resume E${ep ?? ''}`]
+      : n?.nextEpisodeUrl ? [n.nextEpisodeUrl, `${n.nextEpisodeUrlIsExact ? 'Play' : 'Open'} E${n.nextEpisode}`]
+        : [null, null];
+    const name = p.episodeTitle && !/^Episode \d+$/.test(p.episodeTitle) ? p.episodeTitle : '';
+    return showCard({ title, kind: 'wide', image: p.thumb || n?.image,
+      open: p.malId > 0 ? () => openAnime({ malId: p.malId, title }) : () => window.open(watchUrl(p), '_blank', 'noopener'),
+      link: p.malId > 0 ? null : watchUrl(p),
+      badges: [url ? playPill(url, label, { label: `${label} of ${title}` }) : null],
+      progress: partway && p.percent ? p.percent / 100 : null, lines: 2,
+      sub: `Last: E${ep ?? '?'}${name ? ` · ${name}` : ''}`, subClass: 'one-line',
+      meta: [partway ? `${p.percent}% in` : 'watched', ago(p.datePlayed)] });
+  });
+  return carousel('Recently watched', 'The last episode of each show you played, newest first', cards, '');
+}
+
 /** Fresh data only (after a tick, a hold or a drop), so a stale snapshot never flashes back. */
 async function refresh(view) {
-  const [data, cr] = await Promise.all([api.upNext(), api.crStatus().catch(() => null)]);
+  const [data, cr, hist] = await Promise.all([api.upNext(), api.crStatus().catch(() => null), api.history().catch(() => null)]);
+  data.recent = hist?.items || [];
   writeSnapshot(data, cr);
   draw(view, data, cr, { fresh: true });
 }
@@ -528,6 +566,8 @@ function draw(view, data, cr, { fresh = false } = {}) {
       fresh.dataset.pool = pool === data.continueWatching ? 'all' : 'budget';
       tonightEl.replaceWith(fresh); tonightEl = fresh;
     }),
+    // Right under Continue: the last episode of each show you played, with a button to carry on.
+    recentShelf(data.recent || [], data),
     // Below Continue watching: that is where you usually go; these are a nudge, not the main list.
     finishable.length ? carousel('Finish what you started', `${plural(finishable.length, 'show')} one or two episodes from the end`,
       finishable.map((x) => epCard(x, 'stalled', rerender)), '') : null,
@@ -545,7 +585,7 @@ function draw(view, data, cr, { fresh = false } = {}) {
 
 // Sections you can fold away (remembered per browser). Tonight's pick and Continue watching stay.
 const FOLD_KEY = 'upnext:folded';
-const FOLDABLE = ['Finish what you started', 'Just finished', 'Started on Crunchyroll', 'This week', 'Caught up', 'Coming soon', 'New seasons available'];
+const FOLDABLE = ['Recently watched', 'Finish what you started', 'Just finished', 'Started on Crunchyroll', 'This week', 'Caught up', 'Coming soon', 'New seasons available'];
 function addFoldButtons(view) {
   let folded = [];
   try { folded = JSON.parse(localStorage.getItem(FOLD_KEY) || '[]'); } catch {}

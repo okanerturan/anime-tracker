@@ -1777,9 +1777,11 @@ table.simple .num-col { text-align: end; }
   object-fit: cover;
   filter: brightness(calc(var(--fan-light) - var(--k, 1) * var(--fan-dim))) saturate(0.95);
 }
-.card.is-stack:has(.card-link:focus-visible) { z-index: 2; --fan-angle: 5.5deg; --fan-shift: 15%; --fan-rise: -0.12rem; --fan-light: 1.04; --fan-dim: 0.07; }
+.card.is-stack:has(.card-link:focus-visible) { z-index: 3; --fan-angle: 9deg; --fan-shift: 62%; --fan-rise: 0.35rem; --fan-light: 1; --fan-dim: 0.04; }
 @media (hover: hover) and (pointer: fine) {
-  .card.is-stack:hover { z-index: 2; --fan-angle: 5.5deg; --fan-shift: 15%; --fan-rise: -0.12rem; --fan-light: 1.04; --fan-dim: 0.07; }
+  /* Under the pointer the hand spreads out in full: each season's poster swings out beside the card,
+     a whole card width apart, over the neighbours. */
+  .card.is-stack:hover { z-index: 3; --fan-angle: 9deg; --fan-shift: 62%; --fan-rise: 0.35rem; --fan-light: 1; --fan-dim: 0.04; }
   .card.is-stack:hover > .stack-face { border-color: color-mix(in oklch, var(--line), var(--accent) 45%); }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -1788,8 +1790,8 @@ table.simple .num-col { text-align: end; }
   .stack-deck > span { transition: rotate 260ms var(--ease-out), translate 260ms var(--ease-out); }
   .stack-deck > span > img { transition: filter 260ms var(--ease-out); }
   .card.is-stack:is(:hover, :has(.card-link:focus-visible)) .stack-deck > span {
-    transition: rotate 560ms var(--spring), translate 560ms var(--spring);
-    transition-delay: calc(90ms + (var(--k, 1) - 1) * 45ms);
+    transition: rotate 640ms var(--spring), translate 640ms var(--spring), box-shadow 300ms var(--ease-out);
+    transition-delay: calc(110ms + (var(--k, 1) - 1) * 60ms);
   }
 }
 
@@ -2382,3 +2384,10 @@ button.status-tile { cursor: pointer; }
 .sync-panel > details.section h2 { font-size: var(--step-1); }
 /* Grids of rows inside a card (Odd progress, Only tried) keep their own row cards. */
 .sync-panel > .section .quiet-list { margin: 0; }
+
+/* A spread card stands out from the page under it. */
+.card.is-stack:is(:hover, :has(.card-link:focus-visible)) .stack-deck > span { box-shadow: 0 18px 40px -14px oklch(0 0 none / 0.85); }
+
+/* A season of the series you haven't added: dimmer poster, dashed edge, until you add it. */
+.series-cards > .card.is-missing { border-style: dashed; }
+.series-cards > .card.is-missing .media > img { filter: saturate(0.6) brightness(0.75); }

@@ -36,6 +36,7 @@ const routes = {
   'GET /api/watchlist-episodes': (req, res) => sendJSON(res, 200, library.getAllEpisodes()),
   'GET /api/thumbnails': (req, res, url) => sendJSON(res, 200, library.getEpisodes(num(url.searchParams.get('malId')))),
 
+  'GET /api/series': (req, res, url) => sendJSON(res, 200, library.seriesEntries(Number(url.searchParams.get('malId')))),
   'POST /api/watchlist/add': async (req, res) => {
     requireClientHeader(req);
     const body = await parseBody(req);

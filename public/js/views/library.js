@@ -133,18 +133,43 @@ function partName(y, sharedWords) {
  * the sheet stays underneath, so closing the details brings you back to pick another season.
  */
 let seriesSheet = null;
-function openSeries(top, members) {
+/** A season of the series that isn't in your library: its poster, when it came out, and Add (once it has aired). */
+function missingCard(y, shownTitle) {
+  const soon = y.status === 'NOT_YET_RELEASED' || !y.aired;
+  const add = soon ? null : h('button', { type: 'button', class: 'btn small primary' }, 'Add to library');
+  const el = showCard({ show: { malId: y.malId, title: y.titleEnglish || y.title, image: y.imageUrl }, eager: true, title: shownTitle, cls: 'is-missing',
+    badges: [h('div', { class: 'badge-end' }, h('span', { class: `pill ${soon ? 'upcoming' : 'accent'}` }, soon ? 'Coming' : y.status === 'RELEASING' ? 'Airing · not added' : 'Not added'))],
+    meta: h('div', { class: 'card-meta' }, h('span', {}, [y.releaseDate?.slice(0, 4), FORMAT_LABEL[y.format] || y.format, y.totalEpisodes ? `${y.totalEpisodes} eps` : null].filter(Boolean).join(' · '))),
+    actions: add ? [add] : null });
+  add?.addEventListener('click', async () => {
+    add.disabled = true; add.textContent = 'Adding…';
+    try {
+      await api.add({ malId: y.malId, title: y.title, titleEnglish: y.titleEnglish, imageUrl: y.imageUrl, releaseDate: y.releaseDate, totalEpisodes: y.totalEpisodes });
+      add.textContent = 'Added'; el.classList.remove('is-missing'); bus.emit('library-changed');
+      toast(`Added ${y.titleEnglish || y.title}`);
+    } catch (err) { add.disabled = false; add.textContent = 'Add to library'; toast(err.message); }
+  });
+  return el;
+}
+
+async function openSeries(top, members) {
   seriesSheet?.remove();
-  const ordered = [...members].sort((a, b) => String(a.releaseDate || '9999').localeCompare(String(b.releaseDate || '9999')) || a.malId - b.malId);
+  // Every season of the series, yours or not (a new season out shows up here even before you add it).
+  const all = await api.series(top.malId).catch(() => []);
+  const have = new Set(members.map((y) => y.malId));
+  const extra = all.filter((y) => !have.has(y.malId) && ['TV', 'TV_SHORT', 'ONA', 'MOVIE', 'OVA', 'SPECIAL'].includes(y.format));
+  const ordered = [...members, ...extra.map((y) => ({ ...y, missing: true }))]
+    .sort((a, b) => String(a.releaseDate || '9999').localeCompare(String(b.releaseDate || '9999')) || a.malId - b.malId);
   const { name, words } = seriesName(ordered);
+  const missingCount = extra.length;
   const close = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close', title: 'Close' }, icon('close'));
-  const sheet = h('dialog', { class: 'series-sheet', 'aria-label': `${name}: ${ordered.length} in your library` },
+  const sheet = h('dialog', { class: 'series-sheet', 'aria-label': `${name}: ${ordered.length} in the series` },
     h('div', { class: 'series-head' },
-      h('div', {}, h('h2', {}, name), h('p', { class: 'sub' }, `${ordered.length} in your library, in release order`)),
+      h('div', {}, h('h2', {}, name), h('p', { class: 'sub' }, `${members.length} in your library${missingCount ? `, ${missingCount} more in the series` : ''} · in release order`)),
       close),
     h('div', { class: 'cards series-cards', style: { '--rows': '4' } }, ordered.map((y, i) => {
       // The series name is the sheet's heading, so each card says only its own part of it.
-      const c = card(y, 1, true, [], null, partName(y, words));
+      const c = y.missing ? missingCard(y, partName(y, words)) : card(y, 1, true, [], null, partName(y, words));
       c.style.setProperty('--i', String(i));
       if (y.malId === top.malId) c.classList.add('is-current');
       return c;
