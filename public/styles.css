@@ -2297,3 +2297,54 @@ a.sub.push-end { display: inline-block; padding-block: 0.3em; } /* 24px tap targ
 .card-title[data-size="m"] { font-size: 0.94em; }
 .card-title[data-size="l"] { font-size: 0.875em; line-height: 1.28; }
 .card-title[data-size="xl"] { font-size: 0.8125em; line-height: 1.26; }
+
+/* ---------- Sync page: the state of the sync in a strip, then one group at a time (tabs).
+   Inside a group, short sections sit side by side and a table or a list takes the full width. ---------- */
+.sync-page { display: grid; gap: var(--space-m); min-inline-size: 0; }
+/* Five across on a wide screen, two on a phone (never one tall column of tiles). */
+.status-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.25rem), 1fr)); gap: var(--space-xs); }
+.status-tile { gap: 0.2rem; padding: var(--space-xs) var(--space-s); min-inline-size: 0; font: inherit; color: inherit; text-align: start; }
+.status-tile .v { font-size: var(--step-1); font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.status-tile .l { color: var(--muted); font-size: var(--step--2); line-height: 1.3; }
+button.status-tile { cursor: pointer; }
+/* A tile that needs a look carries a dot beside its value, not a colour the text must be read in. */
+.status-tile:is(.is-warn, .is-accent) .v::before {
+  content: "";
+  display: inline-block;
+  inline-size: 0.5em;
+  block-size: 0.5em;
+  margin-inline-end: 0.4em;
+  border-radius: 50%;
+  background: var(--warn);
+  vertical-align: 0.12em;
+}
+.status-tile.is-accent .v::before { background: var(--accent); }
+.status-tile.is-warn { border-color: color-mix(in oklch, var(--warn) 50%, var(--line)); }
+/* A notice is one sentence: it flows as text (a panel stacks its children, one a line). */
+.sync-note { display: block; padding-block: var(--space-xs); font-size: var(--step--1); }
+.sync-tabs { max-inline-size: 100%; }
+.sync-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr)); gap: var(--space-l) var(--space-m); align-items: start; min-inline-size: 0; }
+/* In a column this narrow a row is its label and its buttons, with the explanation on a line below
+   (three columns squeezed the explanation to one letter a line). */
+.sync-panel .account-row { grid-template-columns: minmax(0, 1fr) auto; }
+.sync-panel .account-row > .muted { grid-column: 1 / -1; grid-row: 2; }
+/* The address inside a notice stays in the sentence. */
+.sync-note .mono { display: inline; padding: 0.1em 0.4em; }
+.sync-panel > * { min-inline-size: 0; }
+.sync-panel > .span-all { grid-column: 1 / -1; }
+@media (hover: hover) and (pointer: fine) {
+  button.status-tile:hover { border-color: color-mix(in oklch, var(--line), var(--accent) 45%); }
+}
+
+/* The review table on a narrow screen: each season is a block (its name, what it was matched to, the
+   fix), each part under its own small label, instead of three columns a few letters wide. */
+@container app (width < 46rem) {
+  .review-table,
+  .review-table tbody,
+  .review-table tr,
+  .review-table td { display: block; }
+  .review-table tr:has(th) { display: none; }
+  .review-table tr { padding-block: var(--space-xs); border-block-end: 1px solid var(--line); }
+  table.simple.review-table td { padding: 0.25em 0; border: 0; }
+  .review-table td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--step--2); font-weight: 600; }
+}

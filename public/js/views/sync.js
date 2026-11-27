@@ -192,7 +192,7 @@ export async function render(view) {
   const last = cr.lastSync;
   const stale = !last || Date.now() - new Date(last.at).getTime() > 2 * 86400000;
 
-  const review = cr.needsReview.length ? h('table', { class: 'simple' },
+  const review = cr.needsReview.length ? h('table', { class: 'simple review-table' },
     h('tr', {}, h('th', {}, 'Crunchyroll season'), h('th', {}, 'Mapped to'), h('th', {}, 'Fix')),
     cr.needsReview.map((r) => {
       // Fix by searching for the right show, not by typing an id.
@@ -224,9 +224,9 @@ export async function render(view) {
       const ok = h('button', { type: 'button', class: 'btn small' }, 'Looks right');
       ok.addEventListener('click', async () => { await api.crConfirm(r.seasonId); render(view); });
       return h('tr', {},
-        h('td', {}, `${r.seriesTitle} · ${r.seasonTitle || ''}`),
-        h('td', {}, r.malId ? h('a', { href: `https://myanimelist.net/anime/${r.malId}`, target: '_blank', rel: 'noopener' }, r.mappedTitle || `MAL ${r.malId}`) : h('span', { class: 'muted' }, 'not found')),
-        h('td', {}, h('div', { class: 'inline-form' }, search, offInput, r.malId ? ok : null), results));
+        h('td', { 'data-label': 'Crunchyroll season' }, `${r.seriesTitle} · ${r.seasonTitle || ''}`),
+        h('td', { 'data-label': 'Mapped to' }, r.malId ? h('a', { href: `https://myanimelist.net/anime/${r.malId}`, target: '_blank', rel: 'noopener' }, r.mappedTitle || `MAL ${r.malId}`) : h('span', { class: 'muted' }, 'not found')),
+        h('td', { 'data-label': 'Fix' }, h('div', { class: 'inline-form' }, search, offInput, r.malId ? ok : null), results));
     })) : h('div', { class: 'muted' }, 'All Crunchyroll seasons are mapped.');
 
   const fileInput = h('input', { type: 'file', accept: 'application/json', 'aria-label': 'Watch history JSON file' });
@@ -246,32 +246,10 @@ export async function render(view) {
     setTimeout(() => bus.emit('relay-now'), 4000);
   });
 
-  view.replaceChildren(...[
-    section('Crunchyroll sync', last ? `Last sync ${ago(last.at)} via ${last.source}` : 'Never synced',
-      h('div', { class: 'stat-row' },
-        h('div', { class: 'stat' }, h('div', { class: 'v' }, (cr.rows ?? 0).toLocaleString()), h('div', { class: 'l' }, 'history episodes stored')),
-        h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.latestPlayed ? new Date(cr.latestPlayed).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'), h('div', { class: 'l' }, 'latest play')),
-        h('div', { class: 'stat' }, h('div', { class: 'v' }, last?.summary?.marked ?? '—'), h('div', { class: 'l' }, 'newly watched in last sync')),
-        h('div', { class: 'stat' }, h('div', { class: 'v' }, cr.needsReview.length), h('div', { class: 'l' }, 'seasons to review')),
-        h('div', { class: 'stat' }, h('div', { class: 'v num' }, cr.extension?.seen || '—'), h('div', { class: 'l' }, cr.extension?.seen ? (!olderThan(cr.extension.seen, cr.extension.latest) ? 'extension version (current)' : `extension version (latest ${cr.extension.latest})`) : 'extension not seen yet'))),
-      cr.extension?.seen && cr.extension.latest && olderThan(cr.extension.seen, cr.extension.latest) ? h('div', { class: 'panel warn' },
-        h('b', {}, `Extension update available: ${cr.extension.latest} (yours is ${cr.extension.seen}). `),
-        'Open ', h('span', { class: 'mono' }, 'chrome://extensions'), ' and click the reload icon on Tsuzuku. Syncing keeps working on the old version; new features don’t.') : null,
-      stale ? h('div', { class: 'panel warn' },
-        h('b', {}, 'Automatic sync is not running. '),
-        me ? 'Press “Set up the extension in this browser” below (install the extension first if it isn’t). It then syncs every 30 minutes, whenever you open Crunchyroll, and a couple of minutes after you finish an episode.' : 'Install the browser extension below; it syncs every 30 minutes, whenever you open Crunchyroll, and a couple of minutes after you finish an episode.') : null),
-    // The extension, the passphrase and the Crunchyroll account: where to fix a sync that stopped.
-    ...(me ? connectionSections(me) : []),
-    h('details', { class: 'collapse section', open: stale ? '' : null },
-      h('summary', {}, h('div', { class: 'section-head' },
-        h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Set up automatic sync'),
-        h('span', { class: 'sub' }, stale ? 'One-time, about a minute' : 'Done: the extension is syncing. Open this if you set up another computer.'))),
-      h('div', { class: 'collapse-body panel' }, h('ol', { class: 'steps' },
-        h('li', {}, 'Open ', h('span', { class: 'mono' }, 'chrome://extensions'), ' and turn on Developer mode (top right).'),
-        h('li', {}, 'Click “Load unpacked” and choose the ', h('span', { class: 'mono' }, 'extension'), ' folder inside this project.'),
-        h('li', {}, 'Open crunchyroll.com once while logged in. The extension syncs right away, then every 30 minutes while Chrome is open and a couple of minutes after you finish an episode.'),
-        h('li', {}, me ? 'Back on this page, press “Set up the extension in this browser” above. It gives the extension this address and the passphrase.' : 'In the extension’s popup, set the Tracker URL to this page’s address. The popup shows the last sync and has a “Sync now” button.')),
-        h('p', { class: 'muted' }, 'The extension uses your existing Crunchyroll login inside your own browser. It never stores your password or tokens, and only talks to crunchyroll.com and your tracker.'))),
+  // ---- The page. What state the sync is in sits on top, always; below it one group at a time
+  // (Review, Connection, Alerts, Import, System). All of it stacked made a page several screens long.
+  const groups = {
+    review: [
     // Nothing to review (the usual case): one quiet line instead of an empty section.
     cr.rows ? (cr.needsReview.length
       ? section('Needs review', 'Seasons the tracker mapped by guessing', h('div', { class: 'panel' }, review))
@@ -309,9 +287,6 @@ export async function render(view) {
         });
         return row;
       }))) : null,
-    // Settings people look for come before the long, low-priority list of sampled seasons.
-    pushSection(),
-    calendarSection(),
     cr.sampled?.length ? section('Sampled, not tracked', sampledSummary(cr.sampled),
       capList(h('div', { class: 'quiet-list' }, cr.sampled.map((s) => {
         const btn = h('button', { type: 'button', class: 'btn small' }, 'Track');
@@ -333,6 +308,27 @@ export async function render(view) {
         });
         return row;
       })))) : null,
+    ],
+    connection: [
+    // The extension, the passphrase and the Crunchyroll account: where to fix a sync that stopped.
+    ...(me ? connectionSections(me) : []),
+    h('details', { class: 'collapse section', open: stale ? '' : null },
+      h('summary', {}, h('div', { class: 'section-head' },
+        h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Set up automatic sync'),
+        h('span', { class: 'sub' }, stale ? 'One-time, about a minute' : 'Done: the extension is syncing. Open this if you set up another computer.'))),
+      h('div', { class: 'collapse-body panel' }, h('ol', { class: 'steps' },
+        h('li', {}, 'Open ', h('span', { class: 'mono' }, 'chrome://extensions'), ' and turn on Developer mode (top right).'),
+        h('li', {}, 'Click “Load unpacked” and choose the ', h('span', { class: 'mono' }, 'extension'), ' folder inside this project.'),
+        h('li', {}, 'Open crunchyroll.com once while logged in. The extension syncs right away, then every 30 minutes while Chrome is open and a couple of minutes after you finish an episode.'),
+        h('li', {}, me ? 'Back on this page, press “Set up the extension in this browser” above. It gives the extension this address and the passphrase.' : 'In the extension’s popup, set the Tracker URL to this page’s address. The popup shows the last sync and has a “Sync now” button.')),
+        h('p', { class: 'muted' }, 'The extension uses your existing Crunchyroll login inside your own browser. It never stores your password or tokens, and only talks to crunchyroll.com and your tracker.'))),
+    ],
+    alerts: [
+    // Settings people look for come before the long, low-priority list of sampled seasons.
+    pushSection(),
+    calendarSection(),
+    ],
+    import: [
     h('details', { class: 'collapse section', id: 'import', open: (stats.library || 0) < 20 || /[?&]import=1/.test(location.hash) ? '' : null },
       h('summary', {}, h('div', { class: 'section-head' },
         h('h2', {}, h('span', { class: 'chev', 'aria-hidden': 'true' }, '▸ '), 'Import from elsewhere'),
@@ -344,6 +340,8 @@ export async function render(view) {
           malInput()),
         h('div', { class: 'panel' }, h('h3', {}, 'Crunchyroll history file'), h('p', { class: 'muted' }, 'Alternative to the extension: a watch-history JSON export.'), fileInput),
         h('p', { class: 'muted' }, 'Imports never un-watch anything or overwrite your ratings and list states.'))),
+    ],
+    system: [
     section('Background metadata', [
       bg.phase !== 'idle' ? `Refreshing (${bg.phase})` : bg.lastCycle ? `Last refresh ${ago(bg.lastCycle.at)}` : 'No refresh yet',
       `${bg.queueLength} queued`,
@@ -374,7 +372,67 @@ export async function render(view) {
         row.title = x.reason;
         return row;
       }))) : null,
-    backupSection(bg.lastBackup)].filter(Boolean));
+      backupSection(bg.lastBackup)
+    ]
+  };
+
+  const attention = cr.needsReview.length + odd.length;
+  const outdated = Boolean(cr.extension?.seen && cr.extension.latest && olderThan(cr.extension.seen, cr.extension.latest));
+  const panels = new Map();
+  const tabButtons = new Map();
+  /** Show one group. The address keeps it (#/sync?tab=…), so a refresh or a shared link lands on the same one. */
+  function show(tab, { keep = true } = {}) {
+    for (const [k, p] of panels) p.hidden = k !== tab;
+    for (const [k, b] of tabButtons) b.setAttribute('aria-pressed', String(k === tab));
+    if (keep) history.replaceState(null, '', `#/sync?tab=${tab}`);
+  }
+
+  // The strip: each tile is one fact; the ones that have a place to act on them open it.
+  const tile = (value, label, { tab = null, tone = '' } = {}) => h(tab ? 'button' : 'div', {
+    class: `stat status-tile ${tone}`.trim(), type: tab ? 'button' : null, onclick: tab ? () => show(tab) : null
+  }, h('span', { class: 'v' }, value), h('span', { class: 'l' }, label));
+  const day = (iso) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const strip = h('div', { class: 'status-strip' }, [
+    tile(last ? ago(last.at) : 'Never', last ? `last sync, via ${last.source}` : 'not synced yet', { tab: 'connection', tone: stale ? 'is-warn' : '' }),
+    tile((cr.rows ?? 0).toLocaleString(), `plays stored${cr.latestPlayed ? ` · latest ${day(cr.latestPlayed)}` : ''}${last?.summary?.marked ? ` · ${last.summary.marked} new last sync` : ''}`),
+    tile(cr.extension?.seen || '—', !cr.extension?.seen ? 'extension not seen yet' : outdated ? `extension · ${cr.extension.latest} is out` : 'extension, up to date', { tab: 'connection', tone: outdated ? 'is-warn' : '' }),
+    tile(String(attention), `to review${cr.sampled?.length ? ` · ${cr.sampled.length} only tried` : ''}`, { tab: 'review', tone: attention ? 'is-accent' : '' }),
+    bg.lastBackup?.at ? tile(ago(bg.lastBackup.at), `last backup · ${bg.lastBackup.days} day${bg.lastBackup.days === 1 ? '' : 's'} kept`, { tab: 'system' }) : null
+  ].filter(Boolean));
+  const notes = [
+    outdated ? h('div', { class: 'panel warn sync-note' },
+      h('b', {}, `Extension update available: ${cr.extension.latest} (yours is ${cr.extension.seen}). `),
+      'Open ', h('span', { class: 'mono' }, 'chrome://extensions'), ' and click the reload icon on Tsuzuku. Syncing keeps working on the old version; new features don’t.') : null,
+    stale ? h('div', { class: 'panel warn sync-note' },
+      h('b', {}, 'Automatic sync is not running. '),
+      me ? 'Under Connection, press “Set up the extension in this browser” (install the extension first if it isn’t). It then syncs every 30 minutes, whenever you open Crunchyroll, and a couple of minutes after you finish an episode.'
+        : 'Install the browser extension (Connection has the steps); it syncs every 30 minutes, whenever you open Crunchyroll, and a couple of minutes after you finish an episode.') : null
+  ].filter(Boolean);
+
+  // Connection: the extension first, then whose history, then the passphrase and signing out.
+  const order = ['Extension', 'Crunchyroll account', 'Passphrase', 'Account'];
+  const rank = (el) => { const i = order.indexOf(el?.querySelector?.('h2')?.textContent?.trim()); return i < 0 ? order.length : i; };
+  groups.connection = groups.connection.filter(Boolean).sort((a, b) => rank(a) - rank(b));
+
+  const TABS = [['review', 'Review', attention], ['connection', 'Connection', 0], ['alerts', 'Alerts & calendar', 0], ['import', 'Import', 0], ['system', 'System', 0]];
+  for (const [key, label, count] of TABS) {
+    const parts = groups[key].filter(Boolean);
+    // Short sections sit side by side; a table, a list or a folded section takes the full width.
+    for (const el of parts) if (el.tagName === 'DETAILS' || el.querySelector?.('table, .quiet-list, .stat-row')) el.classList.add('span-all');
+    // Two columns: a section left alone on its row takes the row instead of leaving half of it empty.
+    const narrow = parts.filter((el) => !el.classList.contains('span-all'));
+    if (narrow.length % 2) narrow.at(-1).classList.add('span-all');
+    panels.set(key, h('div', { class: 'sync-panel', id: `sync-${key}`, hidden: true }, parts.length ? parts : h('p', { class: 'muted' }, 'Nothing here yet.')));
+    const b = h('button', { type: 'button', class: 'pill chip-toggle', 'aria-pressed': 'false', 'aria-controls': `sync-${key}` }, label, count ? h('span', { class: 'chip-count num' }, String(count)) : null);
+    b.addEventListener('click', () => show(key));
+    tabButtons.set(key, b);
+  }
+  const asked = new URLSearchParams(location.hash.split('?')[1] || '');
+  const first = groups[asked.get('tab')] ? asked.get('tab') : asked.get('import') ? 'import' : asked.get('calendar') || asked.get('notify') ? 'alerts' : stale ? 'connection' : 'review';
+  view.replaceChildren(h('div', { class: 'sync-page' }, strip, ...notes,
+    h('div', { class: 'chips segmented sync-tabs', role: 'group', 'aria-label': 'Sync sections' }, [...tabButtons.values()]),
+    ...panels.values()));
+  show(first, { keep: false });
   if (/[?&]import=1/.test(location.hash)) view.querySelector('#import')?.scrollIntoView({ block: 'start' });
   if (/[?&]calendar=1/.test(location.hash)) view.querySelector('#calendar')?.scrollIntoView({ block: 'start' });
   // Sections above load their data after this, so scroll again once they've settled.
